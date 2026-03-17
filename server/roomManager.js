@@ -194,7 +194,9 @@ export const roomManager = {
     const availableDictionaries = ['free'];
     if (anyPro) availableDictionaries.push('theme1', 'theme2');
     for (const d of allDicts) if (d !== 'free' && !availableDictionaries.includes(d)) availableDictionaries.push(d);
+    const availableEliasDictionaries = ['basic', 'animals'];
+    if (anyPro) availableEliasDictionaries.push('movies', 'science', 'sport');
     const players = (room.players || []).map((p) => ({ ...p, hasPro: Boolean(inv[p.id]?.hasPro) }));
-    return { ...rest, players, availableDictionaries };
+    return { ...rest, players, availableDictionaries, availableEliasDictionaries };
   },
 };

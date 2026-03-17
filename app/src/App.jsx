@@ -10,6 +10,8 @@ import { showAdIfNeeded } from './ads';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import SpyRound from './pages/SpyRound';
+import MafiaRound from './pages/MafiaRound';
+import EliasRound from './pages/EliasRound';
 import Admin from './pages/Admin';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -115,6 +117,16 @@ function AppRoutes() {
         await showAdIfNeeded();
         if (location.pathname !== '/spy') navigate('/spy');
       }
+      if (data?.game === 'mafia') {
+        await refreshRoom();
+        await showAdIfNeeded();
+        if (location.pathname !== '/mafia') navigate('/mafia');
+      }
+      if (data?.game === 'elias') {
+        await refreshRoom();
+        await showAdIfNeeded();
+        if (location.pathname !== '/elias') navigate('/elias');
+      }
     };
     const onGameEnded = async () => {
       incrementGamesPlayed();
@@ -173,8 +185,32 @@ function AppRoutes() {
         <Route
           path="/spy"
           element={
-            roomId && room?.state === 'playing' ? (
+            roomId && room?.state === 'playing' && room?.game === 'spy' ? (
               <SpyRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
+            ) : roomId ? (
+              <Navigate to="/lobby" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/mafia"
+          element={
+            roomId && room?.state === 'playing' && room?.game === 'mafia' ? (
+              <MafiaRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
+            ) : roomId ? (
+              <Navigate to="/lobby" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/elias"
+          element={
+            roomId && room?.state === 'playing' && room?.game === 'elias' ? (
+              <EliasRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
             ) : (

@@ -90,6 +90,7 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
   if (!card) return <div style={{ padding: 24 }}>Нет карты</div>;
 
   const isSpy = card.role === 'spy';
+  const allSpiesRound = Boolean(card.allSpiesRound);
   const timeUp = card.timerEnabled && secondsLeft !== null && secondsLeft <= 0;
   const votingActive = votingEndsAt && Date.now() < votingEndsAt;
 
@@ -97,6 +98,9 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
     return (
       <div style={{ padding: 24, textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
+          {(voteResult.allSpiesRound || voteResult.isSpy) && (
+            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>{voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}</p>
+          )}
           <p style={{ fontSize: 22, marginBottom: 12 }}>
             {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
           </p>
@@ -133,6 +137,7 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
           <p style={{ fontSize: 20, marginBottom: 16, opacity: 0.9 }}>Таймер: {formatTime(secondsLeft)}</p>
         )}
         {timeUp && <p style={{ fontSize: 22, color: '#fa0', marginBottom: 16 }}>Время вышло!</p>}
+        {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
         {isSpy ? (
           <p style={{ fontSize: 24, color: '#f88' }}>Вы шпион</p>
         ) : (
