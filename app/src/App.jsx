@@ -86,13 +86,19 @@ function AppRoutes() {
         if (location.pathname !== '/spy') navigate('/spy');
       }
     };
+    const onGameEnded = async () => {
+      await refreshRoom();
+      if (location.pathname !== '/lobby') navigate('/lobby');
+    };
     socket.on('player_joined', onJoin);
     socket.on('player_left', onLeft);
     socket.on('game_start', onGameStart);
+    socket.on('game_ended', onGameEnded);
     return () => {
       socket.off('player_joined', onJoin);
       socket.off('player_left', onLeft);
       socket.off('game_start', onGameStart);
+      socket.off('game_ended', onGameEnded);
     };
   }, [roomId, location.pathname, navigate]);
 

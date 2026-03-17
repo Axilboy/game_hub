@@ -85,6 +85,27 @@ export const roomManager = {
     return room;
   },
 
+  getGameState(roomId) {
+    const room = rooms.get(roomId);
+    return room?.gameState || null;
+  },
+
+  updateGameState(roomId, patch) {
+    const room = rooms.get(roomId);
+    if (!room || !room.gameState) return null;
+    Object.assign(room.gameState, patch);
+    return room;
+  },
+
+  endGame(roomId) {
+    const room = rooms.get(roomId);
+    if (!room) return null;
+    room.game = null;
+    room.state = 'lobby';
+    room.gameState = null;
+    return room;
+  },
+
   leave(roomId, playerId) {
     const room = rooms.get(roomId);
     if (!room) return;

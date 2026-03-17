@@ -37,7 +37,7 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.post('/rooms/spy/start', async (request, reply) => {
-    const { roomId, hostId } = request.body || {};
+    const { roomId, hostId, timerEnabled = false, timerSeconds = 60 } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
@@ -46,8 +46,14 @@ export async function roomRoutes(fastify) {
     const word = getRandomWord();
     const spyIndex = Math.floor(Math.random() * players.length);
     const spyId = players[spyIndex].id;
+    const safeSeconds = Math.min(3600, Math.max(30, Number(timerSeconds) || 60));
     roomManager.setGame(roomId, 'spy');
-    roomManager.setState(roomId, 'playing', { word, spyIds: [spyId] });
+    roomManager.setState(roomId, 'playing', {
+      word,
+      spyIds: [spyId],
+      timerEnabled: Boolean(timerEnabled),
+      timerSeconds: safeSeconds,
+    });
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'spy' });
     return { ok: true };
@@ -61,9 +67,63 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'spy' || !room.gameState) {
       return reply.code(404).send({ error: 'Game not found' });
     }
-    const { word, spyIds } = room.gameState;
+    const { word, spyIds, timerEnabled, timerSeconds } = room.gameState;
     const isSpy = spyIds.includes(playerId);
-    if (isSpy) return { role: 'spy' };
-    return { role: 'civilian', word };
+    const payload = { role: isSpy ? 'spy' : 'civilian', timerEnabled: Boolean(timerEnabled), timerSeconds: timerSeconds || 60 };
+    if (isSpy) return { ...payload };
+    return { ...payload, word };
+  });
+
+  fastify.post('/rooms/:roomId/spy/start-vote', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId } = request.body || {};
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    const gs = room.gameState;
+    const now = Date.now();
+    if (gs.votingEndsAt && gs.votingEndsAt > now) return reply.send({ votingEndsAt: gs.votingEndsAt });
+    gs.votingEndsAt = now + 30000;
+    gs.votes = {};
+    const io = fastify.io;
+    io.to(roomId).emit('game_vote_start', { votingEndsAt: gs.votingEndsAt });
+    setTimeout(() => {
+      const r = roomManager.get(roomId);
+      if (!r || r.game !== 'spy' || !r.gameState || !r.gameState.votingEndsAt) return;
+      const votes = r.gameState.votes || {};
+      const count = {};
+      for (const id of Object.values(votes)) count[id] = (count[id] || 0) + 1;
+      let max = 0, votedOutId = null;
+      for (const [id, c] of Object.entries(count)) if (c > max) { max = c; votedOutId = id; }
+      const votedOut = r.players.find((p) => p.id === votedOutId);
+      const isSpy = r.gameState.spyIds && r.gameState.spyIds.includes(votedOutId);
+      r.gameState.votingEndsAt = null;
+      roomManager.endGame(roomId);
+      io.to(roomId).emit('game_vote_end', { votedOutId, votedOutName: votedOut?.name || 'Игрок', isSpy });
+      io.to(roomId).emit('game_ended');
+    }, 30000);
+    return { votingEndsAt: gs.votingEndsAt };
+  });
+
+  fastify.post('/rooms/:roomId/spy/vote', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, votedForId } = request.body || {};
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    const gs = room.gameState;
+    if (!gs.votingEndsAt || gs.votingEndsAt < Date.now()) return reply.code(400).send({ error: 'Voting not active' });
+    if (!room.players.some((p) => p.id === votedForId)) return reply.code(400).send({ error: 'Invalid player' });
+    gs.votes = gs.votes || {};
+    gs.votes[playerId] = votedForId;
+    return { ok: true };
+  });
+
+  fastify.get('/rooms/:roomId/spy/vote-status', async (request, reply) => {
+    const { roomId } = request.params;
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    const gs = room.gameState;
+    const now = Date.now();
+    const active = gs.votingEndsAt && gs.votingEndsAt > now;
+    return { votingEndsAt: gs.votingEndsAt || null, active, players: room.players };
   });
 }

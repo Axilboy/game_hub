@@ -53,6 +53,14 @@ async function start() {
     socket.on('disconnect', () => {
       roomManager.setPlayerSocket(roomId, player.id, null);
       socket.to(roomId).emit('player_left', { playerId: player.id });
+      const r = roomManager.get(roomId);
+      if (r?.state === 'playing') {
+        const connected = Object.values(r.playerSockets || {}).filter(Boolean).length;
+        if (connected < 2) {
+          roomManager.endGame(roomId);
+          io.to(roomId).emit('game_ended');
+        }
+      }
     });
   });
 
