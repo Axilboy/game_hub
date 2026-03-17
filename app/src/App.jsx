@@ -6,6 +6,7 @@ import { socket } from './socket';
 import { incrementGamesPlayed } from './stats';
 import { getInventory } from './inventory';
 import { getDisplayName, getAvatar } from './displayName';
+import { showAdIfNeeded } from './ads';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import SpyRound from './pages/SpyRound';
@@ -111,6 +112,7 @@ function AppRoutes() {
     const onGameStart = async (data) => {
       if (data?.game === 'spy') {
         await refreshRoom();
+        await showAdIfNeeded();
         if (location.pathname !== '/spy') navigate('/spy');
       }
     };
