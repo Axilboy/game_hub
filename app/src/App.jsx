@@ -4,6 +4,7 @@ import { useTelegram } from './useTelegram';
 import { api } from './api';
 import { socket } from './socket';
 import { incrementGamesPlayed } from './stats';
+import { getInventory } from './inventory';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import SpyRound from './pages/SpyRound';
@@ -40,10 +41,12 @@ function AppRoutes() {
 
   const joinByCode = async (code) => {
     if (!user?.id) return null;
+    const inv = getInventory();
     const { room: r } = await api.post('/rooms/join', {
       code: code.trim(),
       playerId: String(user.id),
       playerName: user.first_name || 'Игрок',
+      inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
     });
     setRoom(r);
     setRoomId(r.id);
@@ -53,10 +56,12 @@ function AppRoutes() {
 
   const joinByInvite = async (inviteParam) => {
     if (!user?.id) return null;
+    const inv = getInventory();
     const { room: r } = await api.post('/rooms/join', {
       inviteToken: inviteParam,
       playerId: String(user.id),
       playerName: user.first_name || 'Игрок',
+      inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
     });
     setRoom(r);
     setRoomId(r.id);
@@ -86,6 +91,7 @@ function AppRoutes() {
     const onJoin = () => refreshRoom();
     const onLeft = () => refreshRoom();
     const onHostChanged = () => refreshRoom();
+    const onRoomUpdated = () => refreshRoom();
     const onGameStart = async (data) => {
       if (data?.game === 'spy') {
         await refreshRoom();
@@ -101,6 +107,7 @@ function AppRoutes() {
     socket.on('player_joined', onJoin);
     socket.on('player_left', onLeft);
     socket.on('host_changed', onHostChanged);
+    socket.on('room_updated', onRoomUpdated);
     socket.on('game_start', onGameStart);
     socket.on('game_ended', onGameEnded);
     return () => {
@@ -108,6 +115,7 @@ function AppRoutes() {
       socket.off('player_joined', onJoin);
       socket.off('player_left', onLeft);
       socket.off('host_changed', onHostChanged);
+      socket.off('room_updated', onRoomUpdated);
       socket.off('game_start', onGameStart);
       socket.off('game_ended', onGameEnded);
     };

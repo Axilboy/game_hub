@@ -1,10 +1,36 @@
-const WORDS = [
+const FREE_WORDS = [
   'Ресторан', 'Больница', 'Школа', 'Банк', 'Аэропорт', 'Пляж', 'Кинотеатр', 'Магазин',
   'Офис', 'Подводная лодка', 'Космическая станция', 'Цирк', 'Музей', 'Стадион', 'Отель',
   'Библиотека', 'Салон красоты', 'Стройка', 'Ферма', 'Зоопарк', 'Кофейня', 'Спа',
   'Подвал', 'Корабль', 'Поезд', 'Самолёт', 'Казино', 'Тюрьма', 'Пещера', 'Гора',
+  'Театр', 'Парк', 'Супермаркет', 'Аптека', 'Станция', 'Площадь', 'Мост', 'Бассейн',
 ];
 
-export function getRandomWord() {
-  return WORDS[Math.floor(Math.random() * WORDS.length)];
+const THEME1_WORDS = [
+  'Детектив', 'Секретный агент', 'Шпион', 'Двойной агент', 'Разведка', 'Конспирация',
+  'Шифр', 'Перехват', 'Контрабанда', 'Маскировка', 'Под прикрытием', 'Операция',
+  'Слежка', 'Жучок', 'Досье', 'Засада', 'Побег', 'Тайник', 'Пароль', 'Код доступа',
+];
+
+const THEME2_WORDS = [
+  'Пират', 'Сокровище', 'Остров', 'Корабль', 'Карта', 'Компас', 'Якорь', 'Парус',
+  'Рум', 'Капитан', 'Мачта', 'Штурвал', 'Бочка', 'Сундук', 'Подзорная труба',
+  'Крюк', 'Попугай', 'Морская болезнь', 'Берег', 'Гавань',
+];
+
+const DICTIONARIES = {
+  free: FREE_WORDS,
+  theme1: THEME1_WORDS,
+  theme2: THEME2_WORDS,
+};
+
+export function getRandomWord(dictionaryIds = ['free']) {
+  const allowed = Array.isArray(dictionaryIds) ? dictionaryIds : ['free'];
+  const words = [];
+  for (const id of allowed) {
+    const list = DICTIONARIES[id];
+    if (list) words.push(...list);
+  }
+  if (words.length === 0) words.push(...FREE_WORDS);
+  return words[Math.floor(Math.random() * words.length)];
 }

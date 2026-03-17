@@ -12,7 +12,7 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.post('/rooms/join', async (request, reply) => {
-    const { code, inviteToken, playerId, playerName } = request.body || {};
+    const { code, inviteToken, playerId, playerName, inventory } = request.body || {};
     if (!playerId) {
       return reply.code(400).send({ error: 'playerId required' });
     }
@@ -26,7 +26,10 @@ export async function roomRoutes(fastify) {
     if (!room) {
       return reply.code(404).send({ error: 'Room not found' });
     }
-    room = roomManager.join(room.id, playerId, playerName || 'Игрок');
+    const inv = inventory && typeof inventory === 'object'
+      ? { dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'], hasPro: Boolean(inventory.hasPro) }
+      : null;
+    room = roomManager.join(room.id, playerId, playerName || 'Игрок', inv);
     return { room: roomManager.toSafe(room) };
   });
 
@@ -38,23 +41,31 @@ export async function roomRoutes(fastify) {
 
   fastify.patch('/rooms/:roomId', async (request, reply) => {
     const { roomId } = request.params;
-    const { hostId, name } = request.body || {};
+    const { hostId, name, selectedGame, gameSettings } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can update' });
     if (name !== undefined) roomManager.setRoomName(roomId, name);
+    if (selectedGame !== undefined || gameSettings !== undefined) {
+      roomManager.setLobbyGame(roomId, hostId, selectedGame !== undefined ? selectedGame : room.selectedGame, gameSettings !== undefined ? gameSettings : room.gameSettings);
+      const io = fastify.io;
+      if (io) io.to(roomId).emit('room_updated');
+    }
     const updated = roomManager.get(roomId);
     return { room: roomManager.toSafe(updated) };
   });
 
   fastify.post('/rooms/spy/start', async (request, reply) => {
-    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1 } = request.body || {};
+    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1, dictionaryIds } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
     const players = room.players;
     if (players.length < 2) return reply.code(400).send({ error: 'Need at least 2 players' });
-    const word = getRandomWord();
+    const safeRoom = roomManager.toSafe(room);
+    const allowedDicts = new Set(safeRoom.availableDictionaries || ['free']);
+    const ids = Array.isArray(dictionaryIds) ? dictionaryIds.filter((d) => allowedDicts.has(d)) : ['free'];
+    const word = getRandomWord(ids.length ? ids : ['free']);
     const numSpies = Math.min(Math.max(1, parseInt(spyCount, 10) || 1), Math.max(1, players.length - 1));
     const indices = new Set();
     while (indices.size < numSpies) indices.add(Math.floor(Math.random() * players.length));
@@ -87,6 +98,25 @@ export async function roomRoutes(fastify) {
     return { ...payload, word };
   });
 
+  function endVote(roomId, io) {
+    const r = roomManager.get(roomId);
+    if (!r || r.game !== 'spy' || !r.gameState) return;
+    const gs = r.gameState;
+    if (gs.voteTimeoutId) clearTimeout(gs.voteTimeoutId);
+    gs.voteTimeoutId = null;
+    gs.votingEndsAt = null;
+    const votes = gs.votes || {};
+    const count = {};
+    for (const id of Object.values(votes)) count[id] = (count[id] || 0) + 1;
+    let max = 0, votedOutId = null;
+    for (const [id, c] of Object.entries(count)) if (c > max) { max = c; votedOutId = id; }
+    const votedOut = r.players.find((p) => p.id === votedOutId);
+    const isSpy = r.gameState.spyIds && r.gameState.spyIds.includes(votedOutId);
+    roomManager.endGame(roomId);
+    io.to(roomId).emit('game_vote_end', { votedOutId, votedOutName: votedOut?.name || 'Игрок', isSpy });
+    io.to(roomId).emit('game_ended');
+  }
+
   fastify.post('/rooms/:roomId/spy/start-vote', async (request, reply) => {
     const { roomId } = request.params;
     const { playerId } = request.body || {};
@@ -99,22 +129,18 @@ export async function roomRoutes(fastify) {
     gs.votes = {};
     const io = fastify.io;
     io.to(roomId).emit('game_vote_start', { votingEndsAt: gs.votingEndsAt });
-    setTimeout(() => {
-      const r = roomManager.get(roomId);
-      if (!r || r.game !== 'spy' || !r.gameState || !r.gameState.votingEndsAt) return;
-      const votes = r.gameState.votes || {};
-      const count = {};
-      for (const id of Object.values(votes)) count[id] = (count[id] || 0) + 1;
-      let max = 0, votedOutId = null;
-      for (const [id, c] of Object.entries(count)) if (c > max) { max = c; votedOutId = id; }
-      const votedOut = r.players.find((p) => p.id === votedOutId);
-      const isSpy = r.gameState.spyIds && r.gameState.spyIds.includes(votedOutId);
-      r.gameState.votingEndsAt = null;
-      roomManager.endGame(roomId);
-      io.to(roomId).emit('game_vote_end', { votedOutId, votedOutName: votedOut?.name || 'Игрок', isSpy });
-      io.to(roomId).emit('game_ended');
-    }, 30000);
+    gs.voteTimeoutId = setTimeout(() => endVote(roomId, io), 30000);
     return { votingEndsAt: gs.votingEndsAt };
+  });
+
+  fastify.post('/rooms/:roomId/spy/end-vote', async (request, reply) => {
+    const { roomId } = request.params;
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    const gs = room.gameState;
+    if (!gs.votingEndsAt || gs.votingEndsAt < Date.now()) return reply.code(400).send({ error: 'Voting not active' });
+    endVote(roomId, fastify.io);
+    return { ok: true };
   });
 
   fastify.post('/rooms/:roomId/spy/vote', async (request, reply) => {
@@ -127,7 +153,26 @@ export async function roomRoutes(fastify) {
     if (!room.players.some((p) => p.id === votedForId)) return reply.code(400).send({ error: 'Invalid player' });
     gs.votes = gs.votes || {};
     gs.votes[playerId] = votedForId;
+    const votedCount = Object.keys(gs.votes).length;
+    const totalPlayers = room.players.length;
+    if (votedCount >= totalPlayers) {
+      endVote(roomId, fastify.io);
+    }
     return { ok: true };
+  });
+
+  fastify.patch('/rooms/:roomId/players/me', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, inventory } = request.body || {};
+    const room = roomManager.get(roomId);
+    if (!room) return reply.code(404).send({ error: 'Room not found' });
+    if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Not in room' });
+    const inv = inventory && typeof inventory === 'object'
+      ? { dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'], hasPro: Boolean(inventory.hasPro) }
+      : { dictionaries: ['free'], hasPro: false };
+    roomManager.setPlayerInventory(roomId, playerId, inv);
+    const updated = roomManager.get(roomId);
+    return { room: roomManager.toSafe(updated) };
   });
 
   fastify.post('/rooms/:roomId/kick', async (request, reply) => {

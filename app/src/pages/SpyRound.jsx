@@ -70,6 +70,14 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
     } catch (_) {}
   };
 
+  const endVoteEarly = async () => {
+    try {
+      await api.post(`/rooms/${roomId}/spy/end-vote`);
+    } catch (_) {}
+  };
+
+  const isHost = room?.players?.some((p) => p.id === myId && p.isHost);
+
   const [exitConfirm, setExitConfirm] = useState(false);
   const goLobby = () => navigate('/lobby');
   const exitToHome = () => {
@@ -137,6 +145,11 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
         {votingActive && (
           <div style={{ marginTop: 24, textAlign: 'left' }}>
             <p style={{ marginBottom: 8 }}>Голосование: {formatTime(voteSecondsLeft)}</p>
+            {isHost && (
+              <button type="button" onClick={endVoteEarly} style={{ ...btnStyle, marginBottom: 12, background: '#85a' }}>
+                Огласить результат
+              </button>
+            )}
             <p style={{ marginBottom: 8 }}>Кто шпион?</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {otherPlayers.map((p) => (

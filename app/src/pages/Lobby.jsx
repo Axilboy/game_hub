@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { getInventory } from '../inventory';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -13,24 +14,41 @@ const TIMER_OPTIONS = [
 ];
 
 const SPY_COUNT_OPTIONS = [1, 2, 3];
+const DICT_NAMES = { free: 'Базовый', theme1: 'Детектив', theme2: 'Пираты' };
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
   const isHost = room.players?.some((p) => p.id === String(user?.id) && p.isHost);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [timerEnabled, setTimerEnabled] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(60);
-  const [spyCount, setSpyCount] = useState(1);
+  const [timerEnabled, setTimerEnabled] = useState(room?.gameSettings?.timerEnabled ?? false);
+  const [timerSeconds, setTimerSeconds] = useState(room?.gameSettings?.timerSeconds ?? 60);
+  const [spyCount, setSpyCount] = useState(room?.gameSettings?.spyCount ?? 1);
+  const [dictionaryIds, setDictionaryIds] = useState(room?.gameSettings?.dictionaryIds ?? ['free']);
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState(room?.name || 'Лобби');
   const [shareToast, setShareToast] = useState(false);
-  const [selectedGame, setSelectedGame] = useState(null);
 
   const roomName = room?.name || 'Лобби';
+  const selectedGame = room?.selectedGame ?? null;
+  const availableDictionaries = room?.availableDictionaries || ['free'];
 
   useEffect(() => {
     setEditNameValue(roomName);
   }, [roomName]);
+
+  useEffect(() => {
+    setTimerEnabled(room?.gameSettings?.timerEnabled ?? false);
+    setTimerSeconds(room?.gameSettings?.timerSeconds ?? 60);
+    setSpyCount(room?.gameSettings?.spyCount ?? 1);
+    setDictionaryIds(room?.gameSettings?.dictionaryIds ?? ['free']);
+  }, [room?.gameSettings]);
+
+  useEffect(() => {
+    const inv = getInventory();
+    api.patch(`/rooms/${roomId}/players/me`, { playerId: String(user?.id), inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro } }).then((r) => {
+      if (r.room) onRoomUpdate(r.room);
+    }).catch(() => {});
+  }, [roomId, user?.id]);
 
   const inviteToken = sessionStorage.getItem('inviteToken');
   const inviteLink = BOT_USERNAME && inviteToken
@@ -38,6 +56,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     : inviteToken
       ? `${BASE_URL}?invite=${inviteToken}`
       : '';
+
+  const patchLobbyGame = async (updates) => {
+    try {
+      const { room: r } = await api.patch(`/rooms/${roomId}`, {
+        hostId: String(user?.id),
+        ...updates,
+      });
+      if (r) onRoomUpdate(r);
+    } catch (_) {}
+  };
 
   const startSpy = async () => {
     if (!isHost) return;
@@ -47,6 +75,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       timerEnabled,
       timerSeconds: timerEnabled ? timerSeconds : undefined,
       spyCount,
+      dictionaryIds: dictionaryIds?.length ? dictionaryIds : ['free'],
     });
     const { room: r } = await api.get(`/rooms/${roomId}`);
     onRoomUpdate(r);
@@ -66,6 +95,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const shareInvite = async () => {
     const text = `GameHub — присоединиться к лобби: ${roomName}\n${inviteLink}`;
+    const tg = window.Telegram?.WebApp;
+    if (tg?.openTelegramLink) {
+      try {
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('GameHub — присоединиться к лобби: ' + roomName)}`);
+        setShareToast(true);
+        setTimeout(() => setShareToast(false), 3000);
+        return;
+      } catch (_) {}
+    }
     try {
       await navigator.clipboard.writeText(text);
       setShareToast(true);
@@ -114,7 +152,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </button>
           {shareToast && (
             <p style={{ marginTop: 8, color: '#8f8', fontSize: 14 }}>
-              Ссылка скопирована — вставьте в чат
+              {window.Telegram?.WebApp ? 'Выберите чат или контакт для отправки' : 'Ссылка скопирована — вставьте в чат'}
             </p>
           )}
         </div>
@@ -154,7 +192,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 key={g.id}
                 type="button"
-                onClick={() => g.available ? setSelectedGame(g.id) : null}
+                onClick={() => g.available ? patchLobbyGame({ selectedGame: g.id, gameSettings: g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, dictionaryIds: ['free'] } : undefined }) : null}
                 style={{
                   ...btnStyle,
                   padding: 20,
@@ -170,73 +208,111 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {isHost && selectedGame === 'spy' && (
+      {selectedGame === 'spy' && (
         <>
-          <p style={{ marginTop: 24, marginBottom: 8 }}>Игра: <strong>Шпион</strong> <button type="button" onClick={() => setSelectedGame(null)} style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}>другая</button></p>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              style={{ ...btnStyle, background: '#555', flex: 1 }}
-            >
-              Настройки
-            </button>
-            <button type="button" onClick={startSpy} style={{ ...btnStyle, flex: 1 }}>
-              Начать
-            </button>
-          </div>
-          {settingsOpen && (
-            <div style={settingsBox}>
-              <p style={{ marginTop: 0 }}>Количество шпионов</p>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {SPY_COUNT_OPTIONS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setSpyCount(n)}
-                    style={{
-                      ...btnStyle,
-                      width: 'auto',
-                      padding: '8px 14px',
-                      background: spyCount === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
+          <p style={{ marginTop: 24, marginBottom: 8 }}>
+            Игра: <strong>Шпион</strong>
+            {isHost && (
+              <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}>другая</button>
+            )}
+          </p>
+          {(room?.gameSettings && !isHost) && (
+            <div style={{ ...settingsBox, marginBottom: 16 }}>
+              <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
+              <p style={{ margin: 0, fontSize: 14 }}>Шпионов: {room.gameSettings.spyCount ?? 1}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Таймер: {room.gameSettings.timerEnabled ? `${(room.gameSettings.timerSeconds || 60) / 60} мин` : 'выкл'}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Словари: {(room.gameSettings.dictionaryIds || ['free']).map((d) => DICT_NAMES[d] || d).join(', ')}</p>
+            </div>
+          )}
+          {isHost && (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(!settingsOpen)}
+                  style={{ ...btnStyle, background: '#555', flex: 1 }}
+                >
+                  Настройки
+                </button>
+                <button type="button" onClick={startSpy} style={{ ...btnStyle, flex: 1 }}>
+                  Начать
+                </button>
               </div>
-              <p style={{ marginBottom: 8 }}>Таймер раунда</p>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={timerEnabled}
-                  onChange={(e) => setTimerEnabled(e.target.checked)}
-                />
-                <span>Включить таймер</span>
-              </label>
-              {timerEnabled && (
-                <div style={{ marginBottom: 12 }}>
-                  <p style={{ marginBottom: 6 }}>Время:</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {TIMER_OPTIONS.map((opt) => (
+              {settingsOpen && (
+                <div style={settingsBox}>
+                  <p style={{ marginTop: 0 }}>Количество шпионов</p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {SPY_COUNT_OPTIONS.map((n) => (
                       <button
-                        key={opt.value}
+                        key={n}
                         type="button"
-                        onClick={() => setTimerSeconds(opt.value)}
+                        onClick={() => { setSpyCount(n); patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount: n, dictionaryIds } }); }}
                         style={{
                           ...btnStyle,
                           width: 'auto',
                           padding: '8px 14px',
-                          background: timerSeconds === opt.value ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                          background: spyCount === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                         }}
                       >
-                        {opt.label}
+                        {n}
                       </button>
                     ))}
                   </div>
+                  <p style={{ marginBottom: 8 }}>Словари (доступны в лобби)</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {availableDictionaries.map((id) => {
+                      const on = dictionaryIds.includes(id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => {
+                            const next = on ? dictionaryIds.filter((x) => x !== id) : [...dictionaryIds, id];
+                            if (next.length === 0) return;
+                            setDictionaryIds(next);
+                            patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, dictionaryIds: next } });
+                          }}
+                          style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: on ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                        >
+                          {DICT_NAMES[id] || id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{ marginBottom: 8 }}>Таймер раунда</p>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={timerEnabled}
+                      onChange={(e) => { setTimerEnabled(e.target.checked); patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled: e.target.checked, timerSeconds, spyCount, dictionaryIds } }); }}
+                    />
+                    <span>Включить таймер</span>
+                  </label>
+                  {timerEnabled && (
+                    <div style={{ marginBottom: 12 }}>
+                      <p style={{ marginBottom: 6 }}>Время:</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {TIMER_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => { setTimerSeconds(opt.value); patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds: opt.value, spyCount, dictionaryIds } }); }}
+                            style={{
+                              ...btnStyle,
+                              width: 'auto',
+                              padding: '8px 14px',
+                              background: timerSeconds === opt.value ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </>
       )}
@@ -244,7 +320,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       {isHost && selectedGame && selectedGame !== 'spy' && (
         <div style={{ ...settingsBox, marginTop: 24 }}>
           <p style={{ marginBottom: 8 }}>{selectedGame === 'mafia' ? 'Мафия' : selectedGame === 'bunker' ? 'Бункер' : 'Элиас'} — скоро</p>
-          <button type="button" onClick={() => setSelectedGame(null)} style={btnStyle}>Выбрать другую игру</button>
+          <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={btnStyle}>Выбрать другую игру</button>
         </div>
       )}
 

@@ -32,6 +32,9 @@ export const roomManager = {
       inviteToken,
       name: 'Лобби',
       players: [{ id: hostId, name: hostName, isHost: true }],
+      playerInventories: { [hostId]: { dictionaries: ['free'], hasPro: false } },
+      selectedGame: null,
+      gameSettings: null,
       game: null,
       state: 'lobby',
       gameState: null,
@@ -57,11 +60,16 @@ export const roomManager = {
     return roomId ? rooms.get(roomId) : null;
   },
 
-  join(roomId, playerId, playerName) {
+  join(roomId, playerId, playerName, inventory = null) {
     const room = rooms.get(roomId);
     if (!room) return null;
-    if (room.players.some((p) => p.id === playerId)) return room;
+    if (room.players.some((p) => p.id === playerId)) {
+      if (inventory && room.playerInventories) room.playerInventories[playerId] = inventory;
+      return room;
+    }
     room.players.push({ id: playerId, name: playerName, isHost: false });
+    if (!room.playerInventories) room.playerInventories = {};
+    room.playerInventories[playerId] = inventory || { dictionaries: ['free'], hasPro: false };
     return room;
   },
 
@@ -114,11 +122,28 @@ export const roomManager = {
     return room;
   },
 
+  setPlayerInventory(roomId, playerId, inventory) {
+    const room = rooms.get(roomId);
+    if (!room) return null;
+    if (!room.playerInventories) room.playerInventories = {};
+    room.playerInventories[playerId] = inventory;
+    return room;
+  },
+
+  setLobbyGame(roomId, hostId, selectedGame, gameSettings) {
+    const room = rooms.get(roomId);
+    if (!room || room.hostId !== hostId) return null;
+    room.selectedGame = selectedGame || null;
+    if (gameSettings !== undefined) room.gameSettings = gameSettings;
+    return room;
+  },
+
   leave(roomId, playerId) {
     const room = rooms.get(roomId);
     if (!room) return null;
     const wasHost = room.hostId === playerId;
     room.players = room.players.filter((p) => p.id !== playerId);
+    if (room.playerInventories) delete room.playerInventories[playerId];
     delete room.playerSockets[playerId];
     if (room.players.length === 0) {
       rooms.delete(roomId);
@@ -145,7 +170,20 @@ export const roomManager = {
 
   toSafe(room) {
     if (!room) return null;
-    const { gameState, playerSockets, ...rest } = room;
-    return { ...rest, players: room.players };
+    const { gameState, playerSockets, playerInventories, ...rest } = room;
+    const inv = room.playerInventories || {};
+    const allDicts = new Set(['free']);
+    let anyPro = false;
+    for (const p of room.players || []) {
+      const invP = inv[p.id];
+      if (invP) {
+        if (invP.dictionaries) invP.dictionaries.forEach((d) => allDicts.add(d));
+        if (invP.hasPro) anyPro = true;
+      }
+    }
+    const availableDictionaries = ['free'];
+    if (anyPro) availableDictionaries.push('theme1', 'theme2');
+    for (const d of allDicts) if (d !== 'free' && !availableDictionaries.includes(d)) availableDictionaries.push(d);
+    return { ...rest, players: room.players, availableDictionaries };
   },
 };

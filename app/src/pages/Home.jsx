@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStats, saveStats } from '../stats';
+import { getInventory, purchaseDictionary, setPro } from '../inventory';
 
 function formatTime(seconds) {
   if (seconds < 60) return `${seconds} сек`;
@@ -14,7 +15,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(getStats);
-  const [subscription] = useState(false);
+  const [inv, setInv] = useState(getInventory);
   const [showSubStub, setShowSubStub] = useState(false);
   const [showShopStub, setShowShopStub] = useState(false);
 
@@ -84,7 +85,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         )}
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 'bold', fontSize: 18 }}>{user?.first_name || 'Игрок'}</div>
-          <div style={{ fontSize: 14, opacity: 0.85 }}>{subscription ? 'Про' : 'Подписка отсутствует'}</div>
+          <div style={{ fontSize: 14, opacity: 0.85 }}>{inv.hasPro ? 'Про' : 'Подписка отсутствует'}</div>
         </div>
       </header>
 
@@ -135,16 +136,33 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
       {showSubStub && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 16 }}>Купить подписку — скоро</p>
+            <p style={{ marginBottom: 16 }}>Подписка Про — доступ к платным словарям на время подписки.</p>
+            <p style={{ marginBottom: 16, fontSize: 14, opacity: 0.8 }}>Оплата — скоро</p>
+            <button type="button" onClick={() => { setPro(Date.now() + 30 * 24 * 3600 * 1000); setInv(getInventory()); setShowSubStub(false); }} style={{ ...btnStyle, marginBottom: 8, background: '#5a4' }}>Демо: Про на 30 дней</button>
             <button type="button" onClick={() => setShowSubStub(false)} style={btnStyle}>Закрыть</button>
           </div>
         </div>
       )}
       {showShopStub && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 16 }}>Магазин — скоро</p>
-            <button type="button" onClick={() => setShowShopStub(false)} style={btnStyle}>Закрыть</button>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320, maxHeight: '80vh', overflow: 'auto' }}>
+            <p style={{ marginBottom: 16 }}>Словари для игры «Шпион»</p>
+            {['theme1', 'theme2'].map((id) => {
+              const name = id === 'theme1' ? 'Детектив' : 'Пираты';
+              const owned = inv.dictionaries.includes(id);
+              return (
+                <div key={id} style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{name}</span>
+                  {owned ? (
+                    <span style={{ color: '#8f8' }}>Куплен</span>
+                  ) : (
+                    <button type="button" onClick={() => { purchaseDictionary(id); setInv(getInventory()); }} style={{ ...btnStyle, width: 'auto', padding: '8px 16px' }}>Купить (демо)</button>
+                  )}
+                </div>
+              );
+            })}
+            <p style={{ marginTop: 16, fontSize: 14, opacity: 0.8 }}>Оплата — скоро. Демо: покупка сохраняется локально.</p>
+            <button type="button" onClick={() => setShowShopStub(false)} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
           </div>
         </div>
       )}
