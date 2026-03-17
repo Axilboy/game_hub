@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { getInventory } from '../inventory';
+import { getAvatar } from '../displayName';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -46,21 +47,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   useEffect(() => {
     const inv = getInventory();
+    const avatarEmoji = getAvatar();
     api.patch(`/rooms/${roomId}/players/me`, {
       playerId: String(user?.id),
       inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
       photo_url: user?.photo_url || null,
+      avatar_emoji: avatarEmoji || null,
     }).then((r) => {
       if (r.room) onRoomUpdate(r.room);
     }).catch(() => {});
   }, [roomId, user?.id]);
 
   const inviteToken = room?.inviteToken || sessionStorage.getItem('inviteToken');
-  const inviteLink = BOT_USERNAME && inviteToken
-    ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}`
-    : inviteToken
-      ? `${BASE_URL}?invite=${inviteToken}`
-      : '';
+  const miniAppLink = BOT_USERNAME && inviteToken ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}` : '';
+  const webLink = inviteToken ? `${BASE_URL}?invite=${inviteToken}` : '';
+  const inviteLink = miniAppLink || webLink || '';
 
   const patchLobbyGame = async (updates) => {
     try {
@@ -99,11 +100,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const shareInvite = async () => {
-    const text = `GameHub — присоединиться к лобби: ${roomName}\n${inviteLink}`;
+    const lines = [`GameHub — присоединиться к лобби: ${roomName}`, ''];
+    if (miniAppLink) lines.push('Открыть в приложении (Telegram):', miniAppLink, '');
+    if (webLink) lines.push(miniAppLink ? 'Или в браузере:' : 'Ссылка:', webLink);
+    const text = lines.join('\n');
     const tg = window.Telegram?.WebApp;
     if (tg?.openTelegramLink) {
       try {
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('GameHub — присоединиться к лобби: ' + roomName)}`);
+        const shareUrl = miniAppLink || webLink;
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent('GameHub — присоединиться к лобби: ' + roomName + (miniAppLink && webLink ? '\n\nВ приложении: ' + miniAppLink + '\nВ браузере: ' + webLink : '\n\n' + shareUrl))}`);
         setShareToast(true);
         setTimeout(() => setShareToast(false), 3000);
         return;
@@ -145,9 +150,20 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       {inviteLink && (
         <div style={{ marginBottom: 16 }}>
           <p>Приглашение:</p>
-          <a href={inviteLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
-            {inviteLink}
-          </a>
+          {miniAppLink && (
+            <p style={{ marginBottom: 4 }}>
+              <a href={miniAppLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
+                Открыть в приложении
+              </a>
+            </p>
+          )}
+          {webLink && (
+            <p style={{ marginBottom: 8 }}>
+              <a href={webLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
+                {webLink}
+              </a>
+            </p>
+          )}
           <button
             type="button"
             onClick={shareInvite}
@@ -167,14 +183,18 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                {p.photo_url ? (
+                {p.avatar_emoji ? (
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                    {p.avatar_emoji}
+                  </div>
+                ) : p.photo_url ? (
                   <img src={p.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
                     {(p.name || '?')[0]}
                   </div>
                 )}
-                {p.hasPro && (
+                {p.hasPro && !p.isHost && (
                   <span style={{ position: 'absolute', bottom: -2, right: -2, fontSize: 14 }} title="Про">👑</span>
                 )}
               </div>
@@ -346,7 +366,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         Магазин
       </button>
 
-      <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: 24, background: '#555' }}>
+      {isHost && selectedGame ? (
+        <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ ...btnStyle, marginTop: 24, background: '#555' }}>
+          Назад
+        </button>
+      ) : null}
+      <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: isHost && selectedGame ? 8 : 24, background: '#555' }}>
         Выйти
       </button>
 

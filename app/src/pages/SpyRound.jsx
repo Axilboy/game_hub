@@ -97,9 +97,12 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
     return (
       <div style={{ padding: 24, textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
-          <p style={{ fontSize: 22, marginBottom: 16 }}>
+          <p style={{ fontSize: 22, marginBottom: 12 }}>
             {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
           </p>
+          {voteResult.isSpy && (
+            <p style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Им был: {voteResult.votedOutName}</p>
+          )}
           <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
         </div>
         <div style={{ marginTop: 'auto', paddingTop: 24 }}>

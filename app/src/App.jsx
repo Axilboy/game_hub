@@ -5,9 +5,11 @@ import { api } from './api';
 import { socket } from './socket';
 import { incrementGamesPlayed } from './stats';
 import { getInventory } from './inventory';
+import { getDisplayName, getAvatar } from './displayName';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import SpyRound from './pages/SpyRound';
+import Admin from './pages/Admin';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -30,43 +32,52 @@ function AppRoutes() {
   const createRoom = async () => {
     if (!user?.id) return;
     const inv = getInventory();
+    const displayName = getDisplayName();
+    const avatarEmoji = getAvatar();
     const { room: r, inviteToken } = await api.post('/rooms', {
       hostId: String(user.id),
-      hostName: user.first_name || 'Хост',
+      hostName: displayName || user.first_name || 'Хост',
       hostPhotoUrl: user.photo_url || null,
       hostHasPro: inv.hasPro,
+      hostAvatarEmoji: avatarEmoji || null,
     });
     setRoom(r);
     setRoomId(r.id);
     sessionStorage.setItem('inviteToken', inviteToken);
-    socket.connect(r.id, { id: String(user.id), name: user.first_name || 'Игрок', isHost: true });
+    socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: true });
   };
 
   const joinByCode = async (code) => {
     if (!user?.id) return null;
     const inv = getInventory();
+    const displayName = getDisplayName();
+    const avatarEmoji = getAvatar();
     const { room: r } = await api.post('/rooms/join', {
       code: code.trim(),
       playerId: String(user.id),
-      playerName: user.first_name || 'Игрок',
+      playerName: displayName || user.first_name || 'Игрок',
       inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
       photo_url: user.photo_url || null,
+      avatar_emoji: avatarEmoji || null,
     });
     setRoom(r);
     setRoomId(r.id);
-    socket.connect(r.id, { id: String(user.id), name: user.first_name || 'Игрок', isHost: false });
+    socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: false });
     return r;
   };
 
   const joinByInvite = async (inviteParam) => {
     if (!user?.id) return null;
     const inv = getInventory();
+    const displayName = getDisplayName();
+    const avatarEmoji = getAvatar();
     const { room: r } = await api.post('/rooms/join', {
       inviteToken: inviteParam,
       playerId: String(user.id),
-      playerName: user.first_name || 'Игрок',
+      playerName: displayName || user.first_name || 'Игрок',
       inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
       photo_url: user.photo_url || null,
+      avatar_emoji: avatarEmoji || null,
     });
     setRoom(r);
     setRoomId(r.id);
@@ -169,6 +180,7 @@ function AppRoutes() {
             )
           }
         />
+        <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
   );

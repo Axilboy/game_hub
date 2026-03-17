@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { roomRoutes } from './rooms.js';
+import { adminRoutes } from './admin.js';
 import { roomManager } from './roomManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,7 @@ await fastify.register(cors, { origin: true });
 // Decorators MUST be added before fastify starts/listens
 fastify.decorate('io', null);
 fastify.register(roomRoutes, { prefix: '/api' });
+fastify.register(adminRoutes, { prefix: '/api' });
 
 if (existsSync(publicDir)) {
   await fastify.register(fastifyStatic, { root: publicDir });
