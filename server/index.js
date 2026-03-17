@@ -51,8 +51,14 @@ async function start() {
     roomManager.setPlayerSocket(roomId, player.id, socket.id);
     socket.to(roomId).emit('player_joined', { player });
     socket.on('disconnect', () => {
+      const roomBefore = roomManager.get(roomId);
+      const wasHost = roomBefore?.hostId === player.id;
       roomManager.setPlayerSocket(roomId, player.id, null);
+      const leftRoom = roomManager.leave(roomId, player.id);
       socket.to(roomId).emit('player_left', { playerId: player.id });
+      if (leftRoom && wasHost) {
+        io.to(roomId).emit('host_changed', { hostId: leftRoom.hostId });
+      }
       const r = roomManager.get(roomId);
       if (r?.state === 'playing') {
         const connected = Object.values(r.playerSockets || {}).filter(Boolean).length;

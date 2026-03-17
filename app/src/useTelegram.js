@@ -16,6 +16,7 @@ export function useTelegram() {
           first_name: u.first_name,
           last_name: u.last_name,
           username: u.username,
+          photo_url: u.photo_url,
         });
       } else {
         setUser({ id: 'dev', first_name: 'Тест' });

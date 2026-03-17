@@ -70,8 +70,10 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
     } catch (_) {}
   };
 
+  const [exitConfirm, setExitConfirm] = useState(false);
   const goLobby = () => navigate('/lobby');
   const exitToHome = () => {
+    setExitConfirm(false);
     if (onLeave) onLeave();
     navigate('/');
   };
@@ -85,71 +87,91 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
 
   if (voteResult) {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <p style={{ fontSize: 22, marginBottom: 16 }}>
-          {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
-        </p>
-        <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
-        <button type="button" onClick={goLobby} style={btnStyle}>
-          В лобби
-        </button>
-        <button type="button" onClick={exitToHome} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>
-          Выйти
-        </button>
+      <div style={{ padding: 24, textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <p style={{ fontSize: 22, marginBottom: 16 }}>
+            {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
+          </p>
+          <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
+        </div>
+        <div style={{ marginTop: 'auto', paddingTop: 24 }}>
+          <button type="button" onClick={goLobby} style={btnStyle}>
+            В лобби
+          </button>
+          <button type="button" onClick={() => setExitConfirm(true)} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>
+            Выйти
+          </button>
+          {exitConfirm && (
+            <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
+              <p style={{ marginBottom: 12 }}>Вы уверены?</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={exitToHome} style={{ ...btnStyle, flex: 1, background: '#c44' }}>Да</button>
+                <button type="button" onClick={() => setExitConfirm(false)} style={{ ...btnStyle, flex: 1, background: '#555' }}>Нет</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24, textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      {card.timerEnabled && secondsLeft !== null && !timeUp && (
-        <p style={{ fontSize: 20, marginBottom: 16, opacity: 0.9 }}>Таймер: {formatTime(secondsLeft)}</p>
-      )}
-      {timeUp && <p style={{ fontSize: 22, color: '#fa0', marginBottom: 16 }}>Время вышло!</p>}
-      {isSpy ? (
-        <p style={{ fontSize: 24, color: '#f88' }}>Вы шпион</p>
-      ) : (
-        <p style={{ fontSize: 28, fontWeight: 'bold' }}>{card.word}</p>
-      )}
+    <div style={{ padding: 24, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        {card.timerEnabled && secondsLeft !== null && !timeUp && (
+          <p style={{ fontSize: 20, marginBottom: 16, opacity: 0.9 }}>Таймер: {formatTime(secondsLeft)}</p>
+        )}
+        {timeUp && <p style={{ fontSize: 22, color: '#fa0', marginBottom: 16 }}>Время вышло!</p>}
+        {isSpy ? (
+          <p style={{ fontSize: 24, color: '#f88' }}>Вы шпион</p>
+        ) : (
+          <p style={{ fontSize: 28, fontWeight: 'bold' }}>{card.word}</p>
+        )}
 
-      {!votingActive && !voteResult && (
-        <button type="button" onClick={startVote} style={{ ...btnStyle, marginTop: 24, background: '#6a5' }}>
-          Голосовать
-        </button>
-      )}
-
-      {votingActive && (
-        <div style={{ marginTop: 24, textAlign: 'left' }}>
-          <p style={{ marginBottom: 8 }}>Голосование: {formatTime(voteSecondsLeft)}</p>
-          <p style={{ marginBottom: 8 }}>Кто шпион?</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {otherPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => sendVote(p.id)}
-                disabled={!!votedForId}
-                style={{
-                  ...btnStyle,
-                  background: votedForId === p.id ? '#6a5' : '#444',
-                }}
-              >
-                {p.name}{votedForId === p.id ? ' ✓' : ''}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
         {!votingActive && !voteResult && (
-          <button type="button" onClick={goLobby} style={{ ...btnStyle, background: '#555' }}>
-            В лобби
+          <button type="button" onClick={startVote} style={{ ...btnStyle, marginTop: 24, background: '#6a5' }}>
+            Голосовать
           </button>
         )}
-        <button type="button" onClick={exitToHome} style={{ ...btnStyle, background: '#333' }}>
-          Выйти
-        </button>
+
+        {votingActive && (
+          <div style={{ marginTop: 24, textAlign: 'left' }}>
+            <p style={{ marginBottom: 8 }}>Голосование: {formatTime(voteSecondsLeft)}</p>
+            <p style={{ marginBottom: 8 }}>Кто шпион?</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {otherPlayers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => sendVote(p.id)}
+                  disabled={!!votedForId}
+                  style={{
+                    ...btnStyle,
+                    background: votedForId === p.id ? '#6a5' : '#444',
+                  }}
+                >
+                  {p.name}{votedForId === p.id ? ' ✓' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 'auto', paddingTop: 24 }}>
+        {!exitConfirm ? (
+          <button type="button" onClick={() => setExitConfirm(true)} style={{ ...btnStyle, background: '#333' }}>
+            Выйти
+          </button>
+        ) : (
+          <div style={{ padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
+            <p style={{ marginBottom: 12 }}>Вы уверены?</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={exitToHome} style={{ ...btnStyle, flex: 1, background: '#c44' }}>Да</button>
+              <button type="button" onClick={() => setExitConfirm(false)} style={{ ...btnStyle, flex: 1, background: '#555' }}>Нет</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

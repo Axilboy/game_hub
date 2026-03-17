@@ -24,6 +24,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState(room?.name || 'Лобби');
   const [shareToast, setShareToast] = useState(false);
+  const [selectedGame, setSelectedGame] = useState(null);
 
   const roomName = room?.name || 'Лобби';
 
@@ -121,13 +122,57 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       <p>Игроки ({room.players?.length || 0}):</p>
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {(room.players || []).map((p) => (
-          <li key={p.id}>{p.name}{p.isHost ? ' (хост)' : ''}</li>
+          <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span>{p.name}{p.isHost ? ' (хост)' : ''}</span>
+            {isHost && p.id !== String(user?.id) && !p.isHost && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick: p.id });
+                  } catch (_) {}
+                }}
+                style={{ ...btnStyle, width: 'auto', padding: '6px 12px', margin: 0, fontSize: 14, background: '#a44' }}
+              >
+                Кик
+              </button>
+            )}
+          </li>
         ))}
       </ul>
 
-      {isHost && (
+      {isHost && selectedGame === null && (
+        <div style={{ ...settingsBox, marginTop: 24 }}>
+          <p style={{ marginBottom: 12 }}>Выберите игру</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {[
+              { id: 'spy', name: 'Шпион', available: true },
+              { id: 'mafia', name: 'Мафия', available: false },
+              { id: 'bunker', name: 'Бункер', available: false },
+              { id: 'elias', name: 'Элиас', available: false },
+            ].map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => g.available ? setSelectedGame(g.id) : null}
+                style={{
+                  ...btnStyle,
+                  padding: 20,
+                  background: g.available ? 'var(--tg-theme-button-color, #3a7bd5)' : '#333',
+                  opacity: g.available ? 1 : 0.8,
+                }}
+              >
+                {g.name}
+                {!g.available && <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>Скоро</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isHost && selectedGame === 'spy' && (
         <>
-          <p style={{ marginTop: 24, marginBottom: 8 }}>Игра: <strong>Шпион</strong></p>
+          <p style={{ marginTop: 24, marginBottom: 8 }}>Игра: <strong>Шпион</strong> <button type="button" onClick={() => setSelectedGame(null)} style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}>другая</button></p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <button
               type="button"
@@ -195,6 +240,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           )}
         </>
       )}
+
+      {isHost && selectedGame && selectedGame !== 'spy' && (
+        <div style={{ ...settingsBox, marginTop: 24 }}>
+          <p style={{ marginBottom: 8 }}>{selectedGame === 'mafia' ? 'Мафия' : selectedGame === 'bunker' ? 'Бункер' : 'Элиас'} — скоро</p>
+          <button type="button" onClick={() => setSelectedGame(null)} style={btnStyle}>Выбрать другую игру</button>
+        </div>
+      )}
+
       <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: 24, background: '#555' }}>
         Выйти
       </button>

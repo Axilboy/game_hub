@@ -116,17 +116,31 @@ export const roomManager = {
 
   leave(roomId, playerId) {
     const room = rooms.get(roomId);
-    if (!room) return;
+    if (!room) return null;
+    const wasHost = room.hostId === playerId;
     room.players = room.players.filter((p) => p.id !== playerId);
     delete room.playerSockets[playerId];
     if (room.players.length === 0) {
       rooms.delete(roomId);
       codes.delete(room.code);
       inviteTokens.delete(room.inviteToken);
-    } else if (room.hostId === playerId) {
-      room.hostId = room.players[0].id;
-      room.players[0].isHost = true;
+      return null;
     }
+    room.players.forEach((p) => { p.isHost = false; });
+    if (wasHost) {
+      const idx = Math.floor(Math.random() * room.players.length);
+      room.hostId = room.players[idx].id;
+      room.players[idx].isHost = true;
+    }
+    return room;
+  },
+
+  kick(roomId, hostId, playerIdToKick) {
+    const room = rooms.get(roomId);
+    if (!room || room.hostId !== hostId) return null;
+    if (playerIdToKick === hostId) return null;
+    const socketId = room.playerSockets?.[playerIdToKick];
+    return socketId ? { socketId } : null;
   },
 
   toSafe(room) {

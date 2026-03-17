@@ -130,6 +130,20 @@ export async function roomRoutes(fastify) {
     return { ok: true };
   });
 
+  fastify.post('/rooms/:roomId/kick', async (request, reply) => {
+    const { roomId } = request.params;
+    const { hostId, playerIdToKick } = request.body || {};
+    const room = roomManager.get(roomId);
+    if (!room) return reply.code(404).send({ error: 'Room not found' });
+    if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can kick' });
+    const result = roomManager.kick(roomId, hostId, playerIdToKick);
+    if (!result) return reply.code(400).send({ error: 'Cannot kick' });
+    const io = fastify.io;
+    const sock = io.sockets.sockets.get(result.socketId);
+    if (sock) sock.disconnect(true);
+    return { ok: true };
+  });
+
   fastify.get('/rooms/:roomId/spy/vote-status', async (request, reply) => {
     const { roomId } = request.params;
     const room = roomManager.get(roomId);
