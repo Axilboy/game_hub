@@ -1,0 +1,16 @@
+{
+  "name": "game-hub",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:app\" \"npm run dev:bot\"",
+    "dev:server": "node server/index.js",
+    "dev:app": "cd app && npm run dev",
+    "dev:bot": "node bot/index.js",
+    "build": "cd app && npm run build",
+    "start": "node server/index.js",
+    "start:bot": "node bot/index.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

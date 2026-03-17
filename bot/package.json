@@ -1,0 +1,10 @@
+{
+  "name": "game-hub-bot",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.0"
+  }
+}

@@ -1,0 +1,20 @@
+# Stage 1: build Mini App (API будет с того же origin в проде)
+FROM node:20-alpine AS app-build
+WORKDIR /app
+COPY app/package*.json ./
+RUN npm install
+COPY app/ ./
+ENV VITE_API_URL=
+RUN npm run build
+
+# Stage 2: server + static
+FROM node:20-alpine
+WORKDIR /app
+COPY server/package*.json ./
+RUN npm install --omit=dev
+COPY server/ ./
+COPY --from=app-build /app/dist ./public
+EXPOSE 3000
+ENV NODE_ENV=production
+ENV PORT=3000
+CMD ["node", "index.js"]
