@@ -30,6 +30,7 @@ export const roomManager = {
       hostId,
       code,
       inviteToken,
+      name: 'Лобби',
       players: [{ id: hostId, name: hostName, isHost: true }],
       game: null,
       state: 'lobby',
@@ -103,6 +104,13 @@ export const roomManager = {
     room.game = null;
     room.state = 'lobby';
     room.gameState = null;
+    return room;
+  },
+
+  setRoomName(roomId, name) {
+    const room = rooms.get(roomId);
+    if (!room) return null;
+    room.name = (name && String(name).trim()) || 'Лобби';
     return room;
   },
 

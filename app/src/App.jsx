@@ -137,7 +137,7 @@ function AppRoutes() {
           path="/spy"
           element={
             roomId && room?.state === 'playing' ? (
-              <SpyRound roomId={roomId} user={user} room={room} />
+              <SpyRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
             ) : (

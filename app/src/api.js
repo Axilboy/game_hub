@@ -17,4 +17,13 @@ export const api = {
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
+  async patch(path, body) {
+    const r = await fetch(`${API_URL}/api${path}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
 };

@@ -36,21 +36,34 @@ export async function roomRoutes(fastify) {
     return { room: roomManager.toSafe(room) };
   });
 
+  fastify.patch('/rooms/:roomId', async (request, reply) => {
+    const { roomId } = request.params;
+    const { hostId, name } = request.body || {};
+    const room = roomManager.get(roomId);
+    if (!room) return reply.code(404).send({ error: 'Room not found' });
+    if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can update' });
+    if (name !== undefined) roomManager.setRoomName(roomId, name);
+    const updated = roomManager.get(roomId);
+    return { room: roomManager.toSafe(updated) };
+  });
+
   fastify.post('/rooms/spy/start', async (request, reply) => {
-    const { roomId, hostId, timerEnabled = false, timerSeconds = 60 } = request.body || {};
+    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1 } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
     const players = room.players;
     if (players.length < 2) return reply.code(400).send({ error: 'Need at least 2 players' });
     const word = getRandomWord();
-    const spyIndex = Math.floor(Math.random() * players.length);
-    const spyId = players[spyIndex].id;
+    const numSpies = Math.min(Math.max(1, parseInt(spyCount, 10) || 1), Math.max(1, players.length - 1));
+    const indices = new Set();
+    while (indices.size < numSpies) indices.add(Math.floor(Math.random() * players.length));
+    const spyIds = Array.from(indices).map((i) => players[i].id);
     const safeSeconds = Math.min(3600, Math.max(30, Number(timerSeconds) || 60));
     roomManager.setGame(roomId, 'spy');
     roomManager.setState(roomId, 'playing', {
       word,
-      spyIds: [spyId],
+      spyIds,
       timerEnabled: Boolean(timerEnabled),
       timerSeconds: safeSeconds,
     });

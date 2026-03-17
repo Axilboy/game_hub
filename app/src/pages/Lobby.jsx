@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
@@ -12,12 +12,24 @@ const TIMER_OPTIONS = [
   { label: '5 мин', value: 300 },
 ];
 
+const SPY_COUNT_OPTIONS = [1, 2, 3];
+
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
   const isHost = room.players?.some((p) => p.id === String(user?.id) && p.isHost);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [timerEnabled, setTimerEnabled] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(60);
+  const [spyCount, setSpyCount] = useState(1);
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState(room?.name || 'Лобби');
+  const [shareToast, setShareToast] = useState(false);
+
+  const roomName = room?.name || 'Лобби';
+
+  useEffect(() => {
+    setEditNameValue(roomName);
+  }, [roomName]);
 
   const inviteToken = sessionStorage.getItem('inviteToken');
   const inviteLink = BOT_USERNAME && inviteToken
@@ -33,22 +45,77 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       hostId: String(user?.id),
       timerEnabled,
       timerSeconds: timerEnabled ? timerSeconds : undefined,
+      spyCount,
     });
     const { room: r } = await api.get(`/rooms/${roomId}`);
     onRoomUpdate(r);
     navigate('/spy');
   };
 
+  const saveRoomName = async () => {
+    setEditingName(false);
+    const name = (editNameValue || '').trim() || 'Лобби';
+    if (name === roomName) return;
+    try {
+      await api.patch(`/rooms/${roomId}`, { hostId: String(user?.id), name });
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+    } catch (_) {}
+  };
+
+  const shareInvite = async () => {
+    const text = `GameHub — присоединиться к лобби: ${roomName}\n${inviteLink}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2500);
+    } catch (_) {
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2500);
+    }
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 400, margin: '0 auto' }}>
-      <h2>Лобби</h2>
+      {editingName && isHost ? (
+        <input
+          type="text"
+          value={editNameValue}
+          onChange={(e) => setEditNameValue(e.target.value)}
+          onBlur={saveRoomName}
+          onKeyDown={(e) => e.key === 'Enter' && saveRoomName()}
+          autoFocus
+          style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16, width: '100%', padding: 8, borderRadius: 8 }}
+        />
+      ) : (
+        <h2
+          style={{ marginBottom: 16, cursor: isHost ? 'pointer' : 'default' }}
+          onClick={() => isHost && setEditingName(true)}
+          title={isHost ? 'Нажмите, чтобы изменить название' : ''}
+        >
+          {roomName}
+        </h2>
+      )}
+
       <p>Код комнаты: <strong>{room.code}</strong></p>
       {inviteLink && (
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16 }}>
           <p>Приглашение:</p>
           <a href={inviteLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
             {inviteLink}
           </a>
+          <button
+            type="button"
+            onClick={shareInvite}
+            style={{ ...btnStyle, marginTop: 8, background: '#6a5' }}
+          >
+            Поделиться
+          </button>
+          {shareToast && (
+            <p style={{ marginTop: 8, color: '#8f8', fontSize: 14 }}>
+              Ссылка скопирована — вставьте в чат
+            </p>
+          )}
         </div>
       )}
       <p>Игроки ({room.players?.length || 0}):</p>
@@ -75,7 +142,25 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </div>
           {settingsOpen && (
             <div style={settingsBox}>
-              <p style={{ marginTop: 0 }}>Таймер раунда</p>
+              <p style={{ marginTop: 0 }}>Количество шпионов</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {SPY_COUNT_OPTIONS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setSpyCount(n)}
+                    style={{
+                      ...btnStyle,
+                      width: 'auto',
+                      padding: '8px 14px',
+                      background: spyCount === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p style={{ marginBottom: 8 }}>Таймер раунда</p>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <input
                   type="checkbox"

@@ -9,7 +9,7 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function SpyRound({ roomId, user, room }) {
+export default function SpyRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
   const [card, setCard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +71,10 @@ export default function SpyRound({ roomId, user, room }) {
   };
 
   const goLobby = () => navigate('/lobby');
+  const exitToHome = () => {
+    if (onLeave) onLeave();
+    navigate('/');
+  };
 
   if (loading) return <div style={{ padding: 24 }}>Загрузка…</div>;
   if (!card) return <div style={{ padding: 24 }}>Нет карты</div>;
@@ -88,6 +92,9 @@ export default function SpyRound({ roomId, user, room }) {
         <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
         <button type="button" onClick={goLobby} style={btnStyle}>
           В лобби
+        </button>
+        <button type="button" onClick={exitToHome} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>
+          Выйти
         </button>
       </div>
     );
@@ -134,11 +141,16 @@ export default function SpyRound({ roomId, user, room }) {
         </div>
       )}
 
-      {!votingActive && !voteResult && (
-        <button type="button" onClick={goLobby} style={{ ...btnStyle, marginTop: 16, background: '#555' }}>
-          В лобби
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+        {!votingActive && !voteResult && (
+          <button type="button" onClick={goLobby} style={{ ...btnStyle, background: '#555' }}>
+            В лобби
+          </button>
+        )}
+        <button type="button" onClick={exitToHome} style={{ ...btnStyle, background: '#333' }}>
+          Выйти
         </button>
-      )}
+      </div>
     </div>
   );
 }
