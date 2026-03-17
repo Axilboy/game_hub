@@ -21,7 +21,7 @@ function generateInviteToken() {
 }
 
 export const roomManager = {
-  create(hostId, hostName = 'Хост') {
+  create(hostId, hostName = 'Хост', hostPhotoUrl = null, hostHasPro = false) {
     const roomId = crypto.randomUUID();
     const code = generateCode();
     const inviteToken = generateInviteToken();
@@ -31,7 +31,7 @@ export const roomManager = {
       code,
       inviteToken,
       name: 'Лобби',
-      players: [{ id: hostId, name: hostName, isHost: true }],
+      players: [{ id: hostId, name: hostName, isHost: true, photo_url: hostPhotoUrl || null }],
       playerInventories: { [hostId]: { dictionaries: ['free'], hasPro: false } },
       selectedGame: null,
       gameSettings: null,
@@ -60,14 +60,16 @@ export const roomManager = {
     return roomId ? rooms.get(roomId) : null;
   },
 
-  join(roomId, playerId, playerName, inventory = null) {
+  join(roomId, playerId, playerName, inventory = null, photoUrl = null) {
     const room = rooms.get(roomId);
     if (!room) return null;
     if (room.players.some((p) => p.id === playerId)) {
       if (inventory && room.playerInventories) room.playerInventories[playerId] = inventory;
+      const p = room.players.find((x) => x.id === playerId);
+      if (p && photoUrl !== undefined) p.photo_url = photoUrl || null;
       return room;
     }
-    room.players.push({ id: playerId, name: playerName, isHost: false });
+    room.players.push({ id: playerId, name: playerName, isHost: false, photo_url: photoUrl || null });
     if (!room.playerInventories) room.playerInventories = {};
     room.playerInventories[playerId] = inventory || { dictionaries: ['free'], hasPro: false };
     return room;
@@ -122,11 +124,15 @@ export const roomManager = {
     return room;
   },
 
-  setPlayerInventory(roomId, playerId, inventory) {
+  setPlayerInventory(roomId, playerId, inventory, photoUrl = null) {
     const room = rooms.get(roomId);
     if (!room) return null;
     if (!room.playerInventories) room.playerInventories = {};
     room.playerInventories[playerId] = inventory;
+    const p = room.players.find((x) => x.id === playerId);
+    if (p) {
+      if (photoUrl !== undefined) p.photo_url = photoUrl || null;
+    }
     return room;
   },
 
@@ -184,6 +190,7 @@ export const roomManager = {
     const availableDictionaries = ['free'];
     if (anyPro) availableDictionaries.push('theme1', 'theme2');
     for (const d of allDicts) if (d !== 'free' && !availableDictionaries.includes(d)) availableDictionaries.push(d);
-    return { ...rest, players: room.players, availableDictionaries };
+    const players = (room.players || []).map((p) => ({ ...p, hasPro: Boolean(inv[p.id]?.hasPro) }));
+    return { ...rest, players, availableDictionaries };
   },
 };

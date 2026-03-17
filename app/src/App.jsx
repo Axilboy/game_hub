@@ -29,9 +29,12 @@ function AppRoutes() {
 
   const createRoom = async () => {
     if (!user?.id) return;
+    const inv = getInventory();
     const { room: r, inviteToken } = await api.post('/rooms', {
       hostId: String(user.id),
       hostName: user.first_name || 'Хост',
+      hostPhotoUrl: user.photo_url || null,
+      hostHasPro: inv.hasPro,
     });
     setRoom(r);
     setRoomId(r.id);
@@ -47,6 +50,7 @@ function AppRoutes() {
       playerId: String(user.id),
       playerName: user.first_name || 'Игрок',
       inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
+      photo_url: user.photo_url || null,
     });
     setRoom(r);
     setRoomId(r.id);
@@ -62,6 +66,7 @@ function AppRoutes() {
       playerId: String(user.id),
       playerName: user.first_name || 'Игрок',
       inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
+      photo_url: user.photo_url || null,
     });
     setRoom(r);
     setRoomId(r.id);

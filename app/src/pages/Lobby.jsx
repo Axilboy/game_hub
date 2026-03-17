@@ -27,6 +27,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState(room?.name || 'Лобби');
   const [shareToast, setShareToast] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
@@ -45,12 +46,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   useEffect(() => {
     const inv = getInventory();
-    api.patch(`/rooms/${roomId}/players/me`, { playerId: String(user?.id), inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro } }).then((r) => {
+    api.patch(`/rooms/${roomId}/players/me`, {
+      playerId: String(user?.id),
+      inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
+      photo_url: user?.photo_url || null,
+    }).then((r) => {
       if (r.room) onRoomUpdate(r.room);
     }).catch(() => {});
   }, [roomId, user?.id]);
 
-  const inviteToken = sessionStorage.getItem('inviteToken');
+  const inviteToken = room?.inviteToken || sessionStorage.getItem('inviteToken');
   const inviteLink = BOT_USERNAME && inviteToken
     ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}`
     : inviteToken
@@ -157,11 +162,24 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           )}
         </div>
       )}
-      <p>Игроки ({room.players?.length || 0}):</p>
-      <ul style={{ listStyle: 'none', padding: 0 }}>
+      <ul style={{ listStyle: 'none', padding: 0, marginBottom: 8 }}>
         {(room.players || []).map((p) => (
-          <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span>{p.name}{p.isHost ? ' (хост)' : ''}</span>
+          <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {p.photo_url ? (
+                  <img src={p.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
+                    {(p.name || '?')[0]}
+                  </div>
+                )}
+                {p.hasPro && (
+                  <span style={{ position: 'absolute', bottom: -2, right: -2, fontSize: 14 }} title="Про">👑</span>
+                )}
+              </div>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}{p.isHost ? ' (хост)' : ''}</span>
+            </div>
             {isHost && p.id !== String(user?.id) && !p.isHost && (
               <button
                 type="button"
@@ -170,7 +188,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick: p.id });
                   } catch (_) {}
                 }}
-                style={{ ...btnStyle, width: 'auto', padding: '6px 12px', margin: 0, fontSize: 14, background: '#a44' }}
+                style={{ ...btnStyle, width: 'auto', padding: '6px 12px', margin: 0, fontSize: 14, background: '#a44', flexShrink: 0 }}
               >
                 Кик
               </button>
@@ -324,9 +342,43 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
+      <button type="button" onClick={() => setShopOpen(true)} style={{ ...btnStyle, marginTop: 16, background: '#55a' }}>
+        Магазин
+      </button>
+
       <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: 24, background: '#555' }}>
         Выйти
       </button>
+
+      {shopOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320, maxHeight: '80vh', overflow: 'auto' }}>
+            <p style={{ marginBottom: 16 }}>Магазин — {selectedGame === 'spy' ? 'Шпион' : selectedGame === 'mafia' ? 'Мафия' : selectedGame === 'bunker' ? 'Бункер' : selectedGame === 'elias' ? 'Элиас' : 'игра'}</p>
+            {selectedGame === 'spy' && (
+              <>
+                <p style={{ fontSize: 14, marginBottom: 12 }}>Словари</p>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span>{DICT_NAMES.free}</span>
+                    <span style={{ color: '#8f8' }}>Бесплатно</span>
+                  </div>
+                </div>
+                {['theme1', 'theme2'].map((id) => (
+                  <div key={id} style={{ marginBottom: 12, padding: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+                    <div style={{ marginBottom: 6 }}>{DICT_NAMES[id] || id}</div>
+                    <p style={{ fontSize: 13, opacity: 0.85 }}>Доступно только премиум‑игрокам, покупка пока не доступна.</p>
+                  </div>
+                ))}
+              </>
+            )}
+            {selectedGame && selectedGame !== 'spy' && (
+              <p style={{ opacity: 0.8 }}>Дополнения для этой игры — скоро.</p>
+            )}
+            {!selectedGame && <p style={{ opacity: 0.8 }}>Выберите игру в лобби.</p>}
+            <button type="button" onClick={() => setShopOpen(false)} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

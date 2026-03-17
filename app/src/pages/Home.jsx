@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStats, saveStats } from '../stats';
-import { getInventory, purchaseDictionary, setPro } from '../inventory';
+import { getInventory, setPro } from '../inventory';
 
 function formatTime(seconds) {
   if (seconds < 60) return `${seconds} сек`;
@@ -136,9 +136,9 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
       {showSubStub && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 16 }}>Подписка Про — доступ к платным словарям на время подписки.</p>
-            <p style={{ marginBottom: 16, fontSize: 14, opacity: 0.8 }}>Оплата — скоро</p>
-            <button type="button" onClick={() => { setPro(Date.now() + 30 * 24 * 3600 * 1000); setInv(getInventory()); setShowSubStub(false); }} style={{ ...btnStyle, marginBottom: 8, background: '#5a4' }}>Демо: Про на 30 дней</button>
+            <p style={{ marginBottom: 16 }}>Нет рекламы, неограниченные игры и режимы для всех участников сессии.</p>
+            <button type="button" onClick={() => { setPro(Date.now() + 30 * 24 * 3600 * 1000); setInv(getInventory()); setShowSubStub(false); }} style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}>Купить подписку</button>
+            <input type="text" placeholder="Промокод" style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 8, border: '1px solid #444', background: 'transparent', color: 'inherit' }} />
             <button type="button" onClick={() => setShowSubStub(false)} style={btnStyle}>Закрыть</button>
           </div>
         </div>
@@ -147,21 +147,21 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320, maxHeight: '80vh', overflow: 'auto' }}>
             <p style={{ marginBottom: 16 }}>Словари для игры «Шпион»</p>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Базовый</span>
+                <span style={{ color: '#8f8' }}>Бесплатно</span>
+              </div>
+            </div>
             {['theme1', 'theme2'].map((id) => {
               const name = id === 'theme1' ? 'Детектив' : 'Пираты';
-              const owned = inv.dictionaries.includes(id);
               return (
-                <div key={id} style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>{name}</span>
-                  {owned ? (
-                    <span style={{ color: '#8f8' }}>Куплен</span>
-                  ) : (
-                    <button type="button" onClick={() => { purchaseDictionary(id); setInv(getInventory()); }} style={{ ...btnStyle, width: 'auto', padding: '8px 16px' }}>Купить (демо)</button>
-                  )}
+                <div key={id} style={{ marginBottom: 12, padding: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+                  <div style={{ marginBottom: 6 }}>{name}</div>
+                  <p style={{ fontSize: 13, opacity: 0.85 }}>Доступно только премиум‑игрокам, покупка пока не доступна.</p>
                 </div>
               );
             })}
-            <p style={{ marginTop: 16, fontSize: 14, opacity: 0.8 }}>Оплата — скоро. Демо: покупка сохраняется локально.</p>
             <button type="button" onClick={() => setShowShopStub(false)} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
           </div>
         </div>

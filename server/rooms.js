@@ -3,16 +3,17 @@ import { getRandomWord } from './words.js';
 
 export async function roomRoutes(fastify) {
   fastify.post('/rooms', async (request, reply) => {
-    const { hostId, hostName } = request.body || {};
+    const { hostId, hostName, hostPhotoUrl, hostHasPro } = request.body || {};
     if (!hostId) {
       return reply.code(400).send({ error: 'hostId required' });
     }
-    const room = roomManager.create(hostId, hostName || 'Хост');
+    const room = roomManager.create(hostId, hostName || 'Хост', hostPhotoUrl, hostHasPro);
+    if (room.playerInventories && hostHasPro) room.playerInventories[room.hostId] = { ...(room.playerInventories[room.hostId] || {}), hasPro: true };
     return { room: roomManager.toSafe(room), inviteToken: room.inviteToken };
   });
 
   fastify.post('/rooms/join', async (request, reply) => {
-    const { code, inviteToken, playerId, playerName, inventory } = request.body || {};
+    const { code, inviteToken, playerId, playerName, inventory, photo_url } = request.body || {};
     if (!playerId) {
       return reply.code(400).send({ error: 'playerId required' });
     }
@@ -29,7 +30,7 @@ export async function roomRoutes(fastify) {
     const inv = inventory && typeof inventory === 'object'
       ? { dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'], hasPro: Boolean(inventory.hasPro) }
       : null;
-    room = roomManager.join(room.id, playerId, playerName || 'Игрок', inv);
+    room = roomManager.join(room.id, playerId, playerName || 'Игрок', inv, photo_url || null);
     return { room: roomManager.toSafe(room) };
   });
 
@@ -48,9 +49,9 @@ export async function roomRoutes(fastify) {
     if (name !== undefined) roomManager.setRoomName(roomId, name);
     if (selectedGame !== undefined || gameSettings !== undefined) {
       roomManager.setLobbyGame(roomId, hostId, selectedGame !== undefined ? selectedGame : room.selectedGame, gameSettings !== undefined ? gameSettings : room.gameSettings);
-      const io = fastify.io;
-      if (io) io.to(roomId).emit('room_updated');
     }
+    const io = fastify.io;
+    if (io && (name !== undefined || selectedGame !== undefined || gameSettings !== undefined)) io.to(roomId).emit('room_updated');
     const updated = roomManager.get(roomId);
     return { room: roomManager.toSafe(updated) };
   });
@@ -163,14 +164,14 @@ export async function roomRoutes(fastify) {
 
   fastify.patch('/rooms/:roomId/players/me', async (request, reply) => {
     const { roomId } = request.params;
-    const { playerId, inventory } = request.body || {};
+    const { playerId, inventory, photo_url } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Not in room' });
     const inv = inventory && typeof inventory === 'object'
       ? { dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'], hasPro: Boolean(inventory.hasPro) }
       : { dictionaries: ['free'], hasPro: false };
-    roomManager.setPlayerInventory(roomId, playerId, inv);
+    roomManager.setPlayerInventory(roomId, playerId, inv, photo_url);
     const updated = roomManager.get(roomId);
     return { room: roomManager.toSafe(updated) };
   });
