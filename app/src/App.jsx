@@ -130,9 +130,13 @@ function AppRoutes() {
     };
     const onGameEnded = async () => {
       incrementGamesPlayed();
-      await refreshRoom();
       if (location.pathname === '/spy') return;
+      await refreshRoom();
       if (location.pathname !== '/lobby') navigate('/lobby');
+    };
+    const onGoLobbyAfterSpy = async () => {
+      await refreshRoom();
+      navigate('/lobby');
     };
     socket.on('disconnect', onDisconnect);
     socket.on('player_joined', onJoin);
@@ -150,7 +154,7 @@ function AppRoutes() {
       socket.off('game_start', onGameStart);
       socket.off('game_ended', onGameEnded);
     };
-  }, [roomId, location.pathname, navigate]);
+  }, [roomId, location.pathname, navigate, refreshRoom]);
 
   if (!ready) return <div style={{ padding: 20 }}>Загрузка…</div>;
 
@@ -187,7 +191,7 @@ function AppRoutes() {
           path="/spy"
           element={
             roomId && room?.state === 'playing' && room?.game === 'spy' ? (
-              <SpyRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
+              <SpyRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} onGoLobby={onGoLobbyAfterSpy} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
             ) : (

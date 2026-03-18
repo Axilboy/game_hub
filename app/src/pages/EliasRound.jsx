@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
+import BackArrow from '../components/BackArrow';
 
 function formatTime(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -101,6 +102,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     const winTeam = teams[winner];
     return (
       <div style={{ padding: 24, textAlign: 'center' }}>
+        <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
         <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
         <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t, i) => `${t.name} ${t.score}`).join(' — ')}</p>
         <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
@@ -111,6 +113,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   return (
     <div style={{ padding: 24 }}>
+      <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         {(state.teams || []).map((t, i) => (
           <div key={i} style={{ padding: 12, background: state.currentTeamIndex === i ? 'rgba(100,150,255,0.2)' : 'rgba(0,0,0,0.2)', borderRadius: 8, flex: 1, minWidth: 120 }}>

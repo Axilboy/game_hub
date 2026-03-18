@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
+import BackArrow from '../components/BackArrow';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -9,7 +10,7 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function SpyRound({ roomId, user, room, onLeave }) {
+export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const navigate = useNavigate();
   const [card, setCard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
   const isHost = room?.players?.some((p) => p.id === myId && p.isHost);
 
   const [exitConfirm, setExitConfirm] = useState(false);
-  const goLobby = () => navigate('/lobby');
+  const goLobby = () => { if (onGoLobby) onGoLobby(); else navigate('/lobby'); };
   const exitToHome = () => {
     setExitConfirm(false);
     if (onLeave) onLeave();
@@ -119,6 +120,7 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
   if (voteResult) {
     return (
       <div style={{ padding: 24, textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <BackArrow onClick={goLobby} title="В лобби" />
         <div>
           {(voteResult.allSpiesRound || voteResult.isSpy) && (
             <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>{voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}</p>
@@ -154,13 +156,13 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
 
   return (
     <div style={{ padding: 24, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <BackArrow onClick={() => setExitConfirm(true)} title="Выйти" />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        {card.timerEnabled && (timerStartsAt != null ? (
-          !timeUp && <p style={{ fontSize: 20, marginBottom: 16, opacity: 0.9 }}>Таймер: {formatTime(secondsLeft ?? 0)}</p>
-        ) : (
-          <p style={{ fontSize: 16, marginBottom: 16, opacity: 0.8 }}>Ожидание готовности всех (после рекламы)…</p>
-        ))}
-        {timeUp && <p style={{ fontSize: 22, color: '#fa0', marginBottom: 16 }}>Время вышло!</p>}
+        {card.timerEnabled && (
+          <div style={{ position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)', padding: '8px 16px', borderRadius: 8, background: timeUp ? 'rgba(255,100,0,0.3)' : 'rgba(0,0,0,0.3)', fontSize: 18, fontWeight: 'bold' }}>
+            {timerStartsAt == null ? 'Ожидание готовности всех…' : timeUp ? `Время вышло!` : `Таймер: ${formatTime(secondsLeft ?? 0)}`}
+          </div>
+        )}
         {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
         {isSpy ? (
           <>

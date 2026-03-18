@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
+import BackArrow from '../components/BackArrow';
 
 const btnStyle = {
   padding: '12px 20px',
@@ -85,6 +86,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   if (winner) {
     return (
       <div style={{ padding: 24, textAlign: 'center' }}>
+        <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
         <p style={{ fontSize: 22, marginBottom: 16 }}>{winner === 'civilians' ? 'Победили мирные!' : 'Победила мафия!'}</p>
         <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
         <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>Выйти</button>
@@ -94,6 +96,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
 
   return (
     <div style={{ padding: 24 }}>
+      <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
       <p style={{ marginBottom: 8, opacity: 0.9 }}>Фаза: {phase === 'night_mafia' ? 'Ночь — мафия' : phase === 'night_commissioner' ? 'Ночь — комиссар' : phase === 'day' ? 'День' : 'Голосование'}</p>
 
       {isModerator && <p style={{ fontSize: 16, color: '#8af', marginBottom: 8 }}>Вы ведущий</p>}

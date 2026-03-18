@@ -378,7 +378,9 @@ export async function roomRoutes(fastify) {
         score: 0,
       }));
       const totalPlaying = teams.reduce((sum, t) => sum + t.players.length, 0);
+      const teamsWithPlayers = teams.filter((t) => t.players.length > 0).length;
       if (totalPlaying > 0 && totalPlaying < 2) return reply.code(400).send({ error: 'В игре должно быть минимум 2 игрока' });
+      if (totalPlaying >= 2 && teamsWithPlayers < 2) return reply.code(400).send({ error: 'Игроки должны быть минимум в двух разных командах' });
     } else {
       let team1 = [];
       let team2 = [];
@@ -403,7 +405,7 @@ export async function roomRoutes(fastify) {
       dictionaryIds: dictIds,
       roundEndsAt: null,
       timerSeconds: roundSeconds,
-      scoreLimit: Math.min(50, Math.max(5, Number(scoreLimit) || 10)),
+      scoreLimit: Math.min(100, Math.max(5, Number(scoreLimit) || 10)),
       winner: null,
       readyIds: [],
     };

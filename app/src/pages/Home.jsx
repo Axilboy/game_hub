@@ -5,6 +5,7 @@ import { getInventory, setPro } from '../inventory';
 import { api } from '../api';
 import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
+import BackArrow from '../components/BackArrow';
 
 const ADMIN_CODE = '555555';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
@@ -135,6 +136,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
 
   return (
     <div style={{ padding: 24, maxWidth: 400, margin: '0 auto' }}>
+      <BackArrow onClick={() => window.history.back()} title="Назад" />
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <div onClick={() => setShowAvatarPicker(true)} title="Нажмите, чтобы сменить аватар" style={{ cursor: 'pointer', flexShrink: 0 }}>
           {avatarState ? (

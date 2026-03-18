@@ -4,6 +4,7 @@ import { api } from '../api';
 import { getInventory } from '../inventory';
 import { getAvatar } from '../displayName';
 import ShopModal from '../components/ShopModal';
+import BackArrow from '../components/BackArrow';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -175,7 +176,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     if (!isHost) return;
     const count = room?.players?.length ?? 0;
     if (count < MIN_PLAYERS.elias) {
-      setMinPlayersWarning(`Для игры в Элиас нужно минимум ${MIN_PLAYERS.elias} игроков. Сейчас в лобби: ${count}.`);
+      setMinPlayersWarning(`Для игры в Элиас нужно минимум ${MIN_PLAYERS.elias} игрока. Сейчас в лобби: ${count}.`);
       return;
     }
     const gs = room?.gameSettings || {};
@@ -183,12 +184,18 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     const hasTeams = Array.isArray(teams) && teams.length >= 2;
     if (hasTeams) {
       const totalPlaying = teams.reduce((sum, t) => sum + (t.playerIds?.length || 0), 0);
+      const teamsWithPlayers = teams.filter((t) => (t.playerIds || []).length > 0).length;
       if (totalPlaying > 0 && totalPlaying < 2) {
         setMinPlayersWarning('В игре должно быть минимум 2 игрока. Добавьте игроков в команды.');
         return;
       }
+      if (totalPlaying >= 2 && teamsWithPlayers < 2) {
+        setMinPlayersWarning('Игроки должны быть минимум в двух разных командах. Распределите по командам.');
+        return;
+      }
     }
-    await api.post('/rooms/elias/start', {
+    try {
+      await api.post('/rooms/elias/start', {
       roomId,
       hostId: String(user?.id),
       timerSeconds: gs.timerSeconds ?? 60,
@@ -198,9 +205,17 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       team1Ids: !hasTeams && gs.eliasTeam1Ids?.length ? gs.eliasTeam1Ids : undefined,
       team2Ids: !hasTeams && gs.eliasTeam2Ids?.length ? gs.eliasTeam2Ids : undefined,
     });
-    const { room: r } = await api.get(`/rooms/${roomId}`);
-    onRoomUpdate(r);
-    navigate('/elias');
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+      navigate('/elias');
+    } catch (e) {
+      let msg = e?.message || 'Не удалось запустить игру';
+      try {
+        const d = JSON.parse(e.message);
+        if (d?.error) msg = d.error;
+      } catch (_) {}
+      setMinPlayersWarning(msg);
+    }
   };
 
   const saveRoomName = async () => {
@@ -239,8 +254,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
+  const handleBack = () => { if (selectedGame) patchLobbyGame({ selectedGame: null }); else onLeave(); };
+
   return (
     <div style={{ padding: 24, maxWidth: 400, margin: '0 auto' }}>
+      <BackArrow onClick={handleBack} title={selectedGame ? 'Назад к выбору игры' : 'Выйти'} />
       {editingName && isHost ? (
         <input
           type="text"
@@ -588,7 +606,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               </div>
               <p style={{ marginBottom: 8 }}>Победить при (очков)</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {[5, 10, 15, 20].map((n) => (
+                {[5, 10, 15, 20, 50].map((n) => (
                   <button key={n} type="button" onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, scoreLimit: n } })} style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: (room?.gameSettings?.scoreLimit ?? 10) === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{n}</button>
                 ))}
               </div>

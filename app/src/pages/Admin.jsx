@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import BackArrow from '../components/BackArrow';
 
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -109,6 +110,7 @@ export default function Admin() {
 
   return (
     <div style={{ padding: 24, maxWidth: 400, margin: '0 auto' }}>
+      <BackArrow onClick={exitAdmin} title="Выйти из админки" />
       <h2 style={{ marginTop: 0 }}>Админка</h2>
       <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
         <p style={{ marginBottom: 12 }}>Уникальные игроки</p>
@@ -125,6 +127,7 @@ export default function Admin() {
         <div>За месяц: <strong>{stats?.adImpressionsMonth ?? 0}</strong></div>
         <div>Всего: <strong>{stats?.adImpressionsTotal ?? 0}</strong></div>
       </section>
+      <a href="https://publishers.monetag.com/statistics?group_by=date_time&date_from=2026-02-19&date_to=2026-03-19&format_type=ALL&rate_model=1" target="_blank" rel="noopener noreferrer" style={{ display: 'block', ...btnStyle, marginBottom: 8, textAlign: 'center', textDecoration: 'none' }}>Monetag — статистика рекламы</a>
       <button type="button" onClick={() => setPromoView(true)} style={btnStyle}>Создать промокод</button>
       <button type="button" onClick={loadStats} style={{ ...btnStyle, marginTop: 8, background: '#555' }}>Обновить статистику</button>
       <button type="button" onClick={exitAdmin} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>Выйти из админки</button>
