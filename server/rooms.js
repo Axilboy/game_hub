@@ -72,7 +72,7 @@ export async function roomRoutes(fastify) {
   const ALL_SPIES_CHANCE = 0.05;
 
   fastify.post('/rooms/spy/start', async (request, reply) => {
-    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1, spyMode = 'classic', dictionaryIds } = request.body || {};
+    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1, allSpiesChanceEnabled = false, dictionaryIds } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
@@ -83,11 +83,10 @@ export async function roomRoutes(fastify) {
     const ids = Array.isArray(dictionaryIds) ? dictionaryIds.filter((d) => allowedDicts.has(d)) : ['free'];
     const word = getRandomWord(ids.length ? ids : ['free']);
     let spyIds;
-    if (spyMode === 'all_spies' && Math.random() < ALL_SPIES_CHANCE) {
+    if (allSpiesChanceEnabled && Math.random() < ALL_SPIES_CHANCE) {
       spyIds = players.map((p) => p.id);
     } else {
-      const numSpies = spyMode === 'two' ? 2 : spyMode === 'three' ? 3 : 1;
-      const count = Math.min(Math.max(1, numSpies), Math.max(1, players.length - 1));
+      const count = Math.min(Math.max(1, parseInt(spyCount, 10) || 1), Math.max(1, players.length - 1));
       const indices = new Set();
       while (indices.size < count) indices.add(Math.floor(Math.random() * players.length));
       spyIds = Array.from(indices).map((i) => players[i].id);
@@ -101,6 +100,8 @@ export async function roomRoutes(fastify) {
       allSpiesRound,
       timerEnabled: Boolean(timerEnabled),
       timerSeconds: safeSeconds,
+      readyIds: [],
+      timerStartsAt: null,
     });
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'spy', allSpiesRound });
@@ -115,11 +116,35 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'spy' || !room.gameState) {
       return reply.code(404).send({ error: 'Game not found' });
     }
-    const { word, spyIds, timerEnabled, timerSeconds, allSpiesRound } = room.gameState;
+    const { word, spyIds, timerEnabled, timerSeconds, allSpiesRound, timerStartsAt } = room.gameState;
     const isSpy = spyIds.includes(playerId);
-    const payload = { role: isSpy ? 'spy' : 'civilian', timerEnabled: Boolean(timerEnabled), timerSeconds: timerSeconds || 60, allSpiesRound: Boolean(allSpiesRound) };
+    const payload = { role: isSpy ? 'spy' : 'civilian', timerEnabled: Boolean(timerEnabled), timerSeconds: timerSeconds || 60, allSpiesRound: Boolean(allSpiesRound), timerStartsAt: timerStartsAt || null };
     if (isSpy) return { ...payload };
     return { ...payload, word };
+  });
+
+  fastify.post('/rooms/:roomId/ready', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, game } = request.body || {};
+    if (!playerId || !game) return reply.code(400).send({ error: 'playerId and game required' });
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== game || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Not in room' });
+    const gs = room.gameState;
+    if (!gs.readyIds) gs.readyIds = [];
+    if (gs.readyIds.includes(playerId)) return { ok: true, timerStarted: !!gs.timerStartsAt };
+    gs.readyIds.push(playerId);
+    const allReady = gs.readyIds.length >= room.players.length;
+    const io = fastify.io;
+    if (game === 'spy' && allReady && gs.timerEnabled && gs.timerSeconds) {
+      gs.timerStartsAt = Date.now();
+      io.to(roomId).emit('game_timer_start', { timerStartsAt: gs.timerStartsAt, timerSeconds: gs.timerSeconds });
+    }
+    if (game === 'elias' && allReady && gs.timerSeconds) {
+      gs.roundEndsAt = Date.now() + gs.timerSeconds * 1000;
+      io.to(roomId).emit('elias_timer_start', { roundEndsAt: gs.roundEndsAt });
+    }
+    return { ok: true, timerStarted: allReady };
   });
 
   function endVote(roomId, io) {
@@ -187,7 +212,7 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.post('/rooms/mafia/start', async (request, reply) => {
-    const { roomId, hostId, moderatorId, extended = false, revealRoleOnDeath = true, mafiaCanSkipKill = false, theme = 'default' } = request.body || {};
+    const { roomId, hostId, moderatorId, extended = false, revealRoleOnDeath = true, mafiaCanSkipKill = false } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
@@ -200,7 +225,7 @@ export async function roomRoutes(fastify) {
     if (!modId || !players.some((p) => p.id === modId)) {
       modId = players[Math.floor(Math.random() * players.length)].id;
     }
-    const gs = createMafiaState(players, { extended, revealRoleOnDeath, mafiaCanSkipKill, moderatorId: modId, theme });
+    const gs = createMafiaState(players, { extended, revealRoleOnDeath, mafiaCanSkipKill, moderatorId: modId, theme: 'default' });
     roomManager.setGame(roomId, 'mafia');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
@@ -349,10 +374,11 @@ export async function roomRoutes(fastify) {
       currentExplainerIndex: 0,
       currentWord,
       dictionaryIds: dictIds,
-      roundEndsAt: Date.now() + roundSeconds * 1000,
+      roundEndsAt: null,
       timerSeconds: roundSeconds,
       scoreLimit: Math.min(50, Math.max(5, Number(scoreLimit) || 10)),
       winner: null,
+      readyIds: [],
     };
     roomManager.setGame(roomId, 'elias');
     roomManager.setState(roomId, 'playing', gs);
@@ -394,7 +420,6 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     if (gs.winner) return;
     gs.currentWord = getRandomEliasWord(gs.dictionaryIds);
-    gs.roundEndsAt = Date.now() + gs.timerSeconds * 1000;
     io.to(roomId).emit('elias_update', {});
   }
 

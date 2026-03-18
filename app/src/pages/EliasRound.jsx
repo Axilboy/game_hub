@@ -39,7 +39,15 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   useEffect(() => refreshState(), [roomId, myId]);
   useEffect(() => {
+    if (!myId || !state) return;
+    api.post(`/rooms/${roomId}/ready`, { playerId: myId, game: 'elias' }).catch(() => {});
+  }, [roomId, myId, state]);
+
+  useEffect(() => {
     socket.on('elias_update', refreshState);
+    socket.on('elias_timer_start', (data) => {
+      if (data?.roundEndsAt) refreshState();
+    });
     socket.on('elias_ended', (data) => {
       setWinnerTeamIndex(data?.winnerTeamIndex ?? null);
       if (data?.teams) setEndedTeams(data.teams);
@@ -47,6 +55,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     socket.on('game_ended', refreshState);
     return () => {
       socket.off('elias_update', refreshState);
+      socket.off('elias_timer_start');
       socket.off('elias_ended');
       socket.off('game_ended', refreshState);
     };
@@ -82,8 +91,9 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   if (loading) return <div style={{ padding: 24 }}>Загрузка…</div>;
   if (!state) return <div style={{ padding: 24 }}>Нет данных</div>;
 
+  const timerStarted = state.roundEndsAt != null;
   const timeLeft = state.roundEndsAt ? Math.max(0, state.roundEndsAt - Date.now()) : 0;
-  const timeUp = timeLeft <= 0;
+  const timeUp = timerStarted && timeLeft <= 0;
   const winner = state.winner != null ? state.winner : winnerTeamIndex;
   const teams = endedTeams || state.teams || [];
 
@@ -111,7 +121,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       </div>
 
       <p style={{ marginBottom: 8, opacity: 0.9 }}>Объясняет: {state.explainerName}</p>
-      <p style={{ marginBottom: 16, fontSize: 20 }}>Таймер: {formatTime(timeLeft)}</p>
+      {timerStarted ? (
+        <p style={{ marginBottom: 16, fontSize: 20 }}>Таймер: {formatTime(timeLeft)}</p>
+      ) : (
+        <p style={{ marginBottom: 16, fontSize: 16, opacity: 0.8 }}>Ожидание готовности всех…</p>
+      )}
 
       {state.isExplainer ? (
         <>

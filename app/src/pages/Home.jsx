@@ -161,7 +161,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
               style={{ width: '100%', padding: 6, fontSize: 18, fontWeight: 'bold', borderRadius: 6, border: '1px solid #555' }}
             />
           ) : (
-            <div style={{ fontWeight: 'bold', fontSize: 18 }} onClick={() => setEditingName(true)} title="Нажмите, чтобы изменить имя" style={{ cursor: 'pointer' }}>
+            <div style={{ fontWeight: 'bold', fontSize: 18, cursor: 'pointer' }} onClick={() => setEditingName(true)} title="Нажмите, чтобы изменить имя">
               {shownName}
             </div>
           )}

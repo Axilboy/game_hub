@@ -13,30 +13,52 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
   const [card, setCard] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [secondsLeft, setSecondsLeft] = useState(null);
+  const [timerStartsAt, setTimerStartsAt] = useState(null);
   const [votingEndsAt, setVotingEndsAt] = useState(null);
   const [votedForId, setVotedForId] = useState(null);
   const [voteResult, setVoteResult] = useState(null);
+  const [voteTick, setVoteTick] = useState(0);
 
   const myId = user?.id != null ? String(user.id) : '';
   const otherPlayers = (room?.players || []).filter((p) => p.id !== myId);
-  const [voteTick, setVoteTick] = useState(0);
   const voteSecondsLeft = votingEndsAt ? Math.max(0, Math.ceil((votingEndsAt - Date.now()) / 1000)) : 0;
+  const timerSeconds = card?.timerSeconds ?? 60;
+  const secondsLeft = card?.timerEnabled && timerStartsAt != null
+    ? Math.max(0, Math.ceil((timerStartsAt + timerSeconds * 1000 - Date.now()) / 1000))
+    : null;
 
-  useEffect(() => {
+  const fetchCard = () => {
     if (!myId) return;
     api.get(`/rooms/${roomId}/spy/card?playerId=${encodeURIComponent(myId)}`).then((r) => {
       setCard(r);
-      if (r.timerEnabled && r.timerSeconds) setSecondsLeft(r.timerSeconds);
+      if (r.timerStartsAt) setTimerStartsAt(r.timerStartsAt);
       setLoading(false);
     }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!myId) return;
+    fetchCard();
   }, [roomId, myId]);
 
   useEffect(() => {
-    if (secondsLeft == null || secondsLeft <= 0) return;
-    const t = setInterval(() => setSecondsLeft((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    if (!myId || !card) return;
+    api.post(`/rooms/${roomId}/ready`, { playerId: myId, game: 'spy' }).catch(() => {});
+  }, [roomId, myId, card]);
+
+  useEffect(() => {
+    const onTimerStart = (data) => {
+      if (data?.timerStartsAt) setTimerStartsAt(data.timerStartsAt);
+      else fetchCard();
+    };
+    socket.on('game_timer_start', onTimerStart);
+    return () => socket.off('game_timer_start', onTimerStart);
+  }, [roomId, myId]);
+
+  useEffect(() => {
+    const t = setInterval(() => setVoteTick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, [secondsLeft]);
+  }, []);
 
   useEffect(() => {
     if (!votingEndsAt) return;
@@ -133,9 +155,11 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
   return (
     <div style={{ padding: 24, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        {card.timerEnabled && secondsLeft !== null && !timeUp && (
-          <p style={{ fontSize: 20, marginBottom: 16, opacity: 0.9 }}>Таймер: {formatTime(secondsLeft)}</p>
-        )}
+        {card.timerEnabled && (timerStartsAt != null ? (
+          !timeUp && <p style={{ fontSize: 20, marginBottom: 16, opacity: 0.9 }}>Таймер: {formatTime(secondsLeft ?? 0)}</p>
+        ) : (
+          <p style={{ fontSize: 16, marginBottom: 16, opacity: 0.8 }}>Ожидание готовности всех (после рекламы)…</p>
+        ))}
         {timeUp && <p style={{ fontSize: 22, color: '#fa0', marginBottom: 16 }}>Время вышло!</p>}
         {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
         {isSpy ? (
