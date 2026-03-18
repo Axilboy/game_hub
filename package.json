@@ -2,6 +2,7 @@
   "name": "game-hub",
   "private": true,
   "scripts": {
+    "install:all": "npm install && cd app && npm install && cd ../server && npm install && cd ../bot && npm install && cd ..",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:app\" \"npm run dev:bot\"",
     "dev:server": "node server/index.js",
     "dev:app": "cd app && npm run dev",

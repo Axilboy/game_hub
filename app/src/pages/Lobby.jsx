@@ -15,8 +15,30 @@ const TIMER_OPTIONS = [
 ];
 
 const SPY_COUNT_OPTIONS = [1, 2, 3];
-const DICT_NAMES = { free: 'Базовый', theme1: 'Детектив (Про)', theme2: 'Пираты (Про)' };
+const DICT_NAMES = {
+  free: 'Базовый',
+  theme1: 'Детектив (Про)',
+  theme2: 'Пираты (Про)',
+  travel: 'Путешествия (Про)',
+  food: 'Еда (Про)',
+  sports: 'Спорт (Про)',
+  movies: 'Кино (Про)',
+  music: 'Музыка (Про)',
+  nature: 'Природа (Про)',
+  science: 'Наука (Про)',
+  history: 'История (Про)',
+  art: 'Искусство (Про)',
+  tech: 'Технологии (Про)',
+};
 const MIN_PLAYERS = { spy: 2, mafia: 4, elias: 2 };
+
+const ELIAS_DICT_CARDS = [
+  { id: 'basic', name: 'Базовый', description: 'Простые и понятные слова для любой компании.', emoji: '📦', free: true },
+  { id: 'animals', name: 'Животные', description: 'Звери, птицы и рыбы — от домашних до экзотических.', emoji: '🦁', free: true },
+  { id: 'movies', name: 'Кино', description: 'Жанры, награды, съёмки и всё про киноиндустрию.', emoji: '🎬', free: false },
+  { id: 'science', name: 'Наука', description: 'Эксперименты, теории и научные понятия.', emoji: '🔬', free: false },
+  { id: 'sport', name: 'Спорт', description: 'Турниры, команды, рекорды и спортивный сленг.', emoji: '⚽', free: false },
+];
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
@@ -31,6 +53,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [editNameValue, setEditNameValue] = useState(room?.name || 'Лобби');
   const [shareToast, setShareToast] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [mafiaExtendedPopup, setMafiaExtendedPopup] = useState(false);
+  const [minPlayersWarning, setMinPlayersWarning] = useState(null);
+  const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
@@ -79,6 +104,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const startSpy = async () => {
     if (!isHost) return;
+    const count = room?.players?.length ?? 0;
+    if (count < MIN_PLAYERS.spy) {
+      setMinPlayersWarning(`Для игры в Шпион нужно минимум ${MIN_PLAYERS.spy} игроков. Сейчас в лобби: ${count}.`);
+      return;
+    }
     await api.post('/rooms/spy/start', {
       roomId,
       hostId: String(user?.id),
@@ -95,6 +125,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const startMafia = async (opts) => {
     if (!isHost) return;
+    const count = room?.players?.length ?? 0;
+    if (count < MIN_PLAYERS.mafia) {
+      setMinPlayersWarning(`Для игры в Мафию нужно минимум ${MIN_PLAYERS.mafia} игроков. Сейчас в лобби: ${count}.`);
+      return;
+    }
     const gs = room?.gameSettings || {};
     await api.post('/rooms/mafia/start', {
       roomId,
@@ -112,13 +147,27 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const startElias = async () => {
     if (!isHost) return;
+    const count = room?.players?.length ?? 0;
+    if (count < MIN_PLAYERS.elias) {
+      setMinPlayersWarning(`Для игры в Элиас нужно минимум ${MIN_PLAYERS.elias} игроков. Сейчас в лобби: ${count}.`);
+      return;
+    }
     const gs = room?.gameSettings || {};
+    const team1Ids = gs.eliasTeam1Ids;
+    const team2Ids = gs.eliasTeam2Ids;
+    const playingCount = (Array.isArray(team1Ids) ? team1Ids.length : 0) + (Array.isArray(team2Ids) ? team2Ids.length : 0);
+    if (playingCount > 0 && playingCount < 2) {
+      setMinPlayersWarning('В игре должно быть минимум 2 игрока. Добавьте игроков в команды или выберите «Авто».');
+      return;
+    }
     await api.post('/rooms/elias/start', {
       roomId,
       hostId: String(user?.id),
       timerSeconds: gs.timerSeconds ?? 60,
       scoreLimit: gs.scoreLimit ?? 10,
       dictionaryIds: gs.dictionaryIds?.length ? gs.dictionaryIds : ['basic', 'animals'],
+      team1Ids: Array.isArray(team1Ids) && team1Ids.length > 0 ? team1Ids : undefined,
+      team2Ids: Array.isArray(team2Ids) && team2Ids.length > 0 ? team2Ids : undefined,
     });
     const { room: r } = await api.get(`/rooms/${roomId}`);
     onRoomUpdate(r);
@@ -271,7 +320,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   if (!g.available) return;
                   const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, dictionaryIds: ['free'] } : null;
                   const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default' } : null;
-                  const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, dictionaryIds: ['basic', 'animals'] } : null;
+                  const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, dictionaryIds: ['basic', 'animals'], eliasTeam1Ids: [], eliasTeam2Ids: [] } : null;
                   patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || undefined });
                 }}
                 style={{
@@ -452,9 +501,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => roomHasPro && patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: true } })}
+                  onClick={() => { setMafiaExtendedPopup(true); if (roomHasPro && !room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: true } }); }}
                   style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.extended ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444'), opacity: roomHasPro ? 1 : 0.6 }}
-                  title={!roomHasPro ? 'Нужна подписка Про' : ''}
+                  title="Подробнее об расширенной версии"
                 >
                   Расширенная (Про)
                 </button>
@@ -500,6 +549,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <p style={{ margin: 0, fontSize: 14 }}>Таймер: {(room.gameSettings.timerSeconds || 60) / 60} мин</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>До очков: {room.gameSettings.scoreLimit ?? 10}</p>
               <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.elias} игроков</p>
+              {(room.gameSettings.eliasTeam1Ids?.length > 0 || room.gameSettings.eliasTeam2Ids?.length > 0) && (
+                <p style={{ margin: '8px 0 0', fontSize: 13 }}>
+                  Команды: {(room?.players || []).filter((pl) => room.gameSettings.eliasTeam1Ids?.includes(pl.id)).map((pl) => pl.name).join(', ') || '—'} / {(room?.players || []).filter((pl) => room.gameSettings.eliasTeam2Ids?.includes(pl.id)).map((pl) => pl.name).join(', ') || '—'}
+                </p>
+              )}
             </div>
           )}
           {isHost && (
@@ -516,13 +570,36 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   <button key={n} type="button" onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, scoreLimit: n } })} style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: (room?.gameSettings?.scoreLimit ?? 10) === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{n}</button>
                 ))}
               </div>
-              <p style={{ marginBottom: 8 }}>Словари: бесплатные (Базовый, Животные) и платные (Про)</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {(room?.availableEliasDictionaries || ['basic', 'animals']).map((id) => {
-                  const names = { basic: 'Базовый', animals: 'Животные', movies: 'Кино (Про)', science: 'Наука (Про)', sport: 'Спорт (Про)' };
-                  const on = (room?.gameSettings?.dictionaryIds || ['basic', 'animals']).includes(id);
+              <p style={{ marginBottom: 8 }}>Словари</p>
+              <button type="button" onClick={() => setEliasDictModalOpen(true)} style={{ ...btnStyle, marginBottom: 16, background: '#555' }}>
+                Выбрать словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals']).length})
+              </button>
+              <p style={{ marginBottom: 8 }}>Команды</p>
+              <p style={{ fontSize: 12, opacity: 0.85, marginBottom: 10 }}>Назначьте игроков в команды до старта. Нечётное число: один может быть «Не играет».</p>
+              <div style={{ marginBottom: 16 }}>
+                {(room?.players || []).map((p) => {
+                  const t1 = room?.gameSettings?.eliasTeam1Ids ?? [];
+                  const t2 = room?.gameSettings?.eliasTeam2Ids ?? [];
+                  const hasCustom = (t1?.length || 0) + (t2?.length || 0) > 0;
+                  const n = (room?.players || []).length;
+                  const def1 = (room?.players || []).slice(0, Math.ceil(n / 2)).map((x) => x.id);
+                  const def2 = (room?.players || []).slice(Math.ceil(n / 2)).map((x) => x.id);
+                  const team1Ids = hasCustom ? (t1 || []) : def1;
+                  const team2Ids = hasCustom ? (t2 || []) : def2;
+                  const in1 = team1Ids.includes(p.id);
+                  const in2 = team2Ids.includes(p.id);
+                  const setTeam = (team) => {
+                    const new1 = team === 1 ? [...team1Ids.filter((id) => id !== p.id), p.id] : team1Ids.filter((id) => id !== p.id);
+                    const new2 = team === 2 ? [...team2Ids.filter((id) => id !== p.id), p.id] : team2Ids.filter((id) => id !== p.id);
+                    patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeam1Ids: new1, eliasTeam2Ids: new2 } });
+                  };
                   return (
-                    <button key={id} type="button" onClick={() => { const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals']; const next = on ? cur.filter((x) => x !== id) : [...cur, id]; if (next.length) patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: next } }); }} style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: on ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{names[id] || id}</button>
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <span style={{ minWidth: 80 }}>{p.name}</span>
+                      <button type="button" onClick={() => setTeam(1)} style={{ ...btnStyle, width: 'auto', padding: '6px 10px', fontSize: 12, background: in1 ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>Команда 1</button>
+                      <button type="button" onClick={() => setTeam(2)} style={{ ...btnStyle, width: 'auto', padding: '6px 10px', fontSize: 12, background: in2 ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>Команда 2</button>
+                      <button type="button" onClick={() => setTeam(0)} style={{ ...btnStyle, width: 'auto', padding: '6px 10px', fontSize: 12, background: !in1 && !in2 ? '#555' : '#333' }}>Не играет</button>
+                    </div>
                   );
                 })}
               </div>
@@ -548,9 +625,86 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           Назад
         </button>
       ) : null}
-      <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: isHost && selectedGame ? 8 : 24, background: '#555' }}>
-        Выйти
-      </button>
+      {(!isHost || !selectedGame) && (
+        <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: isHost && selectedGame ? 8 : 24, background: '#555' }}>
+          Выйти
+        </button>
+      )}
+
+      {mafiaExtendedPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaExtendedPopup(false)}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Расширенная версия Мафии</h3>
+            <p style={{ marginBottom: 8, fontSize: 14 }}>Дополнительные роли и механики:</p>
+            <ul style={{ margin: '0 0 16px', paddingLeft: 20, fontSize: 14, lineHeight: 1.5 }}>
+              <li>Дон мафии — знает своих мафиози, мафия не знает дона</li>
+              <li>Комиссар — каждую ночь может проверить одного игрока</li>
+              <li>Доктор — может лечить одного игрока за ночь</li>
+              <li>Маньяк — побеждает, если остаётся с мирным</li>
+            </ul>
+            <p style={{ marginBottom: 0, fontSize: 13, opacity: 0.9 }}>Доступно по подписке Про.</p>
+            <button type="button" onClick={() => setMafiaExtendedPopup(false)} style={{ ...btnStyle, marginTop: 16 }}>Понятно</button>
+          </div>
+        </div>
+      )}
+
+      {minPlayersWarning && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
+            <p style={{ marginBottom: 16 }}>{minPlayersWarning}</p>
+            <button type="button" onClick={() => setMinPlayersWarning(null)} style={btnStyle}>Ок</button>
+          </div>
+        </div>
+      )}
+
+      {eliasDictModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={() => setEliasDictModalOpen(false)}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Выбор словарей</h3>
+            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>Выберите один или несколько. Хотя бы один должен быть включён.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {(room?.availableEliasDictionaries || ['basic', 'animals']).map((id) => {
+                const card = ELIAS_DICT_CARDS.find((c) => c.id === id) || { id, name: id, description: '', emoji: '📖', free: false };
+                const selected = (room?.gameSettings?.dictionaryIds || ['basic', 'animals']).includes(id);
+                const toggle = () => {
+                  const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals'];
+                  const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
+                  if (next.length) patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: next } });
+                };
+                return (
+                  <div
+                    key={card.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggle}
+                    onKeyDown={(e) => e.key === 'Enter' && toggle()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                      padding: 14,
+                      borderRadius: 10,
+                      background: selected ? 'rgba(58, 123, 213, 0.2)' : 'rgba(255,255,255,0.06)',
+                      border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent'}`,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
+                      {card.emoji}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{card.name}{!card.free && <span style={{ fontSize: 11, marginLeft: 6, opacity: 0.8 }}>Про</span>}</div>
+                      <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}>{card.description}</div>
+                    </div>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${selected ? 'var(--tg-theme-button-color)' : '#666'}`, background: selected ? 'var(--tg-theme-button-color)' : 'transparent', flexShrink: 0 }} />
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" onClick={() => setEliasDictModalOpen(false)} style={{ ...btnStyle, marginTop: 16 }}>Готово</button>
+          </div>
+        </div>
+      )}
 
       {shopOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>

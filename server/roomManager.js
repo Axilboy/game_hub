@@ -1,4 +1,5 @@
 import { customAlphabet } from 'nanoid';
+import { SPY_PREMIUM_IDS } from './words.js';
 
 const alphabet = '0123456789';
 const codeGen = customAlphabet(alphabet, 6);
@@ -192,7 +193,7 @@ export const roomManager = {
       }
     }
     const availableDictionaries = ['free'];
-    if (anyPro) availableDictionaries.push('theme1', 'theme2');
+    if (anyPro) SPY_PREMIUM_IDS.forEach((id) => availableDictionaries.push(id));
     for (const d of allDicts) if (d !== 'free' && !availableDictionaries.includes(d)) availableDictionaries.push(d);
     const availableEliasDictionaries = ['basic', 'animals'];
     if (anyPro) availableEliasDictionaries.push('movies', 'science', 'sport');

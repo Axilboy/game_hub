@@ -8,7 +8,6 @@ import {
   checkWin,
   toClientState,
   getMafiaPlayers,
-  THEMES,
 } from './mafia.js';
 import { getRandomEliasWord } from './eliasWords.js';
 
@@ -348,23 +347,29 @@ export async function roomRoutes(fastify) {
     return { ok: true };
   });
 
-  fastify.get('/rooms/:roomId/mafia/themes', async (_request, reply) => {
-    return { themes: THEMES };
-  });
-
   fastify.post('/rooms/elias/start', async (request, reply) => {
-    const { roomId, hostId, timerSeconds = 60, scoreLimit = 10, dictionaryIds } = request.body || {};
+    const { roomId, hostId, timerSeconds = 60, scoreLimit = 10, dictionaryIds, team1Ids, team2Ids } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
     const players = room.players;
     if (players.length < 2) return reply.code(400).send({ error: 'Need at least 2 players' });
+    const playerIdSet = new Set(players.map((p) => p.id));
+    let team1 = [];
+    let team2 = [];
+    if (Array.isArray(team1Ids) && Array.isArray(team2Ids) && (team1Ids.length > 0 || team2Ids.length > 0)) {
+      team1 = team1Ids.filter((id) => playerIdSet.has(id));
+      team2 = team2Ids.filter((id) => playerIdSet.has(id));
+      if (team1.length + team2.length < 2) return reply.code(400).send({ error: 'В игре должно быть минимум 2 игрока (в двух командах вместе)' });
+    }
+    if (team1.length === 0 && team2.length === 0) {
+      team1 = players.slice(0, Math.ceil(players.length / 2)).map((p) => p.id);
+      team2 = players.slice(Math.ceil(players.length / 2)).map((p) => p.id);
+    }
     const safeRoom = roomManager.toSafe(room);
     const allowed = new Set(safeRoom.availableEliasDictionaries || ['basic', 'animals']);
     const ids = Array.isArray(dictionaryIds) ? dictionaryIds.filter((d) => allowed.has(d)) : ['basic'];
     const dictIds = ids.length ? ids : ['basic'];
-    const team1 = players.slice(0, Math.ceil(players.length / 2)).map((p) => p.id);
-    const team2 = players.slice(Math.ceil(players.length / 2)).map((p) => p.id);
     const teams = [{ name: 'Команда 1', players: team1, score: 0 }, { name: 'Команда 2', players: team2, score: 0 }];
     const currentWord = getRandomEliasWord(dictIds);
     const roundSeconds = Math.min(120, Math.max(30, Number(timerSeconds) || 60));

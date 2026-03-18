@@ -133,7 +133,7 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
         </div>
         <div style={{ marginTop: 'auto', paddingTop: 24 }}>
           <button type="button" onClick={goLobby} style={btnStyle}>
-            В лобби
+            Ок
           </button>
           <button type="button" onClick={() => setExitConfirm(true)} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>
             Выйти

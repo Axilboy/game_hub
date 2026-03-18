@@ -11,11 +11,7 @@ const ROLE_NAMES = {
   prostitute: 'Путана',
 };
 
-const THEMES = {
-  default: ROLE_NAMES,
-  detective: { civilian: 'Детектив', mafia: 'Преступник', don: 'Босс', commissioner: 'Шерлок', doctor: 'Врач', prostitute: 'Информатор' },
-  pirates: { civilian: 'Моряк', mafia: 'Пират', don: 'Капитан', commissioner: 'Штурман', doctor: 'Корабельный врач', prostitute: 'Юнга' },
-};
+const THEMES = { default: ROLE_NAMES };
 
 export function getRoleDisplayName(role, themeId = 'default') {
   const theme = THEMES[themeId] || THEMES.default;

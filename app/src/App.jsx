@@ -131,6 +131,7 @@ function AppRoutes() {
     const onGameEnded = async () => {
       incrementGamesPlayed();
       await refreshRoom();
+      if (location.pathname === '/spy') return;
       if (location.pathname !== '/lobby') navigate('/lobby');
     };
     socket.on('disconnect', onDisconnect);
