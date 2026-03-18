@@ -70,13 +70,19 @@ export async function roomRoutes(fastify) {
 
   const ALL_SPIES_CHANCE = 0.05;
 
+  function minSpyPlayers(spyCount) {
+    const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
+    return n + 2;
+  }
+
   fastify.post('/rooms/spy/start', async (request, reply) => {
-    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1, allSpiesChanceEnabled = false, dictionaryIds } = request.body || {};
+    const { roomId, hostId, timerEnabled = false, timerSeconds = 60, spyCount = 1, allSpiesChanceEnabled = false, spiesSeeEachOther = false, dictionaryIds } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
     const players = room.players;
-    if (players.length < 2) return reply.code(400).send({ error: 'Need at least 2 players' });
+    const minPlayers = minSpyPlayers(spyCount);
+    if (players.length < minPlayers) return reply.code(400).send({ error: `Need at least ${minPlayers} players for ${spyCount} spy/spies` });
     const safeRoom = roomManager.toSafe(room);
     const allowedDicts = new Set(safeRoom.availableDictionaries || ['free']);
     const ids = Array.isArray(dictionaryIds) ? dictionaryIds.filter((d) => allowedDicts.has(d)) : ['free'];
@@ -97,6 +103,7 @@ export async function roomRoutes(fastify) {
       word,
       spyIds,
       allSpiesRound,
+      spiesSeeEachOther: Boolean(spiesSeeEachOther),
       timerEnabled: Boolean(timerEnabled),
       timerSeconds: safeSeconds,
       readyIds: [],
@@ -115,10 +122,16 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'spy' || !room.gameState) {
       return reply.code(404).send({ error: 'Game not found' });
     }
-    const { word, spyIds, timerEnabled, timerSeconds, allSpiesRound, timerStartsAt } = room.gameState;
+    const { word, spyIds, timerEnabled, timerSeconds, allSpiesRound, timerStartsAt, spiesSeeEachOther } = room.gameState;
     const isSpy = spyIds.includes(playerId);
     const payload = { role: isSpy ? 'spy' : 'civilian', timerEnabled: Boolean(timerEnabled), timerSeconds: timerSeconds || 60, allSpiesRound: Boolean(allSpiesRound), timerStartsAt: timerStartsAt || null };
-    if (isSpy) return { ...payload };
+    if (isSpy) {
+      if (spiesSeeEachOther && spyIds.length > 1) {
+        const otherSpyNames = room.players.filter((p) => spyIds.includes(p.id) && p.id !== playerId).map((p) => p.name || 'Игрок');
+        return { ...payload, otherSpyNames };
+      }
+      return payload;
+    }
     return { ...payload, word };
   });
 

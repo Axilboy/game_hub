@@ -30,7 +30,11 @@ const DICT_NAMES = {
   art: 'Искусство (Про)',
   tech: 'Технологии (Про)',
 };
-const MIN_PLAYERS = { spy: 2, mafia: 4, elias: 2 };
+const MIN_PLAYERS = { mafia: 4, elias: 2 };
+function minSpyPlayers(spyCount) {
+  const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
+  return n + 2;
+}
 
 const ELIAS_DICT_CARDS = [
   { id: 'basic', name: 'Базовый', description: 'Простые и понятные слова для любой компании.', emoji: '📦', free: true },
@@ -54,6 +58,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [shareToast, setShareToast] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [mafiaExtendedPopup, setMafiaExtendedPopup] = useState(false);
+  const [mafiaClassicPopup, setMafiaClassicPopup] = useState(false);
+  const [spyDictLockPopup, setSpyDictLockPopup] = useState(null);
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
   const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
 
@@ -105,8 +111,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const startSpy = async () => {
     if (!isHost) return;
     const count = room?.players?.length ?? 0;
-    if (count < MIN_PLAYERS.spy) {
-      setMinPlayersWarning(`Для игры в Шпион нужно минимум ${MIN_PLAYERS.spy} игроков. Сейчас в лобби: ${count}.`);
+    const minSpy = minSpyPlayers(spyCount);
+    if (count < minSpy) {
+      setMinPlayersWarning(`Для игры в Шпион с ${spyCount} шпион${spyCount === 1 ? 'ом' : 'ами'} нужно минимум ${minSpy} игроков. Сейчас в лобби: ${count}.`);
       return;
     }
     await api.post('/rooms/spy/start', {
@@ -116,6 +123,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       timerSeconds: timerEnabled ? timerSeconds : undefined,
       spyCount,
       allSpiesChanceEnabled,
+      spiesSeeEachOther: !!room?.gameSettings?.spiesSeeEachOther,
       dictionaryIds: dictionaryIds?.length ? dictionaryIds : ['free'],
     });
     const { room: r } = await api.get(`/rooms/${roomId}`);
@@ -308,7 +316,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <p style={{ marginBottom: 12 }}>Выберите игру</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {[
-              { id: 'spy', name: 'Шпион', available: true, minPlayers: MIN_PLAYERS.spy },
+              { id: 'spy', name: 'Шпион', available: true, minPlayers: 3 },
               { id: 'mafia', name: 'Мафия', available: true, minPlayers: MIN_PLAYERS.mafia },
               { id: 'bunker', name: 'Бункер', available: false, minPlayers: 0 },
               { id: 'elias', name: 'Элиас', available: true, minPlayers: MIN_PLAYERS.elias },
@@ -352,7 +360,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
               <p style={{ margin: 0, fontSize: 14 }}>Шпионов: {room.gameSettings.spyCount ?? 1}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Все шпионы (редко): {room.gameSettings.allSpiesChanceEnabled ? 'да' : 'нет'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.spy} игроков</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Шпионы видят друг друга: {room.gameSettings.spiesSeeEachOther ? 'да' : 'нет'}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {minSpyPlayers(room?.gameSettings?.spyCount ?? 1)} игроков</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Таймер: {room.gameSettings.timerEnabled ? `${(room.gameSettings.timerSeconds || 60) / 60} мин` : 'выкл'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Словари: {(room.gameSettings.dictionaryIds || ['free']).map((d) => DICT_NAMES[d] || d).join(', ')}</p>
             </div>
@@ -402,7 +411,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       );
                     })}
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <input
                       type="checkbox"
                       checked={allSpiesChanceEnabled}
@@ -413,23 +422,40 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     />
                     <span>Все шпионы (редкий шанс)</span>
                   </label>
-                  <p style={{ marginBottom: 8 }}>Локации: базовый бесплатно, тематические — Про</p>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!room?.gameSettings?.spiesSeeEachOther}
+                      onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, spiesSeeEachOther: e.target.checked } })}
+                    />
+                    <span>Шпионы видят друг друга</span>
+                  </label>
+                  <p style={{ marginBottom: 8 }}>Локации: базовый бесплатно, остальные — Про</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {availableDictionaries.map((id) => {
+                    {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).map((id) => {
+                      const available = availableDictionaries.includes(id);
                       const on = dictionaryIds.includes(id);
+                      const name = DICT_NAMES[id] || id;
+                      const handleClick = () => {
+                        if (!available) {
+                          setSpyDictLockPopup(id);
+                          return;
+                        }
+                        const next = on ? dictionaryIds.filter((x) => x !== id) : [...dictionaryIds, id];
+                        if (next.length === 0) return;
+                        setDictionaryIds(next);
+                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds: next } });
+                      };
                       return (
                         <button
                           key={id}
                           type="button"
-                          onClick={() => {
-                            const next = on ? dictionaryIds.filter((x) => x !== id) : [...dictionaryIds, id];
-                            if (next.length === 0) return;
-                            setDictionaryIds(next);
-                            patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds: next } });
-                          }}
-                          style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: on ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                          onClick={handleClick}
+                          style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: on ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', opacity: available ? 1 : 0.85 }}
+                          title={!available ? 'Только для Премиум' : ''}
                         >
-                          {DICT_NAMES[id] || id}
+                          {!available && <span style={{ marginRight: 4 }}>🔒</span>}
+                          {name}
                         </button>
                       );
                     })}
@@ -494,8 +520,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <button
                   type="button"
-                  onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: false } })}
+                  onClick={() => { setMafiaClassicPopup(true); if (room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: false } }); }}
                   style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.extended ? '#444' : 'var(--tg-theme-button-color, #3a7bd5)') }}
+                  title="Какие роли в игре"
                 >
                   Классика
                 </button>
@@ -631,6 +658,23 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </button>
       )}
 
+      {mafiaClassicPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaClassicPopup(false)}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Классическая Мафия — роли</h3>
+            <p style={{ marginBottom: 8, fontSize: 14 }}>В игре участвуют:</p>
+            <ul style={{ margin: '0 0 16px', paddingLeft: 20, fontSize: 14, lineHeight: 1.6 }}>
+              <li><strong>Мирный</strong> — не знает никого, голосует днём</li>
+              <li><strong>Мафия</strong> — знает друг друга, убивает ночью</li>
+              <li><strong>Дон</strong> — мафия, остальные мафиози не знают, кто дон</li>
+              <li><strong>Комиссар</strong> — каждую ночь может проверить одного игрока (мафия или нет)</li>
+            </ul>
+            <p style={{ marginBottom: 0, fontSize: 13, opacity: 0.9 }}>Минимум 4 игрока. Ночь и день чередуются.</p>
+            <button type="button" onClick={() => setMafiaClassicPopup(false)} style={{ ...btnStyle, marginTop: 16 }}>Понятно</button>
+          </div>
+        </div>
+      )}
+
       {mafiaExtendedPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaExtendedPopup(false)}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
@@ -644,6 +688,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             </ul>
             <p style={{ marginBottom: 0, fontSize: 13, opacity: 0.9 }}>Доступно по подписке Про.</p>
             <button type="button" onClick={() => setMafiaExtendedPopup(false)} style={{ ...btnStyle, marginTop: 16 }}>Понятно</button>
+          </div>
+        </div>
+      )}
+
+      {spyDictLockPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
+            <p style={{ marginBottom: 8 }}>🔒 {DICT_NAMES[spyDictLockPopup] || spyDictLockPopup}</p>
+            <p style={{ fontSize: 14, opacity: 0.9, marginBottom: 16 }}>Этот словарь доступен только по подписке Про. Покупка отдельных словарей пока не реализована — оформите Премиум, чтобы открыть все тематические локации.</p>
+            <button type="button" onClick={() => setSpyDictLockPopup(null)} style={btnStyle}>Понятно</button>
           </div>
         </div>
       )}
@@ -712,17 +766,17 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <p style={{ marginBottom: 16 }}>Магазин — {selectedGame === 'spy' ? 'Шпион' : selectedGame === 'mafia' ? 'Мафия' : selectedGame === 'bunker' ? 'Бункер' : selectedGame === 'elias' ? 'Элиас' : 'игра'}</p>
             {selectedGame === 'spy' && (
               <>
-                <p style={{ fontSize: 14, marginBottom: 12 }}>Словари</p>
+                <p style={{ fontSize: 14, marginBottom: 12 }}>Словари Шпиона</p>
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <span>{DICT_NAMES.free}</span>
                     <span style={{ color: '#8f8' }}>Бесплатно</span>
                   </div>
                 </div>
-                {['theme1', 'theme2'].map((id) => (
+                {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).filter((id) => id !== 'free').map((id) => (
                   <div key={id} style={{ marginBottom: 12, padding: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
-                    <div style={{ marginBottom: 6 }}>{DICT_NAMES[id] || id}</div>
-                    <p style={{ fontSize: 13, opacity: 0.85 }}>Доступно только премиум‑игрокам, покупка пока не доступна.</p>
+                    <div style={{ marginBottom: 6 }}>🔒 {DICT_NAMES[id] || id}</div>
+                    <p style={{ fontSize: 13, opacity: 0.85 }}>Только для подписки Про. Покупка отдельных словарей — скоро.</p>
                   </div>
                 ))}
               </>

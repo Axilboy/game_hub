@@ -163,7 +163,12 @@ export default function SpyRound({ roomId, user, room, onLeave }) {
         {timeUp && <p style={{ fontSize: 22, color: '#fa0', marginBottom: 16 }}>Время вышло!</p>}
         {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
         {isSpy ? (
-          <p style={{ fontSize: 24, color: '#f88' }}>Вы шпион</p>
+          <>
+            <p style={{ fontSize: 24, color: '#f88' }}>Вы шпион</p>
+            {card.otherSpyNames?.length > 0 && (
+              <p style={{ fontSize: 14, opacity: 0.9, marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
+            )}
+          </>
         ) : (
           <p style={{ fontSize: 28, fontWeight: 'bold' }}>{card.word}</p>
         )}
