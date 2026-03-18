@@ -20,6 +20,7 @@ function AppRoutes() {
   const { user, ready } = useTelegram();
   const [room, setRoom] = useState(null);
   const [roomId, setRoomId] = useState(null);
+  const [pendingNavigateGame, setPendingNavigateGame] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -112,21 +113,9 @@ function AppRoutes() {
     const onHostChanged = () => refreshRoom();
     const onRoomUpdated = () => refreshRoom();
     const onGameStart = async (data) => {
-      if (data?.game === 'spy') {
-        await refreshRoom();
-        await showAdIfNeeded();
-        if (location.pathname !== '/spy') navigate('/spy');
-      }
-      if (data?.game === 'mafia') {
-        await refreshRoom();
-        await showAdIfNeeded();
-        if (location.pathname !== '/mafia') navigate('/mafia');
-      }
-      if (data?.game === 'elias') {
-        await refreshRoom();
-        await showAdIfNeeded();
-        if (location.pathname !== '/elias') navigate('/elias');
-      }
+      if (!data?.game) return;
+      setPendingNavigateGame(data.game);
+      await refreshRoom();
     };
     const onGameEnded = async () => {
       incrementGamesPlayed();
@@ -155,6 +144,23 @@ function AppRoutes() {
       socket.off('game_ended', onGameEnded);
     };
   }, [roomId, location.pathname, navigate, refreshRoom]);
+
+  useEffect(() => {
+    if (!pendingNavigateGame || room?.state !== 'playing' || room?.game !== pendingNavigateGame) return;
+    const path = '/' + pendingNavigateGame;
+    if (location.pathname === path) {
+      setPendingNavigateGame(null);
+      return;
+    }
+    let cancelled = false;
+    showAdIfNeeded().then(() => {
+      if (!cancelled) {
+        setPendingNavigateGame(null);
+        navigate(path);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [pendingNavigateGame, room?.state, room?.game, location.pathname, navigate]);
 
   if (!ready) return <div style={{ padding: 20 }}>Загрузка…</div>;
 

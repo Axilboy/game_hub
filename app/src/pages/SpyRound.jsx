@@ -109,8 +109,8 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     navigate('/');
   };
 
-  if (loading) return <div style={{ padding: 24 }}>Загрузка…</div>;
-  if (!card) return <div style={{ padding: 24 }}>Нет карты</div>;
+  if (loading) return <div style={{ padding: 24, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18 }}>Загрузка…</div>;
+  if (!card) return <div style={{ padding: 24, minHeight: '100vh', color: '#fff' }}>Нет карты. <button type="button" onClick={goLobby} style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#555', color: '#fff', cursor: 'pointer' }}>В лобби</button></div>;
 
   const isSpy = card.role === 'spy';
   const allSpiesRound = Boolean(card.allSpiesRound);

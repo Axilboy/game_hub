@@ -4,7 +4,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ADMIN_PASSWORD = '1973';
-const STATS_FILE = join(__dirname, '..', 'data', 'stats.json');
+/** Путь к файлу статистики. В продекшене задайте STATS_FILE в env (например /var/data/gamehub/stats.json), чтобы счётчики не сбрасывались при деплое. */
+const STATS_FILE = process.env.STATS_FILE || join(__dirname, '..', 'data', 'stats.json');
 
 function todayKey() {
   const d = new Date();

@@ -395,6 +395,7 @@ export async function roomRoutes(fastify) {
       }
       teams = [{ name: 'Команда 1', players: team1, score: 0 }, { name: 'Команда 2', players: team2, score: 0 }];
     }
+    const dictIds = Array.isArray(dictionaryIds) && dictionaryIds.length ? dictionaryIds : ['basic'];
     const currentWord = getRandomEliasWord(dictIds);
     const roundSeconds = Math.min(120, Math.max(30, Number(timerSeconds) || 60));
     const gs = {
