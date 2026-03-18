@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { getInventory } from '../inventory';
 import { getAvatar } from '../displayName';
+import ShopModal from '../components/ShopModal';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -806,35 +807,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {shopOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320, maxHeight: '80vh', overflow: 'auto' }}>
-            <p style={{ marginBottom: 16 }}>Магазин — {selectedGame === 'spy' ? 'Шпион' : selectedGame === 'mafia' ? 'Мафия' : selectedGame === 'bunker' ? 'Бункер' : selectedGame === 'elias' ? 'Элиас' : 'игра'}</p>
-            {selectedGame === 'spy' && (
-              <>
-                <p style={{ fontSize: 14, marginBottom: 12 }}>Словари Шпиона</p>
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span>{DICT_NAMES.free}</span>
-                    <span style={{ color: '#8f8' }}>Бесплатно</span>
-                  </div>
-                </div>
-                {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).filter((id) => id !== 'free').map((id) => (
-                  <div key={id} style={{ marginBottom: 12, padding: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
-                    <div style={{ marginBottom: 6 }}>🔒 {DICT_NAMES[id] || id}</div>
-                    <p style={{ fontSize: 13, opacity: 0.85 }}>Только для подписки Про. Покупка отдельных словарей — скоро.</p>
-                  </div>
-                ))}
-              </>
-            )}
-            {selectedGame && selectedGame !== 'spy' && (
-              <p style={{ opacity: 0.8 }}>Дополнения для этой игры — скоро.</p>
-            )}
-            {!selectedGame && <p style={{ opacity: 0.8 }}>Выберите игру в лобби.</p>}
-            <button type="button" onClick={() => setShopOpen(false)} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
-          </div>
-        </div>
-      )}
+      <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} initialGameFilter={selectedGame || 'all'} />
     </div>
   );
 }

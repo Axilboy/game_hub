@@ -1,10 +1,42 @@
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const ADMIN_PASSWORD = '1973';
-const byDate = new Map();
+const STATS_FILE = join(__dirname, '..', 'data', 'stats.json');
 
 function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+let byDate = new Map();
+let adImpressionsByDate = new Map();
+
+function load() {
+  try {
+    if (existsSync(STATS_FILE)) {
+      const data = JSON.parse(readFileSync(STATS_FILE, 'utf8'));
+      byDate = new Map(Object.entries(data.players || {}).map(([k, arr]) => [k, new Set(arr)]));
+      adImpressionsByDate = new Map(Object.entries(data.adImpressions || {}));
+    }
+  } catch (_) {}
+}
+
+function save() {
+  try {
+    const dir = dirname(STATS_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const data = {
+      players: Object.fromEntries([...byDate.entries()].map(([k, set]) => [k, [...set]])),
+      adImpressions: Object.fromEntries(adImpressionsByDate),
+    };
+    writeFileSync(STATS_FILE, JSON.stringify(data, null, 0));
+  } catch (_) {}
+}
+
+load();
 
 function ensureSet(dateKey) {
   if (!byDate.has(dateKey)) byDate.set(dateKey, new Set());
@@ -14,6 +46,15 @@ function ensureSet(dateKey) {
 export function recordPlayer(playerId) {
   const key = todayKey();
   ensureSet(key).add(String(playerId));
+  save();
+}
+
+/** Учёт показов рекламы: при каждом старте игры каждый игрок в комнате видит рекламу. playerCount = число игроков в комнате на момент старта. */
+export function recordGameStart(playerCount) {
+  const key = todayKey();
+  const prev = adImpressionsByDate.get(key) || 0;
+  adImpressionsByDate.set(key, prev + Math.max(0, playerCount));
+  save();
 }
 
 export function getStats() {
@@ -48,11 +89,25 @@ export function getStats() {
   }
   totalCount = totalSet.size;
 
+  let adDay = adImpressionsByDate.get(dayKey) || 0;
+  let adMonth = 0;
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    adMonth += adImpressionsByDate.get(k) || 0;
+  }
+  let adTotal = 0;
+  for (const n of adImpressionsByDate.values()) adTotal += n;
+
   return {
     day: daySet.size,
     week: weekCount,
     month: monthCount,
     total: totalCount,
+    adImpressionsDay: adDay,
+    adImpressionsMonth: adMonth,
+    adImpressionsTotal: adTotal,
   };
 }
 

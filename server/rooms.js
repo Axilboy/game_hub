@@ -1,6 +1,6 @@
 import { roomManager } from './roomManager.js';
 import { getRandomWord } from './words.js';
-import { recordPlayer } from './statsManager.js';
+import { recordPlayer, recordGameStart } from './statsManager.js';
 import {
   createMafiaState,
   resolveNight,
@@ -98,6 +98,7 @@ export async function roomRoutes(fastify) {
     }
     const safeSeconds = Math.min(3600, Math.max(30, Number(timerSeconds) || 60));
     const allSpiesRound = spyIds.length === players.length;
+    recordGameStart(players.length);
     roomManager.setGame(roomId, 'spy');
     roomManager.setState(roomId, 'playing', {
       word,
@@ -238,6 +239,7 @@ export async function roomRoutes(fastify) {
       modId = players[Math.floor(Math.random() * players.length)].id;
     }
     const gs = createMafiaState(players, { extended, revealRoleOnDeath, mafiaCanSkipKill, moderatorId: modId, theme: 'default' });
+    recordGameStart(players.length);
     roomManager.setGame(roomId, 'mafia');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
@@ -405,6 +407,7 @@ export async function roomRoutes(fastify) {
       winner: null,
       readyIds: [],
     };
+    recordGameStart(players.length);
     roomManager.setGame(roomId, 'elias');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;

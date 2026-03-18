@@ -111,11 +111,19 @@ export default function Admin() {
     <div style={{ padding: 24, maxWidth: 400, margin: '0 auto' }}>
       <h2 style={{ marginTop: 0 }}>Админка</h2>
       <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
-        <p style={{ marginBottom: 12 }}>Игроков (уникальных):</p>
-        <div>За день: <strong>{stats?.day ?? 0}</strong></div>
+        <p style={{ marginBottom: 12 }}>Уникальные игроки</p>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Количество разных пользователей, создавших или вошедших в комнату</p>
+        <div>За сутки: <strong>{stats?.day ?? 0}</strong></div>
         <div>За неделю: <strong>{stats?.week ?? 0}</strong></div>
         <div>За месяц: <strong>{stats?.month ?? 0}</strong></div>
         <div>Всего: <strong>{stats?.total ?? 0}</strong></div>
+      </section>
+      <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+        <p style={{ marginBottom: 12 }}>Показы рекламы</p>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>При каждом старте игры каждый игрок в комнате считается как один показ (игроки × старты игр)</p>
+        <div>За сутки: <strong>{stats?.adImpressionsDay ?? 0}</strong></div>
+        <div>За месяц: <strong>{stats?.adImpressionsMonth ?? 0}</strong></div>
+        <div>Всего: <strong>{stats?.adImpressionsTotal ?? 0}</strong></div>
       </section>
       <button type="button" onClick={() => setPromoView(true)} style={btnStyle}>Создать промокод</button>
       <button type="button" onClick={loadStats} style={{ ...btnStyle, marginTop: 8, background: '#555' }}>Обновить статистику</button>
