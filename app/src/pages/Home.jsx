@@ -8,6 +8,31 @@ import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST
 const ADMIN_CODE = '555555';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
 
+const SHOP_GAMES = [{ id: 'all', name: 'Все игры' }, { id: 'spy', name: 'Шпион' }, { id: 'mafia', name: 'Мафия' }, { id: 'elias', name: 'Элиас' }];
+const SHOP_CATEGORIES = [{ id: 'all', name: 'Всё' }, { id: 'dictionaries', name: 'Словари' }, { id: 'modes', name: 'Режимы' }];
+
+const SHOP_ITEMS = [
+  { game: 'spy', category: 'dictionaries', id: 'spy_free', name: 'Базовый', description: 'Классические локации. Бесплатно.', emoji: '📍', free: true },
+  { game: 'spy', category: 'dictionaries', id: 'spy_theme1', name: 'Детектив', description: 'Шпионы, агенты, шифры. Про.', emoji: '🕵️', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_theme2', name: 'Пираты', description: 'Корабли, сокровища, острова. Про.', emoji: '🏴‍☠️', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_travel', name: 'Путешествия', description: 'Аэропорт, отель, круиз. Про.', emoji: '✈️', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_food', name: 'Еда', description: 'Ресторан, кафе, кухня. Про.', emoji: '🍽️', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_sports', name: 'Спорт', description: 'Стадион, спортзал, бассейн. Про.', emoji: '⚽', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_movies', name: 'Кино', description: 'Кинотеатр, премьера, Оскар. Про.', emoji: '🎬', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_music', name: 'Музыка', description: 'Концерт, опера, студия. Про.', emoji: '🎵', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_nature', name: 'Природа', description: 'Лес, море, парк. Про.', emoji: '🌲', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_science', name: 'Наука', description: 'Лаборатория, обсерватория. Про.', emoji: '🔬', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_history', name: 'История', description: 'Замок, музей, руины. Про.', emoji: '🏛️', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_art', name: 'Искусство', description: 'Галерея, выставка. Про.', emoji: '🎨', free: false },
+  { game: 'spy', category: 'dictionaries', id: 'spy_tech', name: 'Технологии', description: 'Офис, коворкинг, VR. Про.', emoji: '💻', free: false },
+  { game: 'mafia', category: 'modes', id: 'mafia_extended', name: 'Расширенная Мафия', description: 'Дон, Комиссар, Доктор, Маньяк. Про.', emoji: '🌙', free: false },
+  { game: 'elias', category: 'dictionaries', id: 'elias_basic', name: 'Базовый', description: 'Простые слова. Бесплатно.', emoji: '📦', free: true },
+  { game: 'elias', category: 'dictionaries', id: 'elias_animals', name: 'Животные', description: 'Звери, птицы, рыбы. Бесплатно.', emoji: '🦁', free: true },
+  { game: 'elias', category: 'dictionaries', id: 'elias_movies', name: 'Кино', description: 'Жанры, награды. Про.', emoji: '🎬', free: false },
+  { game: 'elias', category: 'dictionaries', id: 'elias_science', name: 'Наука', description: 'Эксперименты, теории. Про.', emoji: '🔬', free: false },
+  { game: 'elias', category: 'dictionaries', id: 'elias_sport', name: 'Спорт', description: 'Турниры, команды. Про.', emoji: '⚽', free: false },
+];
+
 function formatTime(seconds) {
   if (seconds < 60) return `${seconds} сек`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)} мин`;
@@ -25,6 +50,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
   const [showShopStub, setShowShopStub] = useState(false);
+  const [shopGameFilter, setShopGameFilter] = useState('all');
+  const [shopCategoryFilter, setShopCategoryFilter] = useState('all');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -260,24 +287,39 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       )}
       {showShopStub && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320, maxHeight: '80vh', overflow: 'auto' }}>
-            <p style={{ marginBottom: 16 }}>Словари для игры «Шпион»</p>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Базовый</span>
-                <span style={{ color: '#8f8' }}>Бесплатно</span>
-              </div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={() => setShowShopStub(false)}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин</h3>
+            <p style={{ fontSize: 13, marginBottom: 12 }}>Игра</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {SHOP_GAMES.map((g) => (
+                <button key={g.id} type="button" onClick={() => setShopGameFilter(g.id)} style={{ ...btnStyle, width: 'auto', padding: '8px 12px', fontSize: 13, background: shopGameFilter === g.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{g.name}</button>
+              ))}
             </div>
-            {['theme1', 'theme2'].map((id) => {
-              const name = id === 'theme1' ? 'Детектив' : 'Пираты';
-              return (
-                <div key={id} style={{ marginBottom: 12, padding: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
-                  <div style={{ marginBottom: 6 }}>{name}</div>
-                  <p style={{ fontSize: 13, opacity: 0.85 }}>Доступно только премиум‑игрокам, покупка пока не доступна.</p>
-                </div>
-              );
-            })}
+            <p style={{ fontSize: 13, marginBottom: 12 }}>Категория</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {SHOP_CATEGORIES.map((c) => (
+                <button key={c.id} type="button" onClick={() => setShopCategoryFilter(c.id)} style={{ ...btnStyle, width: 'auto', padding: '8px 12px', fontSize: 13, background: shopCategoryFilter === c.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{c.name}</button>
+              ))}
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+              {SHOP_ITEMS.filter((item) => (shopGameFilter === 'all' || item.game === shopGameFilter) && (shopCategoryFilter === 'all' || item.category === shopCategoryFilter)).map((item) => {
+                const locked = !item.free && !inv.hasPro;
+                return (
+                  <div key={item.id} style={{ marginBottom: 12, padding: 14, background: locked ? 'rgba(80,60,60,0.2)' : 'rgba(255,255,255,0.06)', borderRadius: 10, position: 'relative' }}>
+                    {locked && <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 18 }}>🔒</div>}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{item.emoji}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{item.name}{item.free && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Бесплатно</span>}</div>
+                        <div style={{ fontSize: 13, opacity: 0.9 }}>{item.description}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 12, opacity: 0.8, marginTop: 12 }}>Покупка отдельных товаров пока не реализована. Оформите Премиум — откроются все словари и режимы.</p>
             <button type="button" onClick={() => setShowShopStub(false)} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
           </div>
         </div>
