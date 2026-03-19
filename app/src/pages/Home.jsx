@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStats, saveStats } from '../stats';
 import { getInventory, setPro } from '../inventory';
 import { api } from '../api';
 import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
@@ -18,12 +17,6 @@ const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
 const ADMIN_CODE = '555555';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
 
-function formatTime(seconds) {
-  if (seconds < 60) return `${seconds} сек`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} мин`;
-  return `${(seconds / 3600).toFixed(1)} ч`;
-}
-
 function safeSessionGet(key) {
   try {
     return sessionStorage.getItem(key);
@@ -38,7 +31,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState(getStats);
   const [inv, setInv] = useState(getInventory);
   const [showSubStub, setShowSubStub] = useState(false);
   const [promoCode, setPromoCode] = useState('');
@@ -65,20 +57,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       setHasLastRoom(Boolean(sessionStorage.getItem('gameHub_lastRoomId')));
     } catch (_) {
       setHasLastRoom(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const s = getStats();
-    const now = Date.now();
-    if (!s.firstVisitAt) {
-      saveStats({ ...s, firstVisitAt: now, lastVisitAt: now });
-      setStats(getStats());
-    } else {
-      const added = s.lastVisitAt ? Math.floor((now - s.lastVisitAt) / 1000) : 0;
-      const next = { ...s, totalTimeSpent: s.totalTimeSpent + added, lastVisitAt: now };
-      saveStats(next);
-      setStats(next);
     }
   }, []);
 
@@ -213,6 +191,14 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   return (
     <div className="gh-page">
       <BackArrow onClick={() => window.history.back()} title="Назад" />
+      <section className="gh-hero" style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 18, opacity: 0.9 }}>GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
+          Играй с друзьями прямо в браузере
+        </div>
+        <div style={{ fontSize: 16, opacity: 0.85, marginTop: 6 }}>Без регистрации</div>
+      </section>
+
       <header className="gh-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, padding: 14 }}>
         <div onClick={() => setShowAvatarPicker(true)} title="Нажмите, чтобы сменить аватар" style={{ cursor: 'pointer', flexShrink: 0 }}>
           {avatarState ? (
@@ -254,55 +240,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         </Button>
       </div>
 
-      {hasLastRoom && (
-        <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Последняя комната</div>
-          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
-            Вернуться в ту же сессию, если сервер ещё держит лобби.
-          </p>
-          <Button variant="primary" fullWidth onClick={handleResumeRoom} disabled={loading}>
-            Продолжить игру
-          </Button>
-        </section>
-      )}
-
-      {(miniAppLink || webInviteLink) && (
-        <section className="gh-card" style={{ marginBottom: 16, padding: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Пригласить друзей</div>
-          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px' }}>Ссылка на текущее приглашение (после создания комнаты).</p>
-          <Button variant="secondary" fullWidth onClick={copyInviteHint}>
-            Копировать ссылку
-          </Button>
-        </section>
-      )}
-
-      <section className="gh-hero" style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 18, opacity: 0.9 }}>ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
-        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
-          Играй с друзьями прямо в браузере
-        </div>
-        <div style={{ fontSize: 16, opacity: 0.85, marginTop: 6 }}>Без регистрации</div>
-      </section>
-
-      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Как это работает</div>
-        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
-          <li>Создайте комнату или введите код от друзей.</li>
-          <li>Хост выбирает игру и настройки в лобби.</li>
-          <li>После старта каждый видит свою роль или карточку.</li>
-          <li>Действия ведущего синхронизируются у всех в реальном времени.</li>
-        </ol>
-      </section>
-
-      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Дорожная карта</div>
-        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
-          <li><strong>Сейчас:</strong> Шпион, Элиас, Мафия.</li>
-          <li><strong>Скоро:</strong> Правда или действие, Бункер — голосования и таймеры в том же лобби.</li>
-          <li><strong>Про:</strong> больше словарей и расширенные режимы для всей комнаты.</li>
-        </ul>
-      </section>
-
       {showAvatarPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
@@ -319,12 +256,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           </div>
         </div>
       )}
-
-      <section className="gh-card" style={{ marginBottom: 18, padding: 14 }}>
-        <div style={{ fontSize: 14, opacity: 0.9 }}>Статистика</div>
-        <div style={{ marginTop: 6 }}>Время в GameHub: {formatTime(stats.totalTimeSpent)}</div>
-        <div>Сыграно игр: {stats.gamesPlayed}</div>
-      </section>
 
       {error && <p style={{ color: '#f88' }}>{error}</p>}
       <section style={{ marginBottom: 12 }}>
@@ -379,6 +310,38 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
             </button>
           </form>
         )}
+      </section>
+
+      {hasLastRoom && (
+        <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Последняя комната</div>
+          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
+            Вернуться в ту же сессию, если сервер ещё держит лобби.
+          </p>
+          <Button variant="primary" fullWidth onClick={handleResumeRoom} disabled={loading}>
+            Продолжить игру
+          </Button>
+        </section>
+      )}
+
+      {(miniAppLink || webInviteLink) && (
+        <section className="gh-card" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Пригласить друзей</div>
+          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px' }}>Ссылка на текущее приглашение (после создания комнаты).</p>
+          <Button variant="secondary" fullWidth onClick={copyInviteHint}>
+            Копировать ссылку
+          </Button>
+        </section>
+      )}
+
+      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+        <div style={{ fontWeight: 800, marginBottom: 10 }}>Как это работает</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
+          <li>Создайте комнату или введите код от друзей.</li>
+          <li>Хост выбирает игру и настройки в лобби.</li>
+          <li>После старта каждый видит свою роль или карточку.</li>
+          <li>Действия ведущего синхронизируются у всех в реальном времени.</li>
+        </ol>
       </section>
 
       <section style={{ marginBottom: 16 }}>
