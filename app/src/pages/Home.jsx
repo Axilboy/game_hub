@@ -37,6 +37,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
   const [displayNameState, setDisplayNameState] = useState(getDisplayName() || '');
   const [avatarState, setAvatarState] = useState(getAvatar() || '');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showInstruction, setShowInstruction] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const shownName = displayNameState || user?.first_name || 'Игрок';
 
@@ -186,6 +187,14 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       </header>
 
+      <section style={{ marginBottom: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 18, opacity: 0.9 }}>ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
+          Играй с друзьями прямо в браузере
+        </div>
+        <div style={{ fontSize: 16, opacity: 0.85, marginTop: 6 }}>Без регистрации</div>
+      </section>
+
       {showAvatarPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
@@ -209,27 +218,48 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         <div>Сыграно игр: {stats.gamesPlayed}</div>
       </section>
 
-      <section style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={handleShowAd}
-          disabled={adLoading}
-          style={{ ...btnStyle, width: '100%', background: '#55a' }}
-        >
-          {adLoading ? 'Запуск рекламы...' : 'Показать рекламу'}
-        </button>
-      </section>
-
       {error && <p style={{ color: '#f88' }}>{error}</p>}
+      <section style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={loading}
+            style={{ ...btnStyle, flex: 1 }}
+          >
+            Создать комнату
+          </button>
+          <button
+            type="button"
+            disabled
+            aria-hidden="true"
+            tabIndex={-1}
+            style={{ ...btnStyle, visibility: 'hidden' }}
+          >
+            Войти
+          </button>
+        </div>
+      </section>
       <section style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={handleCreate}
-          disabled={loading}
-          style={btnStyle}
-        >
-          Создать комнату
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setShowInstruction(true)}
+            disabled={loading}
+            style={{ ...btnStyle, flex: 1, background: '#555' }}
+          >
+            Инструкция
+          </button>
+          <button
+            type="button"
+            disabled
+            aria-hidden="true"
+            tabIndex={-1}
+            style={{ ...btnStyle, visibility: 'hidden' }}
+          >
+            Войти
+          </button>
+        </div>
       </section>
       <section style={{ marginBottom: 24 }}>
         <p style={{ marginBottom: 8 }}>Войти по коду</p>
@@ -288,6 +318,59 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       )}
       <ShopModal open={showShopStub} onClose={() => setShowShopStub(false)} initialGameFilter="all" />
+
+      <section style={{ marginTop: 16 }}>
+        <button
+          type="button"
+          onClick={handleShowAd}
+          disabled={adLoading}
+          style={{ ...btnStyle, width: '100%', background: '#55a' }}
+        >
+          {adLoading ? 'Запуск рекламы...' : 'Показать рекламу'}
+        </button>
+      </section>
+
+      {showInstruction && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10,
+            padding: 24,
+          }}
+          onClick={() => setShowInstruction(false)}
+        >
+          <div
+            style={{
+              background: 'var(--tg-theme-bg-color, #1a1a1a)',
+              padding: 24,
+              borderRadius: 12,
+              maxWidth: 360,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Инструкция</h3>
+            <div style={{ lineHeight: 1.6, opacity: 0.92, fontSize: 14 }}>
+              <div>1) Создай комнату и разошли друзьям код или приглашение.</div>
+              <div style={{ marginTop: 6 }}>2) В лобби хост выбирает игру и нажимает «Начать».</div>
+              <div style={{ marginTop: 6 }}>3) После старта каждый видит свою карточку/роль.</div>
+              <div style={{ marginTop: 6 }}>4) Управление в игре только у ведущего (остальные угадывают/голосуют).</div>
+              <div style={{ marginTop: 6 }}>5) Кнопка «Назад» сверху слева дублирует действие «Назад».</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowInstruction(false)}
+              style={{ ...btnStyle, marginTop: 16, background: '#555', width: '100%' }}
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
