@@ -4,6 +4,7 @@ import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
+import GameLayout from '../components/game/GameLayout';
 
 const btnStyle = {
   padding: '12px 20px',
@@ -89,18 +90,36 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
 
   if (winner) {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
+      <GameLayout
+        top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
+        center={true}
+        padding={24}
+        textAlign="center"
+        bottom={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
+            <button type="button" onClick={onLeave} style={{ ...btnStyle, background: '#333' }}>Выйти</button>
+          </div>
+        }
+      >
         <p style={{ fontSize: 22, marginBottom: 16 }}>{winner === 'civilians' ? 'Победили мирные!' : 'Победила мафия!'}</p>
-        <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
-        <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>Выйти</button>
-      </div>
+      </GameLayout>
     );
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
+    <GameLayout
+      top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
+      center={false}
+      padding={24}
+      textAlign="center"
+      bottom={
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: 14, marginBottom: 8 }}>В игре: {alive.map((p) => p.name).join(', ')}</p>
+          <button type="button" onClick={() => navigate('/lobby')} style={{ ...btnStyle, background: '#333' }}>В лобби</button>
+        </div>
+      }
+    >
       <p style={{ marginBottom: 8, opacity: 0.9 }}>Фаза: {phase === 'night_mafia' ? 'Ночь — мафия' : phase === 'night_commissioner' ? 'Ночь — комиссар' : phase === 'day' ? 'День' : 'Голосование'}</p>
 
       {isModerator && <p style={{ fontSize: 16, color: '#8af', marginBottom: 8 }}>Вы ведущий</p>}
@@ -151,10 +170,6 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
         <button type="button" onClick={advancePhase} style={{ ...btnStyle, marginTop: 16, background: '#6a5' }}>Далее (ведущий)</button>
       )}
 
-      <div style={{ marginTop: 24 }}>
-        <p style={{ fontSize: 14, marginBottom: 8 }}>В игре: {alive.map((p) => p.name).join(', ')}</p>
-        <button type="button" onClick={() => navigate('/lobby')} style={{ ...btnStyle, background: '#333' }}>В лобби</button>
-      </div>
-    </div>
+    </GameLayout>
   );
 }

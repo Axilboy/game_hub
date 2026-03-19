@@ -8,6 +8,8 @@ import ShopModal from '../components/ShopModal';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
+import Modal from '../components/ui/Modal';
+import Button from '../components/ui/Button';
 
 const ADMIN_CODE = '555555';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
@@ -334,47 +336,25 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       </section>
 
-      {showInstruction && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10,
-            padding: 24,
-          }}
-          onClick={() => setShowInstruction(false)}
-        >
-          <div
-            style={{
-              background: 'var(--tg-theme-bg-color, #1a1a1a)',
-              padding: 24,
-              borderRadius: 12,
-              maxWidth: 360,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Инструкция</h3>
-            <div style={{ lineHeight: 1.6, opacity: 0.92, fontSize: 14 }}>
-              <div>1) Создай комнату и разошли друзьям код или приглашение.</div>
-              <div style={{ marginTop: 6 }}>2) В лобби хост выбирает игру и нажимает «Начать».</div>
-              <div style={{ marginTop: 6 }}>3) После старта каждый видит свою карточку/роль.</div>
-              <div style={{ marginTop: 6 }}>4) Управление в игре только у ведущего (остальные угадывают/голосуют).</div>
-              <div style={{ marginTop: 6 }}>5) Кнопка «Назад» сверху слева дублирует действие «Назад».</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowInstruction(false)}
-              style={{ ...btnStyle, marginTop: 16, background: '#555', width: '100%' }}
-            >
-              Понятно
-            </button>
-          </div>
+      <Modal
+        open={showInstruction}
+        onClose={() => setShowInstruction(false)}
+        title="Инструкция"
+        width={360}
+      >
+        <div style={{ lineHeight: 1.6, opacity: 0.92, fontSize: 14 }}>
+          <div>1) Создай комнату и разошли друзьям код или приглашение.</div>
+          <div style={{ marginTop: 6 }}>2) В лобби хост выбирает игру и нажимает «Начать».</div>
+          <div style={{ marginTop: 6 }}>3) После старта каждый видит свою карточку/роль.</div>
+          <div style={{ marginTop: 6 }}>4) Управление в игре только у ведущего (остальные угадывают/голосуют).</div>
+          <div style={{ marginTop: 6 }}>5) Кнопка «Назад» сверху слева дублирует действие «Назад».</div>
         </div>
-      )}
+        <div style={{ marginTop: 16 }}>
+          <Button variant="secondary" fullWidth onClick={() => setShowInstruction(false)}>
+            Понятно
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

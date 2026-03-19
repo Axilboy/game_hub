@@ -4,6 +4,7 @@ import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
+import GameLayout from '../components/game/GameLayout';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -123,21 +124,12 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
 
   if (voteResult) {
     return (
-      <div style={{ padding: 24, textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <BackArrow onClick={goLobby} title="В лобби" />
-        <div>
-          {(voteResult.allSpiesRound || voteResult.isSpy) && (
-            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>{voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}</p>
-          )}
-          <p style={{ fontSize: 22, marginBottom: 12 }}>
-            {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
-          </p>
-          {voteResult.isSpy && (
-            <p style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Им был: {voteResult.votedOutName}</p>
-          )}
-          <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
-        </div>
-        <div style={{ marginTop: 'auto', paddingTop: 24 }}>
+      <GameLayout
+        top={<BackArrow onClick={goLobby} title="В лобби" />}
+        center={false}
+        padding={24}
+      bottom={
+        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
           <button type="button" onClick={goLobby} style={btnStyle}>
             Ок
           </button>
@@ -154,13 +146,49 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
             </div>
           )}
         </div>
-      </div>
+      }
+      >
+        <div>
+          {(voteResult.allSpiesRound || voteResult.isSpy) && (
+            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>{voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}</p>
+          )}
+          <p style={{ fontSize: 22, marginBottom: 12 }}>
+            {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
+          </p>
+          {voteResult.isSpy && (
+            <p style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Им был: {voteResult.votedOutName}</p>
+          )}
+          <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
+        </div>
+      </GameLayout>
     );
   }
 
   return (
-    <div style={{ padding: 24, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      <BackArrow onClick={() => setExitConfirm(true)} title="Выйти" />
+    <GameLayout
+      top={<BackArrow onClick={() => setExitConfirm(true)} title="Выйти" />}
+      center={false}
+      padding={24}
+      bottom={
+        !exitConfirm ? (
+          <div style={{ paddingTop: 24 }}>
+            <button type="button" onClick={() => setExitConfirm(true)} style={{ ...btnStyle, background: '#333' }}>
+              Выйти
+            </button>
+          </div>
+        ) : (
+          <div style={{ paddingTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+            <div style={{ padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
+              <p style={{ marginBottom: 12 }}>Вы уверены?</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={exitToHome} style={{ ...btnStyle, flex: 1, background: '#c44' }}>Да</button>
+                <button type="button" onClick={() => setExitConfirm(false)} style={{ ...btnStyle, flex: 1, background: '#555' }}>Нет</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    >
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         {card.timerEnabled && (
           <div style={{ position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)', padding: '8px 16px', borderRadius: 8, background: timeUp ? 'rgba(255,100,0,0.3)' : 'rgba(0,0,0,0.3)', fontSize: 18, fontWeight: 'bold' }}>
@@ -213,23 +241,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
           </div>
         )}
       </div>
-
-      <div style={{ marginTop: 'auto', paddingTop: 24 }}>
-        {!exitConfirm ? (
-          <button type="button" onClick={() => setExitConfirm(true)} style={{ ...btnStyle, background: '#333' }}>
-            Выйти
-          </button>
-        ) : (
-          <div style={{ padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
-            <p style={{ marginBottom: 12 }}>Вы уверены?</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={exitToHome} style={{ ...btnStyle, flex: 1, background: '#c44' }}>Да</button>
-              <button type="button" onClick={() => setExitConfirm(false)} style={{ ...btnStyle, flex: 1, background: '#555' }}>Нет</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    </GameLayout>
   );
 }
 

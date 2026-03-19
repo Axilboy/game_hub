@@ -4,6 +4,7 @@ import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
+import GameLayout from '../components/game/GameLayout';
 
 function formatTime(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -105,19 +106,34 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   if (winner != null) {
     const winTeam = teams[winner];
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
+      <GameLayout
+        top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
+        center={true}
+        padding={24}
+        textAlign="center"
+        bottom={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
+            <button type="button" onClick={onLeave} style={{ ...btnStyle, background: '#333' }}>Выйти</button>
+          </div>
+        }
+      >
         <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
         <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t, i) => `${t.name} ${t.score}`).join(' — ')}</p>
-        <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
-        <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>Выйти</button>
-      </div>
+      </GameLayout>
     );
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <BackArrow onClick={() => navigate('/lobby')} title="В лобби" />
+    <GameLayout
+      top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
+      center={false}
+      padding={24}
+      textAlign="center"
+      bottom={
+        <button type="button" onClick={() => navigate('/lobby')} style={{ ...btnStyle, background: '#333' }}>В лобби</button>
+      }
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         {(state.teams || []).map((t, i) => (
           <div key={i} style={{ padding: 12, background: state.currentTeamIndex === i ? 'rgba(100,150,255,0.2)' : 'rgba(0,0,0,0.2)', borderRadius: 8, flex: 1, minWidth: 120 }}>
@@ -149,8 +165,6 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       {timeUp && (
         <button type="button" onClick={nextTurn} style={{ ...btnStyle, marginTop: 16, background: '#85a' }}>Следующий ход</button>
       )}
-
-      <button type="button" onClick={() => navigate('/lobby')} style={{ ...btnStyle, marginTop: 24, background: '#333' }}>В лобби</button>
-    </div>
+    </GameLayout>
   );
 }
