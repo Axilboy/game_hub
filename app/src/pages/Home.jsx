@@ -6,6 +6,7 @@ import { api } from '../api';
 import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import BackArrow from '../components/BackArrow';
+import { showAdIfNeeded } from '../ads';
 
 const ADMIN_CODE = '555555';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
@@ -34,6 +35,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
   const [displayNameState, setDisplayNameState] = useState(getDisplayName() || '');
   const [avatarState, setAvatarState] = useState(getAvatar() || '');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [adLoading, setAdLoading] = useState(false);
   const shownName = displayNameState || user?.first_name || 'Игрок';
 
   useEffect(() => {
@@ -72,6 +74,16 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
       setError(e.message || 'Ошибка создания комнаты');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShowAd = async () => {
+    setError('');
+    setAdLoading(true);
+    try {
+      await showAdIfNeeded();
+    } finally {
+      setAdLoading(false);
     }
   };
 
@@ -193,6 +205,17 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         <div style={{ fontSize: 14, opacity: 0.9 }}>Статистика</div>
         <div style={{ marginTop: 6 }}>Время в GameHub: {formatTime(stats.totalTimeSpent)}</div>
         <div>Сыграно игр: {stats.gamesPlayed}</div>
+      </section>
+
+      <section style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={handleShowAd}
+          disabled={adLoading}
+          style={{ ...btnStyle, width: '100%', background: '#55a' }}
+        >
+          {adLoading ? 'Запуск рекламы...' : 'Показать рекламу'}
+        </button>
       </section>
 
       {error && <p style={{ color: '#f88' }}>{error}</p>}
