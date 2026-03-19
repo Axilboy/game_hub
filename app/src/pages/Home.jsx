@@ -331,18 +331,19 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
+            className="gh-btn gh-btn--flex"
             onClick={handleCreate}
             disabled={loading}
-            style={{ ...btnStyle, flex: 1 }}
           >
             Создать комнату
           </button>
           <button
             type="button"
+            className="gh-btn gh-btn--flex"
             disabled
             aria-hidden="true"
             tabIndex={-1}
-            style={{ ...btnStyle, visibility: 'hidden' }}
+            style={{ visibility: 'hidden' }}
           >
             Войти
           </button>
@@ -392,10 +393,10 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       </section>
 
       <section className="gh-card" style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 10 }}>
-        <button type="button" onClick={() => setShowSubStub(true)} style={{ ...btnStyle, flex: 1, background: '#5a4' }}>
+        <button type="button" className="gh-btn gh-btn--flex gh-btn--green" onClick={() => setShowSubStub(true)}>
           Купить подписку
         </button>
-        <button type="button" onClick={() => setShowShopStub(true)} style={{ ...btnStyle, flex: 1, background: '#55a' }}>
+        <button type="button" className="gh-btn gh-btn--flex gh-btn--purple" onClick={() => setShowShopStub(true)}>
           Магазин
         </button>
       </section>
@@ -425,7 +426,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               <button type="button" className="gh-btn gh-btn--inline" onClick={applyPromoCode}>Применить</button>
             </div>
             {promoError && <p style={{ color: '#f88', fontSize: 14, marginBottom: 12 }}>{promoError}</p>}
-            <button type="button" onClick={() => setShowSubStub(false)} style={btnStyle}>Закрыть</button>
+            <button type="button" className="gh-btn gh-btn--block" onClick={() => setShowSubStub(false)}>Закрыть</button>
           </div>
         </div>
       )}
