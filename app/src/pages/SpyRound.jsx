@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
+import useSeo from '../hooks/useSeo';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -12,6 +13,9 @@ function formatTime(seconds) {
 
 export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const navigate = useNavigate();
+  useSeo({
+    robots: 'noindex, nofollow',
+  });
   const [card, setCard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timerStartsAt, setTimerStartsAt] = useState(null);

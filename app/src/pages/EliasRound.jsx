@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
+import useSeo from '../hooks/useSeo';
 
 function formatTime(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -23,6 +24,9 @@ const btnStyle = {
 
 export default function EliasRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
+  useSeo({
+    robots: 'noindex, nofollow',
+  });
   const myId = user?.id != null ? String(user.id) : '';
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);

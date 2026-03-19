@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import BackArrow from '../components/BackArrow';
+import useSeo from '../hooks/useSeo';
 
 const btnStyle = {
   padding: '12px 20px',
@@ -13,6 +14,7 @@ const btnStyle = {
 
 export default function TruthDareRound({ onLeave }) {
   const navigate = useNavigate();
+  useSeo({ robots: 'noindex, nofollow' });
 
   return (
     <div style={{ padding: 24, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

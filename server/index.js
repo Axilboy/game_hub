@@ -20,6 +20,53 @@ fastify.decorate('io', null);
 fastify.register(roomRoutes, { prefix: '/api' });
 fastify.register(adminRoutes, { prefix: '/api' });
 
+fastify.get('/robots.txt', async (request, reply) => {
+  const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';
+  const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
+  const disallow = [
+    '/admin',
+    '/lobby',
+    '/spy',
+    '/mafia',
+    '/elias',
+    '/truth_dare',
+    '/app',
+  ];
+  const lines = [
+    'User-agent: *',
+    ...disallow.flatMap((p) => [`Disallow: ${p}`]),
+    '',
+    `Sitemap: ${origin.replace(/\/$/, '')}/sitemap.xml`,
+    '',
+  ];
+  reply.type('text/plain; charset=utf-8').send(lines.join('\n'));
+});
+
+fastify.get('/sitemap.xml', async (request, reply) => {
+  const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';
+  const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
+  const base = origin.replace(/\/$/, '');
+  const urls = [
+    { loc: `${base}/seo`, changefreq: 'daily', priority: 0.7 },
+    { loc: `${base}/how-to-play`, changefreq: 'weekly', priority: 0.6 },
+    { loc: `${base}/games/spy`, changefreq: 'weekly', priority: 0.6 },
+    { loc: `${base}/games/elias`, changefreq: 'weekly', priority: 0.6 },
+    { loc: `${base}/games/mafia`, changefreq: 'weekly', priority: 0.6 },
+    { loc: `${base}/games/truth_dare`, changefreq: 'monthly', priority: 0.3 },
+    { loc: `${base}/privacy`, changefreq: 'yearly', priority: 0.4 },
+    { loc: `${base}/rules`, changefreq: 'yearly', priority: 0.4 },
+  ];
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n+${urls
+    .map(
+      (u) =>
+        `  <url>\n    <loc>${u.loc}</loc>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+    )
+    .join('\n')}\n+</urlset>`;
+
+  reply.type('application/xml; charset=utf-8').send(xml);
+});
+
 if (existsSync(publicDir)) {
   await fastify.register(fastifyStatic, { root: publicDir });
   fastify.setNotFoundHandler((request, reply) => {

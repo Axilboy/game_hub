@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
+import useSeo from '../hooks/useSeo';
 
 const btnStyle = {
   padding: '12px 20px',
@@ -16,6 +17,9 @@ const btnStyle = {
 
 export default function MafiaRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
+  useSeo({
+    robots: 'noindex, nofollow',
+  });
   const myId = user?.id != null ? String(user.id) : '';
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);

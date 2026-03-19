@@ -6,6 +6,7 @@ import { api } from '../api';
 import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import BackArrow from '../components/BackArrow';
+import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
 
 const ADMIN_CODE = '555555';
@@ -19,6 +20,7 @@ function formatTime(seconds) {
 
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite }) {
   const navigate = useNavigate();
+  useSeo({ robots: 'noindex, nofollow' });
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

@@ -14,6 +14,14 @@ import MafiaRound from './pages/MafiaRound';
 import EliasRound from './pages/EliasRound';
 import TruthDareRound from './pages/TruthDareRound';
 import Admin from './pages/Admin';
+import SeoLanding from './pages/SeoLanding';
+import SeoGameSpy from './pages/SeoGameSpy';
+import SeoGameElias from './pages/SeoGameElias';
+import SeoGameMafia from './pages/SeoGameMafia';
+import SeoHowToPlay from './pages/SeoHowToPlay';
+import SeoPrivacy from './pages/SeoPrivacy';
+import SeoRules from './pages/SeoRules';
+import SeoTruthDareStub from './pages/SeoTruthDareStub';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -177,6 +185,38 @@ function AppRoutes() {
               onJoinByInvite={joinByInvite}
             />
           }
+        />
+        <Route
+          path="/seo"
+          element={<SeoLanding navigateToApp={() => navigate('/')} />}
+        />
+        <Route
+          path="/games/spy"
+          element={<SeoGameSpy onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/games/elias"
+          element={<SeoGameElias onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/games/mafia"
+          element={<SeoGameMafia onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/games/truth_dare"
+          element={<SeoTruthDareStub onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/how-to-play"
+          element={<SeoHowToPlay onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/privacy"
+          element={<SeoPrivacy onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/rules"
+          element={<SeoRules onBack={() => navigate('/seo')} />}
         />
         <Route
           path="/lobby"
