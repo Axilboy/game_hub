@@ -81,6 +81,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [spyLocationsModalOpen, setSpyLocationsModalOpen] = useState(false);
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
   const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
+  const [gamesPickerOpen, setGamesPickerOpen] = useState(false);
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
@@ -352,38 +353,50 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       {isHost && selectedGame === null && (
         <div style={{ ...settingsBox, marginTop: 24 }}>
-          <p style={{ marginBottom: 12 }}>Выберите игру</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              { id: 'spy', name: 'Шпион', available: true, minPlayers: 3 },
-              { id: 'mafia', name: 'Мафия', available: true, minPlayers: MIN_PLAYERS.mafia },
-              { id: 'bunker', name: 'Бункер', available: false, minPlayers: 0 },
-              { id: 'elias', name: 'Элиас', available: true, minPlayers: MIN_PLAYERS.elias },
-              { id: 'truth_dare', name: 'Правда или действие', available: false, minPlayers: 0 },
-            ].map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  if (!g.available) return;
-                  const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, dictionaryIds: ['free'] } : null;
-                  const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default' } : null;
-                  const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
-                  patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || undefined });
-                }}
-                style={{
-                  ...btnStyle,
-                  padding: 20,
-                  background: g.available ? 'var(--tg-theme-button-color, #3a7bd5)' : '#333',
-                  opacity: g.available ? 1 : 0.8,
-                }}
-              >
-                {g.name}
-                {g.available && g.minPlayers > 0 && <span style={{ display: 'block', fontSize: 11, marginTop: 4, opacity: 0.9 }}>мин. {g.minPlayers} игр.</span>}
-                {!g.available && <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>Скоро</span>}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setGamesPickerOpen((v) => !v)}
+            style={{ ...btnStyle, width: '100%', marginBottom: 12, background: gamesPickerOpen ? '#555' : '#444' }}
+          >
+            {gamesPickerOpen ? 'Скрыть выбор игр' : 'Выбор игр'}
+          </button>
+
+          {gamesPickerOpen && (
+            <>
+              <p style={{ marginBottom: 12 }}>Выберите игру</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {[
+                  { id: 'spy', name: 'Шпион', available: true, minPlayers: 3 },
+                  { id: 'mafia', name: 'Мафия', available: true, minPlayers: MIN_PLAYERS.mafia },
+                  { id: 'bunker', name: 'Бункер', available: false, minPlayers: 0 },
+                  { id: 'elias', name: 'Элиас', available: true, minPlayers: MIN_PLAYERS.elias },
+                  { id: 'truth_dare', name: 'Правда или действие', available: false, minPlayers: 0 },
+                ].map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => {
+                      if (!g.available) return;
+                      const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, dictionaryIds: ['free'] } : null;
+                      const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default' } : null;
+                      const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
+                      patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || undefined });
+                    }}
+                    style={{
+                      ...btnStyle,
+                      padding: 20,
+                      background: g.available ? 'var(--tg-theme-button-color, #3a7bd5)' : '#333',
+                      opacity: g.available ? 1 : 0.8,
+                    }}
+                  >
+                    {g.name}
+                    {g.available && g.minPlayers > 0 && <span style={{ display: 'block', fontSize: 11, marginTop: 4, opacity: 0.9 }}>мин. {g.minPlayers} игр.</span>}
+                    {!g.available && <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>Скоро</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

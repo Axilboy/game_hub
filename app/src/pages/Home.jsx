@@ -240,27 +240,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
           </button>
         </div>
       </section>
-      <section style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => setShowInstruction(true)}
-            disabled={loading}
-            style={{ ...btnStyle, flex: 1, background: '#555' }}
-          >
-            Инструкция
-          </button>
-          <button
-            type="button"
-            disabled
-            aria-hidden="true"
-            tabIndex={-1}
-            style={{ ...btnStyle, visibility: 'hidden' }}
-          >
-            Войти
-          </button>
-        </div>
-      </section>
       <section style={{ marginBottom: 24 }}>
         <p style={{ marginBottom: 8 }}>Войти по коду</p>
         {showAdminPassword ? (
@@ -291,6 +270,17 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
             </button>
           </form>
         )}
+      </section>
+
+      <section style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => setShowInstruction(true)}
+          disabled={loading}
+          style={{ ...btnStyle, width: '100%', background: '#555' }}
+        >
+          Инструкция
+        </button>
       </section>
 
       <section style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -328,6 +318,20 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         >
           {adLoading ? 'Запуск рекламы...' : 'Показать рекламу'}
         </button>
+      </section>
+
+      <section style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>SEO навигация</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <button type="button" onClick={() => navigate('/seo')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>SEO</button>
+          <button type="button" onClick={() => navigate('/how-to-play')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Как играть</button>
+          <button type="button" onClick={() => navigate('/games/spy')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Шпион</button>
+          <button type="button" onClick={() => navigate('/games/elias')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Элиас</button>
+          <button type="button" onClick={() => navigate('/games/mafia')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Мафия</button>
+          <button type="button" onClick={() => navigate('/games/truth_dare')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Правда/действие</button>
+          <button type="button" onClick={() => navigate('/privacy')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Приватность</button>
+          <button type="button" onClick={() => navigate('/rules')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Правила</button>
+        </div>
       </section>
 
       {showInstruction && (
