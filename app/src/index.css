@@ -8,3 +8,39 @@ html, body, #root {
   background: var(--tg-theme-bg-color, #1a1a2e);
   color: var(--tg-theme-text-color, #eee);
 }
+
+:root {
+  --gh-surface: rgba(255, 255, 255, 0.06);
+  --gh-surface-strong: rgba(255, 255, 255, 0.1);
+  --gh-border: rgba(255, 255, 255, 0.12);
+  --gh-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --gh-radius: 12px;
+  --gh-radius-sm: 8px;
+}
+
+.gh-page {
+  padding: 24px;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.gh-card {
+  background: var(--gh-surface);
+  border: 1px solid var(--gh-border);
+  border-radius: var(--gh-radius);
+  box-shadow: var(--gh-shadow);
+}
+
+.gh-hero {
+  text-align: center;
+  padding: 18px 14px;
+  border-radius: var(--gh-radius);
+  background: linear-gradient(145deg, rgba(58, 123, 213, 0.25), rgba(40, 40, 70, 0.35));
+  border: 1px solid var(--gh-border);
+}
+
+@media (max-width: 420px) {
+  .gh-page {
+    padding: 16px;
+  }
+}

@@ -152,9 +152,9 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 400, margin: '0 auto' }}>
+    <div className="gh-page">
       <BackArrow onClick={() => window.history.back()} title="Назад" />
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+      <header className="gh-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, padding: 14 }}>
         <div onClick={() => setShowAvatarPicker(true)} title="Нажмите, чтобы сменить аватар" style={{ cursor: 'pointer', flexShrink: 0 }}>
           {avatarState ? (
             <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
@@ -189,7 +189,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       </header>
 
-      <section style={{ marginBottom: 24, textAlign: 'center' }}>
+      <section className="gh-hero" style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 18, opacity: 0.9 }}>ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
         <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
           Играй с друзьями прямо в браузере
@@ -214,7 +214,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       )}
 
-      <section style={{ marginBottom: 24, padding: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+      <section className="gh-card" style={{ marginBottom: 18, padding: 14 }}>
         <div style={{ fontSize: 14, opacity: 0.9 }}>Статистика</div>
         <div style={{ marginTop: 6 }}>Время в GameHub: {formatTime(stats.totalTimeSpent)}</div>
         <div>Сыграно игр: {stats.gamesPlayed}</div>
@@ -242,7 +242,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
           </button>
         </div>
       </section>
-      <section style={{ marginBottom: 24 }}>
+      <section className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
         <p style={{ marginBottom: 8 }}>Войти по коду</p>
         {showAdminPassword ? (
           <form onSubmit={handleAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -285,7 +285,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </button>
       </section>
 
-      <section style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <section className="gh-card" style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 10 }}>
         <button type="button" onClick={() => setShowSubStub(true)} style={{ ...btnStyle, flex: 1, background: '#5a4' }}>
           Купить подписку
         </button>
@@ -322,7 +322,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </button>
       </section>
 
-      <section style={{ marginTop: 12 }}>
+      <section className="gh-card" style={{ marginTop: 12, padding: 12 }}>
         <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>SEO навигация</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <button type="button" onClick={() => navigate('/seo')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>SEO</button>
@@ -362,9 +362,11 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
 const btnStyle = {
   padding: '12px 20px',
   fontSize: 16,
-  borderRadius: 8,
+  borderRadius: 10,
   border: 'none',
   background: 'var(--tg-theme-button-color, #3a7bd5)',
   color: 'var(--tg-theme-button-text-color, #fff)',
   cursor: 'pointer',
+  boxShadow: '0 6px 18px rgba(0,0,0,0.22)',
+  fontWeight: 600,
 };

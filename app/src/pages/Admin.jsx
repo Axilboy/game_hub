@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import BackArrow from '../components/BackArrow';
+import { useToast } from '../components/ui/ToastProvider';
 
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -9,13 +10,13 @@ const APP_LINK = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : (import.meta.en
 
 export default function Admin() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [password, setPassword] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) || '');
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [promoView, setPromoView] = useState(false);
   const [promoType, setPromoType] = useState('day');
   const [createdPromo, setCreatedPromo] = useState(null);
-  const [shareToast, setShareToast] = useState(false);
 
   useEffect(() => {
     if (!password) {
@@ -46,12 +47,10 @@ export default function Admin() {
     const tg = window.Telegram?.WebApp;
     if (tg?.openTelegramLink) {
       tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(APP_LINK)}&text=${encodeURIComponent('GameHub — промокод на Про: ' + createdPromo.code + '\nПерейди в приложение и введи промокод.')}`);
-      setShareToast(true);
-      setTimeout(() => setShareToast(false), 2500);
+      showToast({ type: 'info', message: 'Выберите чат для отправки' });
     } else {
       navigator.clipboard.writeText(text).then(() => {
-        setShareToast(true);
-        setTimeout(() => setShareToast(false), 2500);
+        showToast({ type: 'success', message: 'Промокод скопирован' });
       });
     }
   };
@@ -102,7 +101,6 @@ export default function Admin() {
         <p style={{ fontSize: 24, fontWeight: 'bold', letterSpacing: 4 }}>{createdPromo.code}</p>
         <p style={{ fontSize: 14, opacity: 0.8 }}>Срок: {promoType === 'day' ? '1 день' : promoType === 'week' ? '1 неделя' : '1 месяц'}</p>
         <button type="button" onClick={sharePromo} style={{ ...btnStyle, marginTop: 16, background: '#6a5' }}>Поделиться</button>
-        {shareToast && <p style={{ color: '#8f8', marginTop: 8 }}>Выберите чат для отправки или ссылка скопирована</p>}
         <button type="button" onClick={() => { setCreatedPromo(null); setPromoView(false); loadStats(); }} style={{ ...btnStyle, marginTop: 8 }}>К списку</button>
       </div>
     );

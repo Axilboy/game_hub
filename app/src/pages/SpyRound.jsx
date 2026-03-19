@@ -5,6 +5,8 @@ import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import Loader from '../components/ui/Loader';
+import ErrorState from '../components/ui/ErrorState';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -24,6 +26,8 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [votedForId, setVotedForId] = useState(null);
   const [voteResult, setVoteResult] = useState(null);
   const [voteTick, setVoteTick] = useState(0);
+  const [voteRequestLock, setVoteRequestLock] = useState(false);
+  const [startVoteLock, setStartVoteLock] = useState(false);
 
   const myId = user?.id != null ? String(user.id) : '';
   const otherPlayers = (room?.players || []).filter((p) => p.id !== myId);
@@ -84,18 +88,27 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   }, []);
 
   const startVote = async () => {
+    if (startVoteLock) return;
     try {
+      setStartVoteLock(true);
       const r = await api.post(`/rooms/${roomId}/spy/start-vote`, { playerId: myId });
       if (r.votingEndsAt) setVotingEndsAt(r.votingEndsAt);
     } catch (_) {}
+    finally {
+      setStartVoteLock(false);
+    }
   };
 
   const sendVote = async (playerId) => {
-    if (votedForId) return;
+    if (votedForId || voteRequestLock) return;
     try {
+      setVoteRequestLock(true);
       await api.post(`/rooms/${roomId}/spy/vote`, { playerId: myId, votedForId: playerId });
       setVotedForId(playerId);
     } catch (_) {}
+    finally {
+      setVoteRequestLock(false);
+    }
   };
 
   const endVoteEarly = async () => {
@@ -114,8 +127,8 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     navigate('/');
   };
 
-  if (loading) return <div style={{ padding: 24, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18 }}>Загрузка…</div>;
-  if (!card) return <div style={{ padding: 24, minHeight: '100vh', color: '#fff' }}>Нет карты. <button type="button" onClick={goLobby} style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#555', color: '#fff', cursor: 'pointer' }}>В лобби</button></div>;
+  if (loading) return <div style={{ padding: 24 }}><Loader label="Загрузка раунда..." minHeight="60vh" /></div>;
+  if (!card) return <div style={{ padding: 24 }}><ErrorState title="Нет карты" message="Данные раунда пока недоступны." actionLabel="В лобби" onAction={goLobby} /></div>;
 
   const isSpy = card.role === 'spy';
   const allSpiesRound = Boolean(card.allSpiesRound);
@@ -148,7 +161,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         </div>
       }
       >
-        <div>
+        <div className="gh-card" style={{ padding: 16 }}>
           {(voteResult.allSpiesRound || voteResult.isSpy) && (
             <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>{voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}</p>
           )}
@@ -191,30 +204,75 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     >
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         {card.timerEnabled && (
-          <div style={{ position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)', padding: '8px 16px', borderRadius: 8, background: timeUp ? 'rgba(255,100,0,0.3)' : 'rgba(0,0,0,0.3)', fontSize: 18, fontWeight: 'bold' }}>
-            {timerStartsAt == null ? 'Ожидание готовности всех…' : timeUp ? `Время вышло!` : `Таймер: ${formatTime(secondsLeft ?? 0)}`}
+          <div
+            className="gh-card"
+            style={{
+              position: 'absolute',
+              top: 56,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              padding: '10px 14px',
+              borderRadius: 12,
+              width: 'fit-content',
+              background: timeUp ? 'rgba(255,100,0,0.18)' : 'rgba(0,0,0,0.25)',
+              border: `1px solid ${timeUp ? 'rgba(255,120,0,0.5)' : 'rgba(255,255,255,0.12)'}`,
+              boxShadow: '0 14px 40px rgba(0,0,0,0.35)',
+            }}
+          >
+            <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 800, marginBottom: 4 }}>
+              Таймер раунда
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: timeUp ? '#ffb38a' : '#fff' }}>
+              {timerStartsAt == null ? 'Ожидаем готовность всех…' : timeUp ? 'Время вышло!' : formatTime(secondsLeft ?? 0)}
+            </div>
           </div>
         )}
-        {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
-        {isSpy ? (
-          <>
-            <p style={{ fontSize: 24, color: '#f88' }}>Вы шпион</p>
-            {card.otherSpyNames?.length > 0 && (
-              <p style={{ fontSize: 14, opacity: 0.9, marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
-            )}
-          </>
-        ) : (
-          <p style={{ fontSize: 28, fontWeight: 'bold' }}>{card.word}</p>
-        )}
+        <div className="gh-card" style={{ padding: 16 }}>
+          {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
+          {isSpy ? (
+            <>
+              <p style={{ fontSize: 24, color: '#f88', margin: 0 }}>Вы шпион</p>
+              <p style={{ fontSize: 28, fontWeight: 'bold', margin: 0, opacity: 0.55 }}>Слово скрыто</p>
+              {card.otherSpyNames?.length > 0 && (
+                <p style={{ fontSize: 14, opacity: 0.9, marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
+              )}
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
+                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что видно: слово скрыто</p>
+                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что делать: голосуй во время голосования</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 28, fontWeight: 'bold', margin: 0 }}>{card.word}</p>
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
+                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что видно: слово видно</p>
+                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что делать: голосуй во время голосования</p>
+              </div>
+            </>
+          )}
+        </div>
 
         {!votingActive && !voteResult && (
-          <button type="button" onClick={startVote} style={{ ...btnStyle, marginTop: 24, background: '#6a5' }}>
-            Голосовать
-          </button>
+          isHost ? (
+            <button
+              type="button"
+              onClick={startVote}
+              disabled={startVoteLock}
+              style={{ ...btnStyle, marginTop: 24, background: '#6a5', opacity: startVoteLock ? 0.7 : 1 }}
+            >
+              Запустить голосование
+            </button>
+          ) : (
+            <div style={{ marginTop: 24, opacity: 0.85 }}>
+              <p style={{ margin: 0, fontSize: 14 }}>Ожидайте: хост запустит голосование</p>
+            </div>
+          )
         )}
 
         {votingActive && (
-          <div style={{ marginTop: 24, textAlign: 'left' }}>
+          <div className="gh-card" style={{ marginTop: 24, textAlign: 'left', padding: 16 }}>
             <p style={{ marginBottom: 8 }}>Голосование: {formatTime(voteSecondsLeft)}</p>
             {isHost && (
               <button type="button" onClick={endVoteEarly} style={{ ...btnStyle, marginBottom: 12, background: '#85a' }}>
@@ -228,10 +286,11 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
                   key={p.id}
                   type="button"
                   onClick={() => sendVote(p.id)}
-                  disabled={!!votedForId}
+                  disabled={!!votedForId || voteRequestLock}
                   style={{
                     ...btnStyle,
                     background: votedForId === p.id ? '#6a5' : '#444',
+                    opacity: voteRequestLock ? 0.7 : 1,
                   }}
                 >
                   {p.name}{votedForId === p.id ? ' ✓' : ''}

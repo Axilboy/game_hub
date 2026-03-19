@@ -22,6 +22,7 @@ import SeoHowToPlay from './pages/SeoHowToPlay';
 import SeoPrivacy from './pages/SeoPrivacy';
 import SeoRules from './pages/SeoRules';
 import SeoTruthDareStub from './pages/SeoTruthDareStub';
+import { ToastProvider } from './components/ui/ToastProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -290,8 +291,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ToastProvider>
   );
 }
