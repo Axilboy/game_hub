@@ -1,7 +1,9 @@
-import { getStats, checkAdminPassword } from './statsManager.js';
+import { getStats, getPublicStats, checkAdminPassword } from './statsManager.js';
 import { createPromocode, redeemPromocode } from './promocodes.js';
 
 export async function adminRoutes(fastify) {
+  fastify.get('/stats/public', async () => getPublicStats());
+
   fastify.post('/admin/stats', async (request, reply) => {
     const { password } = request.body || {};
     if (!checkAdminPassword(password)) {

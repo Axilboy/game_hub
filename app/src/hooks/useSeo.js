@@ -9,7 +9,20 @@ function upsertMeta(selector, create, value) {
   document.head.appendChild(create(value));
 }
 
-export default function useSeo({ title, description, canonical, robots }) {
+function upsertPropertyMeta(property, content) {
+  const sel = `meta[property="${property}"]`;
+  const el = document.head.querySelector(sel);
+  if (el) {
+    el.setAttribute('content', content);
+    return;
+  }
+  const m = document.createElement('meta');
+  m.setAttribute('property', property);
+  m.setAttribute('content', content);
+  document.head.appendChild(m);
+}
+
+export default function useSeo({ title, description, canonical, robots, ogImage, ogType = 'website' }) {
   useEffect(() => {
     if (title) document.title = title;
 
@@ -62,6 +75,14 @@ export default function useSeo({ title, description, canonical, robots }) {
         link.setAttribute('href', canonical);
         document.head.appendChild(link);
       }
+      upsertPropertyMeta('og:url', canonical);
+    }
+
+    if (ogImage) {
+      upsertPropertyMeta('og:image', ogImage);
+    }
+    if (ogType) {
+      upsertPropertyMeta('og:type', ogType);
     }
 
     // Optional robots directive.
@@ -77,6 +98,6 @@ export default function useSeo({ title, description, canonical, robots }) {
         robots
       );
     }
-  }, [title, description, canonical, robots]);
+  }, [title, description, canonical, robots, ogImage, ogType]);
 }
 

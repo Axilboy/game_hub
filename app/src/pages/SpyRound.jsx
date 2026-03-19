@@ -87,6 +87,19 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     };
   }, []);
 
+  useEffect(() => {
+    const resync = async () => {
+      if (!myId || !roomId) return;
+      try {
+        const st = await api.get(`/rooms/${roomId}/spy/vote-status`);
+        if (st?.active && st?.votingEndsAt) setVotingEndsAt(st.votingEndsAt);
+      } catch (_) {}
+      fetchCard();
+    };
+    socket.onConnect(resync);
+    return () => socket.offConnect(resync);
+  }, [roomId, myId]);
+
   const startVote = async () => {
     if (startVoteLock) return;
     try {
@@ -113,7 +126,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
 
   const endVoteEarly = async () => {
     try {
-      await api.post(`/rooms/${roomId}/spy/end-vote`);
+      await api.post(`/rooms/${roomId}/spy/end-vote`, { playerId: myId });
     } catch (_) {}
   };
 
@@ -203,6 +216,11 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
       }
     >
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <p style={{ fontSize: 13, opacity: 0.88, textAlign: 'center', margin: '0 0 12px', lineHeight: 1.4 }}>
+          {isHost
+            ? 'Вы ведущий (хост): запускайте голосование и при необходимости оглашайте результат.'
+            : 'Голосование запускает хост. Следите за таймером и выберите игрока, когда откроется этап.'}
+        </p>
         {card.timerEnabled && (
           <div
             className="gh-card"

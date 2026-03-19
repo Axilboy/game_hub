@@ -1,3 +1,5 @@
+import { track } from './analytics';
+
 const API_URL = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
   ? import.meta.env.VITE_API_URL
   : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
@@ -25,8 +27,16 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
       credentials: 'include',
       signal: controller.signal,
     });
-    if (!r.ok) throw new Error(await r.text());
+    if (!r.ok) {
+      const body = await r.text();
+      throw new Error(body || `HTTP ${r.status}`);
+    }
     return await r.json();
+  } catch (e) {
+    if (e?.name !== 'AbortError') {
+      track('api_error', { path: url.replace(API_URL, ''), message: String(e?.message || e).slice(0, 160) });
+    }
+    throw e;
   } finally {
     clearTimeout(timeoutId);
   }

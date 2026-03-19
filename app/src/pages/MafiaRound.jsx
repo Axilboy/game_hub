@@ -51,6 +51,12 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     };
   }, [roomId, myId]);
 
+  useEffect(() => {
+    const onSock = () => refreshState();
+    socket.onConnect(onSock);
+    return () => socket.offConnect(onSock);
+  }, [roomId, myId]);
+
   const advancePhase = async () => {
     if (actionLoading) return;
     try {

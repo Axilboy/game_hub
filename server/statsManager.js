@@ -13,7 +13,10 @@ function todayKey() {
 }
 
 let byDate = new Map();
+/** Завершённые показы рекламы (клиент подтвердил после rewarded). */
 let adImpressionsByDate = new Map();
+/** Сколько раз был старт игры (сессия) за день — без привязки к рекламе. */
+let gamesStartedByDate = new Map();
 
 function load() {
   try {
@@ -21,6 +24,7 @@ function load() {
       const data = JSON.parse(readFileSync(STATS_FILE, 'utf8'));
       byDate = new Map(Object.entries(data.players || {}).map(([k, arr]) => [k, new Set(arr)]));
       adImpressionsByDate = new Map(Object.entries(data.adImpressions || {}));
+      gamesStartedByDate = new Map(Object.entries(data.gamesStarted || {}));
     }
   } catch (_) {}
 }
@@ -32,6 +36,7 @@ function save() {
     const data = {
       players: Object.fromEntries([...byDate.entries()].map(([k, set]) => [k, [...set]])),
       adImpressions: Object.fromEntries(adImpressionsByDate),
+      gamesStarted: Object.fromEntries(gamesStartedByDate),
     };
     writeFileSync(STATS_FILE, JSON.stringify(data, null, 0));
   } catch (_) {}
@@ -50,11 +55,17 @@ export function recordPlayer(playerId) {
   save();
 }
 
-/** Учёт показов рекламы: при каждом старте игры каждый игрок в комнате видит рекламу. playerCount = число игроков в комнате на момент старта. */
-export function recordGameStart(playerCount) {
+/** Один факт старта игры в комнате (без завышения «показов рекламы»). */
+export function recordGameSession() {
   const key = todayKey();
-  const prev = adImpressionsByDate.get(key) || 0;
-  adImpressionsByDate.set(key, prev + Math.max(0, playerCount));
+  gamesStartedByDate.set(key, (gamesStartedByDate.get(key) || 0) + 1);
+  save();
+}
+
+/** Учитывается только после успешного показа рекламы на клиенте (см. POST /api/stats/ad-shown). */
+export function recordAdImpression() {
+  const key = todayKey();
+  adImpressionsByDate.set(key, (adImpressionsByDate.get(key) || 0) + 1);
   save();
 }
 
@@ -101,6 +112,15 @@ export function getStats() {
   let adTotal = 0;
   for (const n of adImpressionsByDate.values()) adTotal += n;
 
+  let gamesDay = gamesStartedByDate.get(dayKey) || 0;
+  let gamesMonth = 0;
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    gamesMonth += gamesStartedByDate.get(k) || 0;
+  }
+
   return {
     day: daySet.size,
     week: weekCount,
@@ -109,6 +129,20 @@ export function getStats() {
     adImpressionsDay: adDay,
     adImpressionsMonth: adMonth,
     adImpressionsTotal: adTotal,
+    gamesStartedDay: gamesDay,
+    gamesStartedMonth: gamesMonth,
+  };
+}
+
+/** Без чувствительных данных — для лидерборда/«сообщества». */
+export function getPublicStats() {
+  const s = getStats();
+  return {
+    playersToday: s.day,
+    playersWeek: s.week,
+    gamesStartedToday: s.gamesStartedDay,
+    gamesStartedMonth: s.gamesStartedMonth,
+    adCompletedToday: s.adImpressionsDay,
   };
 }
 

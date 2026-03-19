@@ -35,7 +35,10 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={onClose}>
       <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин и словари</h3>
+        <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
+          Витрина: тематические наборы слов и фичи по играм. С <strong>Про</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
+        </p>
         <p style={{ fontSize: 13, marginBottom: 12 }}>Игра</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {SHOP_GAMES.map((g) => (
@@ -65,7 +68,9 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
             );
           })}
         </div>
-        <p style={{ fontSize: 12, opacity: 0.8, marginTop: 12 }}>Покупка отдельных товаров пока не реализована. Оформите Премиум — откроются все словари и режимы.</p>
+        <p style={{ fontSize: 12, opacity: 0.85, marginTop: 12, lineHeight: 1.45 }}>
+          Отдельная покупка карточек пока в разработке. Сейчас самый быстрый путь — <strong>Про</strong>: все премиальные словари, расширенная Мафия и без рекламы перед стартом для всей группы.
+        </p>
         <button type="button" onClick={onClose} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
       </div>
     </div>

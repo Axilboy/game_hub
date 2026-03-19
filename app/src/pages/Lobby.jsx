@@ -6,6 +6,8 @@ import { getAvatar } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import BackArrow from '../components/BackArrow';
 import { useToast } from '../components/ui/ToastProvider';
+import Modal from '../components/ui/Modal';
+import Button from '../components/ui/Button';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -86,6 +88,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
   const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
   const [gamesPickerOpen, setGamesPickerOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
@@ -311,7 +314,17 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
-  const handleBack = () => { if (selectedGame) patchLobbyGame({ selectedGame: null }); else onLeave(); };
+  const handleBack = () => {
+    if (selectedGame) patchLobbyGame({ selectedGame: null });
+    else setLeaveConfirmOpen(true);
+  };
+  const confirmLeaveLobby = () => {
+    setLeaveConfirmOpen(false);
+    onLeave();
+  };
+
+  const playersList = room.players || [];
+  const onlineCount = playersList.filter((p) => p.online !== false).length;
 
   return (
     <div className="gh-page">
@@ -337,6 +350,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       <p>Код комнаты: <strong>{room.code}</strong></p>
+      <p style={{ fontSize: 14, opacity: 0.88, marginTop: 4, marginBottom: 12 }}>
+        Онлайн: <strong>{onlineCount}</strong> / {playersList.length}
+      </p>
       {inviteLink && (
         <div style={{ marginBottom: 16 }}>
           <p>Приглашение:</p>
@@ -364,7 +380,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
-        {(room.players || []).map((p) => (
+        {playersList.map((p) => (
           <div
             key={p.id}
             className="gh-card"
@@ -396,6 +412,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {p.name}
                 {p.isHost ? ' (хост)' : ''}
+                {p.online === false ? (
+                  <span style={{ fontSize: 12, marginLeft: 6, opacity: 0.65, fontWeight: 600 }}>(офлайн)</span>
+                ) : null}
               </span>
             </div>
             {isHost && p.id !== String(user?.id) && !p.isHost && (
@@ -940,10 +959,22 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </button>
       ) : null}
       {(!isHost || !selectedGame) && (
-        <button type="button" onClick={onLeave} style={{ ...btnStyle, marginTop: isHost && selectedGame ? 8 : 24, background: '#555' }}>
-          Выйти
+        <button type="button" onClick={() => setLeaveConfirmOpen(true)} style={{ ...btnStyle, marginTop: isHost && selectedGame ? 8 : 24, background: '#555' }}>
+          Выйти из комнаты
         </button>
       )}
+
+      <Modal open={leaveConfirmOpen} onClose={() => setLeaveConfirmOpen(false)} title="Выйти из комнаты?" width={400}>
+        <p style={{ marginTop: 0, lineHeight: 1.5, opacity: 0.92 }}>Вы покинете лобби. Приглашение можно будет использовать снова, если комната ещё активна.</p>
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <Button variant="secondary" fullWidth onClick={() => setLeaveConfirmOpen(false)}>
+            Остаться
+          </Button>
+          <Button variant="danger" fullWidth onClick={confirmLeaveLobby}>
+            Выйти
+          </Button>
+        </div>
+      </Modal>
 
       {mafiaClassicPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaClassicPopup(false)}>

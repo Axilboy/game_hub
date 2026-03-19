@@ -70,6 +70,12 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   }, [roomId, myId]);
 
   useEffect(() => {
+    const onSock = () => refreshState();
+    socket.onConnect(onSock);
+    return () => socket.offConnect(onSock);
+  }, [roomId, myId]);
+
+  useEffect(() => {
     if (!state?.roundEndsAt) return;
     const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);

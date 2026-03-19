@@ -119,8 +119,14 @@ export default function Admin() {
         <div>Всего: <strong>{stats?.total ?? 0}</strong></div>
       </section>
       <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
-        <p style={{ marginBottom: 12 }}>Показы рекламы</p>
-        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>При каждом старте игры каждый игрок в комнате считается как один показ (игроки × старты игр)</p>
+        <p style={{ marginBottom: 12 }}>Старты игр (сессий)</p>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Каждый запуск игры в комнате (+1 за сутки / сумма за месяц)</p>
+        <div>Сегодня: <strong>{stats?.gamesStartedDay ?? 0}</strong></div>
+        <div>За 30 дней: <strong>{stats?.gamesStartedMonth ?? 0}</strong></div>
+      </section>
+      <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+        <p style={{ marginBottom: 12 }}>Завершённые показы рекламы</p>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Клиент подтверждает после вызова рекламного SDK (честный минимум, без умножения на число игроков)</p>
         <div>За сутки: <strong>{stats?.adImpressionsDay ?? 0}</strong></div>
         <div>За месяц: <strong>{stats?.adImpressionsMonth ?? 0}</strong></div>
         <div>Всего: <strong>{stats?.adImpressionsTotal ?? 0}</strong></div>

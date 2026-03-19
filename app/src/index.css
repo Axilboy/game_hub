@@ -44,3 +44,95 @@ html, body, #root {
     padding: 16px;
   }
 }
+
+@keyframes gh-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gh-fade-in {
+  animation: gh-fade-in 0.28s ease-out both;
+}
+
+html[data-theme='light'] {
+  --tg-theme-bg-color: #f4f6fa;
+  --tg-theme-text-color: #1a1d26;
+  --tg-theme-button-color: #2d6cdf;
+  --tg-theme-button-text-color: #fff;
+  --gh-surface: rgba(0, 0, 0, 0.04);
+  --gh-surface-strong: rgba(0, 0, 0, 0.08);
+  --gh-border: rgba(0, 0, 0, 0.1);
+  --gh-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme='light'] body,
+html[data-theme='light'] #root {
+  background: var(--tg-theme-bg-color);
+  color: var(--tg-theme-text-color);
+}
+
+/* Утилиты кнопок — меньше inline-стилей на экранах вроде Home */
+.gh-btn {
+  padding: 12px 20px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--tg-theme-button-color, #3a7bd5);
+  color: var(--tg-theme-button-text-color, #fff);
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  font-weight: 600;
+}
+.gh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.gh-btn--block {
+  width: 100%;
+}
+.gh-btn--flex {
+  flex: 1;
+}
+.gh-btn--inline {
+  width: auto;
+}
+.gh-btn--muted {
+  background: #555;
+}
+.gh-btn--green {
+  background: #5a4;
+}
+.gh-btn--purple {
+  background: #55a;
+}
+.gh-btn--charcoal {
+  background: #444;
+}
+.gh-btn--compact {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.gh-btn--mb {
+  margin-bottom: 12px;
+}
+
+.gh-input {
+  padding: 12px;
+  font-size: 18px;
+  border-radius: 8px;
+  border: 1px solid var(--gh-border);
+  background: transparent;
+  color: inherit;
+}
+.gh-input--grow {
+  flex: 1;
+}
+.gh-input--full {
+  width: 100%;
+}

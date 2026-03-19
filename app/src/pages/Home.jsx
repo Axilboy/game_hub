@@ -8,8 +8,12 @@ import ShopModal from '../components/ShopModal';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
+import { track } from '../analytics';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+
+const BASE_URL = import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
 
 const ADMIN_CODE = '555555';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
@@ -20,7 +24,7 @@ function formatTime(seconds) {
   return `${(seconds / 3600).toFixed(1)} ч`;
 }
 
-export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite }) {
+export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
   useSeo({ robots: 'noindex, nofollow' });
   const [code, setCode] = useState('');
@@ -41,7 +45,20 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showInstruction, setShowInstruction] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
+  const [hasLastRoom, setHasLastRoom] = useState(false);
   const shownName = displayNameState || user?.first_name || 'Игрок';
+
+  const inviteToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('inviteToken') : null;
+  const miniAppLink = BOT_USERNAME && inviteToken ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}` : '';
+  const webInviteLink = inviteToken ? `${BASE_URL.replace(/\/$/, '')}?invite=${inviteToken}` : '';
+
+  useEffect(() => {
+    try {
+      setHasLastRoom(Boolean(sessionStorage.getItem('gameHub_lastRoomId')));
+    } catch (_) {
+      setHasLastRoom(false);
+    }
+  }, []);
 
   useEffect(() => {
     const s = getStats();
@@ -86,9 +103,41 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
     setError('');
     setAdLoading(true);
     try {
-      await showAdIfNeeded();
+      const { adSdkShown } = await showAdIfNeeded();
+      track('ad_manual_home', { shown: Boolean(adSdkShown) });
+      const uid = user?.id != null ? String(user.id) : '';
+      if (adSdkShown && uid) {
+        try {
+          await api.post('/stats/ad-shown', { playerId: uid });
+        } catch (_) {}
+      }
     } finally {
       setAdLoading(false);
+    }
+  };
+
+  const handleResumeRoom = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const r = await onResumeLastRoom?.();
+      if (r) navigate('/lobby');
+      else setError('Не удалось вернуться в комнату');
+    } catch (_) {
+      setError('Комната недоступна');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyInviteHint = async () => {
+    const text = miniAppLink || webInviteLink;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      track('invite_copied', { source: 'home' });
+    } catch (_) {
+      setError('Не удалось скопировать ссылку');
     }
   };
 
@@ -189,12 +238,59 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
         </div>
       </header>
 
+      <div style={{ marginBottom: 16 }}>
+        <Button variant="secondary" fullWidth onClick={() => navigate('/profile')}>
+          Профиль и достижения
+        </Button>
+      </div>
+
+      {hasLastRoom && (
+        <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Последняя комната</div>
+          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
+            Вернуться в ту же сессию, если сервер ещё держит лобби.
+          </p>
+          <Button variant="primary" fullWidth onClick={handleResumeRoom} disabled={loading}>
+            Продолжить игру
+          </Button>
+        </section>
+      )}
+
+      {(miniAppLink || webInviteLink) && (
+        <section className="gh-card" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Пригласить друзей</div>
+          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px' }}>Ссылка на текущее приглашение (после создания комнаты).</p>
+          <Button variant="secondary" fullWidth onClick={copyInviteHint}>
+            Копировать ссылку
+          </Button>
+        </section>
+      )}
+
       <section className="gh-hero" style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 18, opacity: 0.9 }}>ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
         <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
           Играй с друзьями прямо в браузере
         </div>
         <div style={{ fontSize: 16, opacity: 0.85, marginTop: 6 }}>Без регистрации</div>
+      </section>
+
+      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+        <div style={{ fontWeight: 800, marginBottom: 10 }}>Как это работает</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
+          <li>Создайте комнату или введите код от друзей.</li>
+          <li>Хост выбирает игру и настройки в лобби.</li>
+          <li>После старта каждый видит свою роль или карточку.</li>
+          <li>Действия ведущего синхронизируются у всех в реальном времени.</li>
+        </ol>
+      </section>
+
+      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+        <div style={{ fontWeight: 800, marginBottom: 10 }}>Дорожная карта</div>
+        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
+          <li><strong>Сейчас:</strong> Шпион, Элиас, Мафия.</li>
+          <li><strong>Скоро:</strong> Правда или действие, Бункер — голосования и таймеры в том же лобби.</li>
+          <li><strong>Про:</strong> больше словарей и расширенные режимы для всей комнаты.</li>
+        </ul>
       </section>
 
       {showAvatarPicker && (
@@ -208,8 +304,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => pickAvatar('')} style={{ ...btnStyle, marginBottom: 8, background: '#555' }}>Фото из Telegram</button>
-            <button type="button" onClick={() => setShowAvatarPicker(false)} style={btnStyle}>Закрыть</button>
+            <button type="button" className="gh-btn gh-btn--muted gh-btn--mb" onClick={() => pickAvatar('')}>Фото из Telegram</button>
+            <button type="button" className="gh-btn gh-btn--block" onClick={() => setShowAvatarPicker(false)}>Закрыть</button>
           </div>
         </div>
       )}
@@ -248,26 +344,26 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
           <form onSubmit={handleAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
               type="password"
+              className="gh-input gh-input--full"
               placeholder="Пароль"
               value={adminPassword}
               onChange={(e) => { setAdminPassword(e.target.value); setError(''); }}
-              style={{ padding: 12, fontSize: 18, borderRadius: 8 }}
             />
-            <button type="submit" style={btnStyle}>Войти в админку</button>
-            <button type="button" onClick={() => { setShowAdminPassword(false); setAdminPassword(''); setError(''); }} style={{ ...btnStyle, background: '#555' }}>Отмена</button>
+            <button type="submit" className="gh-btn gh-btn--block">Войти в админку</button>
+            <button type="button" className="gh-btn gh-btn--block gh-btn--muted" onClick={() => { setShowAdminPassword(false); setAdminPassword(''); setError(''); }}>Отмена</button>
           </form>
         ) : (
           <form onSubmit={handleJoinByCode} style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
+              className="gh-input gh-input--grow"
               inputMode="numeric"
               maxLength={6}
               placeholder="000000"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              style={{ flex: 1, padding: 12, fontSize: 18, borderRadius: 8 }}
             />
-            <button type="submit" disabled={loading} style={btnStyle}>
+            <button type="submit" className="gh-btn" disabled={loading}>
               Войти
             </button>
           </form>
@@ -277,9 +373,9 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
       <section style={{ marginBottom: 16 }}>
         <button
           type="button"
+          className="gh-btn gh-btn--block gh-btn--muted"
           onClick={() => setShowInstruction(true)}
           disabled={loading}
-          style={{ ...btnStyle, width: '100%', background: '#555' }}
         >
           Инструкция
         </button>
@@ -297,12 +393,26 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
       {showSubStub && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 16 }}>Нет рекламы, неограниченные игры и режимы для всех участников сессии.</p>
-            <button type="button" onClick={() => { setPro(Date.now() + 30 * 24 * 3600 * 1000); setInv(getInventory()); setShowSubStub(false); }} style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}>Купить подписку</button>
+            <p style={{ marginBottom: 16 }}>Про убирает рекламу перед стартом, открывает премиальные словари и режимы (например, расширенную Мафию) для <strong>всех</strong> в вашей комнате на время сессии.</p>
+            <button type="button" className="gh-btn gh-btn--block gh-btn--green gh-btn--mb" onClick={() => { setPro(Date.now() + 30 * 24 * 3600 * 1000); setInv(getInventory()); setShowSubStub(false); }}>Купить подписку</button>
+            <button
+              type="button"
+              className="gh-btn gh-btn--block gh-btn--charcoal gh-btn--mb"
+              onClick={async () => {
+                const t = 'Промокод GameHub — спроси у друзей или у хоста!';
+                try {
+                  await navigator.clipboard.writeText(t);
+                } catch (_) {
+                  setError('Не удалось скопировать');
+                }
+              }}
+            >
+              Текст для друга (копировать)
+            </button>
             <p style={{ marginBottom: 6 }}>Промокод</p>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input type="text" placeholder="Введите промокод" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }} style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid #444', background: 'transparent', color: 'inherit' }} />
-              <button type="button" onClick={applyPromoCode} style={{ ...btnStyle, width: 'auto' }}>Применить</button>
+              <input type="text" className="gh-input gh-input--grow" placeholder="Введите промокод" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }} />
+              <button type="button" className="gh-btn gh-btn--inline" onClick={applyPromoCode}>Применить</button>
             </div>
             {promoError && <p style={{ color: '#f88', fontSize: 14, marginBottom: 12 }}>{promoError}</p>}
             <button type="button" onClick={() => setShowSubStub(false)} style={btnStyle}>Закрыть</button>
@@ -311,28 +421,27 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
       )}
       <ShopModal open={showShopStub} onClose={() => setShowShopStub(false)} initialGameFilter="all" />
 
-      <section style={{ marginTop: 16 }}>
-        <button
-          type="button"
-          onClick={handleShowAd}
-          disabled={adLoading}
-          style={{ ...btnStyle, width: '100%', background: '#55a' }}
-        >
-          {adLoading ? 'Запуск рекламы...' : 'Показать рекламу'}
-        </button>
+      <section className="gh-card" style={{ marginTop: 16, padding: 14 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Поддержать проект</div>
+        <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 12px', lineHeight: 1.45 }}>
+          Реклама запускается по требованию. Перед игрой показ может быть чаще — это настраивается площадкой, не чаще нескольких раз подряд без паузы.
+        </p>
+        <Button variant="primary" fullWidth onClick={handleShowAd} disabled={adLoading}>
+          {adLoading ? 'Загрузка…' : 'Показать рекламу'}
+        </Button>
       </section>
 
       <section className="gh-card" style={{ marginTop: 12, padding: 12 }}>
         <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>SEO навигация</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <button type="button" onClick={() => navigate('/seo')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>SEO</button>
-          <button type="button" onClick={() => navigate('/how-to-play')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Как играть</button>
-          <button type="button" onClick={() => navigate('/games/spy')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Шпион</button>
-          <button type="button" onClick={() => navigate('/games/elias')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Элиас</button>
-          <button type="button" onClick={() => navigate('/games/mafia')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Мафия</button>
-          <button type="button" onClick={() => navigate('/games/truth_dare')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Правда/действие</button>
-          <button type="button" onClick={() => navigate('/privacy')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Приватность</button>
-          <button type="button" onClick={() => navigate('/rules')} style={{ ...btnStyle, padding: '10px 12px', fontSize: 13, background: '#444' }}>Правила</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/seo')}>SEO</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/how-to-play')}>Как играть</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/spy')}>Шпион</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/elias')}>Элиас</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/mafia')}>Мафия</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/truth_dare')}>Правда/действие</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/privacy')}>Приватность</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/rules')}>Правила</button>
         </div>
       </section>
 
@@ -358,15 +467,3 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite 
     </div>
   );
 }
-
-const btnStyle = {
-  padding: '12px 20px',
-  fontSize: 16,
-  borderRadius: 10,
-  border: 'none',
-  background: 'var(--tg-theme-button-color, #3a7bd5)',
-  color: 'var(--tg-theme-button-text-color, #fff)',
-  cursor: 'pointer',
-  boxShadow: '0 6px 18px rgba(0,0,0,0.22)',
-  fontWeight: 600,
-};

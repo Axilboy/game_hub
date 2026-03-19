@@ -175,8 +175,9 @@ export const roomManager = {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== hostId) return null;
     if (playerIdToKick === hostId) return null;
-    const socketId = room.playerSockets?.[playerIdToKick];
-    return socketId ? { socketId } : null;
+    if (!room.players.some((p) => p.id === playerIdToKick)) return null;
+    const socketId = room.playerSockets?.[playerIdToKick] || null;
+    return { socketId };
   },
 
   toSafe(room) {
@@ -198,7 +199,12 @@ export const roomManager = {
     const allSpyDictionaryIds = ['free', ...SPY_PREMIUM_IDS];
     const availableEliasDictionaries = ['basic', 'animals'];
     if (anyPro) availableEliasDictionaries.push('movies', 'science', 'sport');
-    const players = (room.players || []).map((p) => ({ ...p, hasPro: Boolean(inv[p.id]?.hasPro) }));
+    const sockets = room.playerSockets || {};
+    const players = (room.players || []).map((p) => ({
+      ...p,
+      hasPro: Boolean(inv[p.id]?.hasPro),
+      online: Boolean(sockets[p.id]),
+    }));
     return { ...rest, players, availableDictionaries, allSpyDictionaryIds, availableEliasDictionaries };
   },
 };

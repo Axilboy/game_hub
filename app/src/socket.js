@@ -24,6 +24,13 @@ export const socket = {
   on(ev, fn) {
     if (sock) sock.on(ev, fn);
   },
+  /** Повторное подключение после обрыва (Socket.io переподключает сам). */
+  onConnect(fn) {
+    if (sock) sock.on('connect', fn);
+  },
+  offConnect(fn) {
+    if (sock) sock.off('connect', fn);
+  },
   off(ev, fn) {
     if (sock) sock.off(ev, fn);
   },

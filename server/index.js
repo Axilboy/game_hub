@@ -13,7 +13,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const publicDir = path.join(__dirname, 'public');
 
+const BUILD_TAG = process.env.BUILD_TAG || process.env.RAILWAY_GIT_COMMIT_SHA || 'dev';
+
 const fastify = Fastify({ logger: true });
+
+fastify.setErrorHandler((err, request, reply) => {
+  request.log.error({ err, url: request.url, build: BUILD_TAG }, 'request_error');
+  if (reply.sent) return;
+  const status = err.statusCode && err.statusCode >= 400 && err.statusCode < 600 ? err.statusCode : 500;
+  reply.code(status).send({
+    error: status === 500 ? 'Внутренняя ошибка сервера' : (err.message || 'Ошибка'),
+    build: BUILD_TAG,
+  });
+});
+
 await fastify.register(cors, { origin: true });
 // Decorators MUST be added before fastify starts/listens
 fastify.decorate('io', null);
@@ -57,12 +70,15 @@ fastify.get('/sitemap.xml', async (request, reply) => {
     { loc: `${base}/rules`, changefreq: 'yearly', priority: 0.4 },
   ];
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n+${urls
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls
     .map(
       (u) =>
         `  <url>\n    <loc>${u.loc}</loc>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     )
-    .join('\n')}\n+</urlset>`;
+    .join('\n')}
+</urlset>`;
 
   reply.type('application/xml; charset=utf-8').send(xml);
 });
@@ -101,13 +117,11 @@ async function start() {
     socket.to(roomId).emit('player_joined', { player });
     socket.on('disconnect', () => {
       const roomBefore = roomManager.get(roomId);
-      const wasHost = roomBefore?.hostId === player.id;
-      roomManager.setPlayerSocket(roomId, player.id, null);
-      const leftRoom = roomManager.leave(roomId, player.id);
-      socket.to(roomId).emit('player_left', { playerId: player.id });
-      if (leftRoom && wasHost) {
-        io.to(roomId).emit('host_changed', { hostId: leftRoom.hostId });
+      if (!roomBefore || !roomBefore.players?.some((p) => p.id === player.id)) {
+        return;
       }
+      roomManager.setPlayerSocket(roomId, player.id, null);
+      socket.to(roomId).emit('player_offline', { playerId: player.id });
       const r = roomManager.get(roomId);
       if (r?.state === 'playing') {
         const connected = Object.values(r.playerSockets || {}).filter(Boolean).length;
