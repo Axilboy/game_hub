@@ -24,6 +24,14 @@ function formatTime(seconds) {
   return `${(seconds / 3600).toFixed(1)} ч`;
 }
 
+function safeSessionGet(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
   useSeo({ robots: 'noindex, nofollow' });
@@ -48,7 +56,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [hasLastRoom, setHasLastRoom] = useState(false);
   const shownName = displayNameState || user?.first_name || 'Игрок';
 
-  const inviteToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('inviteToken') : null;
+  const inviteToken = safeSessionGet('inviteToken');
   const miniAppLink = BOT_USERNAME && inviteToken ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}` : '';
   const webInviteLink = inviteToken ? `${BASE_URL.replace(/\/$/, '')}?invite=${inviteToken}` : '';
 
@@ -75,9 +83,11 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   }, []);
 
   useEffect(() => {
-    const pending = sessionStorage.getItem('pendingInvite');
+    const pending = safeSessionGet('pendingInvite');
     if (pending) {
-      sessionStorage.removeItem('pendingInvite');
+      try {
+        sessionStorage.removeItem('pendingInvite');
+      } catch (_) {}
       setLoading(true);
       onJoinByInvite(pending)
         .then(() => navigate('/lobby'))
