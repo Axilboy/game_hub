@@ -359,6 +359,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               { id: 'mafia', name: 'Мафия', available: true, minPlayers: MIN_PLAYERS.mafia },
               { id: 'bunker', name: 'Бункер', available: false, minPlayers: 0 },
               { id: 'elias', name: 'Элиас', available: true, minPlayers: MIN_PLAYERS.elias },
+              { id: 'truth_dare', name: 'Правда или действие', available: false, minPlayers: 0 },
             ].map((g) => (
               <button
                 key={g.id}
@@ -650,9 +651,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </>
       )}
 
-      {isHost && selectedGame && selectedGame !== 'spy' && selectedGame !== 'mafia' && selectedGame !== 'elias' && (
+      {isHost && selectedGame && (selectedGame === 'bunker' || selectedGame === 'truth_dare') && (
         <div style={{ ...settingsBox, marginTop: 24 }}>
-          <p style={{ marginBottom: 8 }}>Бункер — скоро</p>
+          <p style={{ marginBottom: 8 }}>{selectedGame === 'bunker' ? 'Бункер — скоро' : 'Правда или действие — скоро'}</p>
           <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={btnStyle}>Выбрать другую игру</button>
         </div>
       )}

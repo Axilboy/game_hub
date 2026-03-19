@@ -1,7 +1,9 @@
 import { Telegraf } from 'telegraf';
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const BASE_URL = (process.env.BASE_URL || 'http://localhost:5173').replace(/\/$/, '');
+// Use the same URL variable naming as the web app envs when possible.
+// This prevents “Играть” from pointing to a stale localhost when only VITE_BASE_URL is set.
+const BASE_URL = (process.env.VITE_BASE_URL || process.env.BASE_URL || 'http://localhost:5173').replace(/\/$/, '');
 
 if (!BOT_TOKEN) {
   console.error('Set BOT_TOKEN in .env');

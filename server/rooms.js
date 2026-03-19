@@ -409,6 +409,9 @@ export async function roomRoutes(fastify) {
       scoreLimit: Math.min(100, Math.max(5, Number(scoreLimit) || 10)),
       winner: null,
       readyIds: [],
+      // Prevent accidental double-score/skip for the same word (e.g. multiple teammates click).
+      lastGuessedWord: null,
+      lastSkippedWord: null,
     };
     recordGameStart(players.length);
     roomManager.setGame(roomId, 'elias');
@@ -416,6 +419,11 @@ export async function roomRoutes(fastify) {
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'elias' });
     return { ok: true };
+  });
+
+  // Stub: future game "Правда или действие"
+  fastify.post('/rooms/truth_dare/start', async (request, reply) => {
+    return reply.code(501).send({ error: 'Игра «Правда или действие» скоро будет добавлена' });
   });
 
   fastify.get('/rooms/:roomId/elias/state', async (request, reply) => {
@@ -427,7 +435,8 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     const teamIndex = gs.teams.findIndex((t) => t.players.includes(playerId));
     const team = gs.teams[teamIndex];
-    const isExplainer = team && team.players[gs.currentExplainerIndex % team.players.length] === playerId;
+    // Show word + action buttons to the whole "explaining team", not only one player.
+    const isExplainer = teamIndex === gs.currentTeamIndex;
     const explainerId = team ? team.players[gs.currentExplainerIndex % team.players.length] : null;
     const explainer = room.players.find((p) => p.id === explainerId);
     return {
@@ -492,8 +501,9 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
     const gs = room.gameState;
     const team = gs.teams[gs.currentTeamIndex];
-    const explainerId = team.players[gs.currentExplainerIndex % team.players.length];
-    if (playerId !== explainerId) return reply.code(403).send({ error: 'Not your turn' });
+    if (!team?.players?.includes(playerId)) return reply.code(403).send({ error: 'Not your team' });
+    if (gs.lastGuessedWord === gs.currentWord) return { ok: true, already: true };
+    gs.lastGuessedWord = gs.currentWord;
     team.score = (team.score || 0) + 1;
     eliasNextWord(roomId, fastify.io);
     eliasCheckWin(roomId, fastify.io);
@@ -507,8 +517,9 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
     const gs = room.gameState;
     const team = gs.teams[gs.currentTeamIndex];
-    const explainerId = team.players[gs.currentExplainerIndex % team.players.length];
-    if (playerId !== explainerId) return reply.code(403).send({ error: 'Not your turn' });
+    if (!team?.players?.includes(playerId)) return reply.code(403).send({ error: 'Not your team' });
+    if (gs.lastSkippedWord === gs.currentWord) return { ok: true, already: true };
+    gs.lastSkippedWord = gs.currentWord;
     eliasNextWord(roomId, fastify.io);
     return { ok: true };
   });

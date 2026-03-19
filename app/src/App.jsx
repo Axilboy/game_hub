@@ -12,6 +12,7 @@ import Lobby from './pages/Lobby';
 import SpyRound from './pages/SpyRound';
 import MafiaRound from './pages/MafiaRound';
 import EliasRound from './pages/EliasRound';
+import TruthDareRound from './pages/TruthDareRound';
 import Admin from './pages/Admin';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -222,6 +223,18 @@ function AppRoutes() {
           element={
             roomId && room?.state === 'playing' && room?.game === 'elias' ? (
               <EliasRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
+            ) : roomId ? (
+              <Navigate to="/lobby" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/truth_dare"
+          element={
+            roomId && room?.state === 'playing' && room?.game === 'truth_dare' ? (
+              <TruthDareRound onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
             ) : (
