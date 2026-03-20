@@ -48,3 +48,7 @@ cd bot && node index.js
 - `bot/` — Telegraf: /start, кнопка «Играть» и инвайт-ссылка.
 
 Вход в комнату: по **приглашению** (ссылка из хоста) или по **6-значному коду**.
+
+## QA перед деплоем
+
+- Smoke-regression чеклист: [QA_SMOKE_REGRESSION.md](QA_SMOKE_REGRESSION.md)

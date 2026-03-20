@@ -17,6 +17,11 @@ import { createBunkerState, pickNextCrisis } from './bunker.js';
 export async function roomRoutes(fastify) {
   const ERR = {
     tooMany: { error: 'Слишком часто. Подождите немного.' },
+    playerIdRequired: { error: 'Нужен playerId' },
+    hostOnly: { error: 'Только хост может запустить игру' },
+    gameNotFound: { error: 'Игра не найдена' },
+    notInRoom: { error: 'Вы не в комнате' },
+    notVotingPhase: { error: 'Сейчас не фаза голосования' },
   };
 
   fastify.post('/stats/ad-shown', async (request, reply) => {
@@ -561,10 +566,10 @@ export async function roomRoutes(fastify) {
   fastify.get('/rooms/:roomId/truth_dare/catalog', async (request, reply) => {
     const { roomId } = request.params;
     const playerId = request.query?.playerId;
-    if (!playerId) return reply.code(400).send({ error: 'playerId required' });
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
     const room = roomManager.get(roomId);
-    if (!room) return reply.code(404).send({ error: 'Room not found' });
-    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
+    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
     const inv = room.playerInventories || {};
     const hasPro = Boolean(inv[playerId]?.hasPro);
     return { ok: true, categories: getTruthDareCatalog({ playerHasPro: hasPro }) };
@@ -573,9 +578,9 @@ export async function roomRoutes(fastify) {
   fastify.post('/rooms/truth_dare/start', async (request, reply) => {
     const { roomId, hostId, mode, categorySlugs, show18Plus = false, safeMode = true, roundsCount } = request.body || {};
     const room = roomManager.get(roomId);
-    if (!room) return reply.code(404).send({ error: 'Room not found' });
-    if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
-    if (!room.players || room.players.length < 2) return reply.code(400).send({ error: 'Need at least 2 players for Truth/Dare' });
+    if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
+    if (room.hostId !== hostId) return reply.code(403).send(ERR.hostOnly);
+    if (!room.players || room.players.length < 2) return reply.code(400).send({ error: 'Для Правда/Действие нужно минимум 2 игрока' });
     if (!allowAction(`truthdare:start:${roomId}:${hostId}`, 4, 20_000)) {
       return reply.code(429).send(ERR.tooMany);
     }
@@ -598,10 +603,10 @@ export async function roomRoutes(fastify) {
   fastify.get('/rooms/:roomId/truth_dare/state', async (request, reply) => {
     const { roomId } = request.params;
     const playerId = request.query?.playerId;
-    if (!playerId) return reply.code(400).send({ error: 'playerId required' });
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
     const room = roomManager.get(roomId);
-    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
-    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
     const gs = room.gameState;
     const getPlayerName = (id) => room.players.find((p) => p.id === id)?.name || id;
     return {
@@ -635,10 +640,10 @@ export async function roomRoutes(fastify) {
   fastify.post('/rooms/:roomId/truth_dare/confirm-18plus', async (request, reply) => {
     const { roomId } = request.params;
     const { playerId } = request.body || {};
-    if (!playerId) return reply.code(400).send({ error: 'playerId required' });
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
     const room = roomManager.get(roomId);
-    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
-    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
     const gs = room.gameState;
     gs.ageConfirmedByPlayerId = gs.ageConfirmedByPlayerId || {};
     gs.ageConfirmedByPlayerId[playerId] = true;
@@ -741,16 +746,16 @@ export async function roomRoutes(fastify) {
   fastify.post('/rooms/:roomId/truth_dare/turn', async (request, reply) => {
     const { roomId } = request.params;
     const { playerId, action, turnToken } = request.body || {};
-    if (!playerId) return reply.code(400).send({ error: 'playerId required' });
-    if (turnToken == null) return reply.code(400).send({ error: 'turnToken required' });
-    if (action !== 'done' && action !== 'skip') return reply.code(400).send({ error: 'Invalid action' });
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (turnToken == null) return reply.code(400).send({ error: 'Нужен turnToken' });
+    if (action !== 'done' && action !== 'skip') return reply.code(400).send({ error: 'Некорректное действие' });
 
     if (!allowAction(`truthdare:turn:${roomId}:${playerId}`, 12, 8000)) {
       return reply.code(429).send(ERR.tooMany);
     }
 
     const room = roomManager.get(roomId);
-    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
     const gs = room.gameState;
 
     if (gs.currentPlayerId !== playerId) return reply.code(403).send({ error: 'Это не ваш ход' });
@@ -942,9 +947,9 @@ export async function roomRoutes(fastify) {
   fastify.post('/rooms/bunker/start', async (request, reply) => {
     const { roomId, hostId, maxRounds, phaseTimers } = request.body || {};
     const room = roomManager.get(roomId);
-    if (!room) return reply.code(404).send({ error: 'Room not found' });
-    if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
-    if (!room.players || room.players.length < 4) return reply.code(400).send({ error: 'Need at least 4 players for Bunker' });
+    if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
+    if (room.hostId !== hostId) return reply.code(403).send(ERR.hostOnly);
+    if (!room.players || room.players.length < 4) return reply.code(400).send({ error: 'Для Бункера нужно минимум 4 игрока' });
 
     const gs = createBunkerState(room, { maxRounds, phaseTimers });
     gs.characters = gs.characters || {};
@@ -965,10 +970,10 @@ export async function roomRoutes(fastify) {
   fastify.get('/rooms/:roomId/bunker/state', async (request, reply) => {
     const { roomId } = request.params;
     const playerId = request.query?.playerId;
-    if (!playerId) return reply.code(400).send({ error: 'playerId required' });
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
     const room = roomManager.get(roomId);
-    if (!room || room.game !== 'bunker' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
-    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    if (!room || room.game !== 'bunker' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
     const gs = room.gameState;
 
     const now = Date.now();
@@ -999,6 +1004,17 @@ export async function roomRoutes(fastify) {
       voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
     }
 
+    const eliminatedLog = (gs.eliminated || [])
+      .map((e) => ({
+        id: e?.id || null,
+        name: getPlayerName(e?.id),
+        by: e?.by || null, // 'vote' | 'tie_break'
+        at: e?.at || null,
+      }))
+      .filter((e) => e.id)
+      .sort((a, b) => (b.at || 0) - (a.at || 0))
+      .slice(0, 10);
+
     return {
       phase: gs.phase,
       phaseSecondsLeft,
@@ -1014,22 +1030,23 @@ export async function roomRoutes(fastify) {
       votes: gs.votes || {},
       voteCounts,
       tieCandidates: gs.tieCandidates || null,
+      eliminatedLog,
     };
   });
 
   fastify.post('/rooms/:roomId/bunker/vote', async (request, reply) => {
     const { roomId } = request.params;
     const { playerId, targetId } = request.body || {};
-    if (!playerId) return reply.code(400).send({ error: 'playerId required' });
-    if (!targetId) return reply.code(400).send({ error: 'targetId required' });
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!targetId) return reply.code(400).send({ error: 'Нужен targetId' });
     if (!allowAction(`bunker:vote:${roomId}:${playerId}`, 20, 8000)) {
       return reply.code(429).send(ERR.tooMany);
     }
 
     const room = roomManager.get(roomId);
-    if (!room || room.game !== 'bunker' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
+    if (!room || room.game !== 'bunker' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
     const gs = room.gameState;
-    if (gs.phase !== 'voting') return reply.code(400).send({ error: 'Not voting phase' });
+    if (gs.phase !== 'voting') return reply.code(400).send(ERR.notVotingPhase);
     if (!Array.isArray(gs.alive) || !gs.alive.includes(playerId)) return reply.code(403).send({ error: 'Вы не живы' });
     if (!gs.alive.includes(targetId) || targetId === playerId) return reply.code(400).send({ error: 'Неверная цель' });
 

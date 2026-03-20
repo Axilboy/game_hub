@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
@@ -28,17 +28,23 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
   const [ageConfirmLoading, setAgeConfirmLoading] = useState(false);
   const [ageGateDismissed, setAgeGateDismissed] = useState(false);
   const [tick, setTick] = useState(0);
+  const requestSeqRef = useRef(0);
 
-  const refreshState = () => {
+  const refreshState = ({ silent = false } = {}) => {
     if (!roomId || !myId) return;
-    setLoading(true);
+    const reqId = ++requestSeqRef.current;
+    if (!silent) setLoading(true);
     api
       .get(`/rooms/${roomId}/truth_dare/state?playerId=${encodeURIComponent(myId)}`)
       .then((s) => {
+        if (reqId !== requestSeqRef.current) return;
         setState(s);
-        setLoading(false);
+        if (!silent) setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (reqId !== requestSeqRef.current) return;
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -47,16 +53,17 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
   }, [roomId, myId]);
 
   useEffect(() => {
-    socket.on('truth_dare_update', refreshState);
-    socket.on('game_ended', refreshState);
+    const onUpdate = () => refreshState({ silent: true });
+    socket.on('truth_dare_update', onUpdate);
+    socket.on('game_ended', onUpdate);
     return () => {
-      socket.off('truth_dare_update', refreshState);
-      socket.off('game_ended', refreshState);
+      socket.off('truth_dare_update', onUpdate);
+      socket.off('game_ended', onUpdate);
     };
   }, [roomId, myId]);
 
   useEffect(() => {
-    const onSock = () => refreshState();
+    const onSock = () => refreshState({ silent: true });
     socket.onConnect(onSock);
     return () => socket.offConnect(onSock);
   }, [roomId, myId]);
@@ -77,7 +84,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
     try {
       setAgeConfirmLoading(true);
       await api.post(`/rooms/${roomId}/truth_dare/confirm-18plus`, { playerId: myId });
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {
       // ignore
     } finally {
@@ -100,7 +107,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
       setActionLoading(action);
       await api.post(`/rooms/${roomId}/truth_dare/turn`, { playerId: myId, action, turnToken: state.turnToken });
       // server will advance via socket; refresh as backup.
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {
       // ignore; user can press again if timer still active (server is idempotent by turnToken)
     } finally {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, getApiErrorMessage } from '../api';
 import { getInventory } from '../inventory';
 import { getAvatar } from '../displayName';
 import ShopModal from '../components/ShopModal';
@@ -211,12 +211,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       navigate('/spy');
     } catch (e) {
       setStartingGame(false);
-      let msg = e?.message || 'Не удалось запустить игру';
-      try {
-        const d = JSON.parse(e.message);
-        if (d?.error) msg = d.error;
-      } catch (_) {}
-      setMinPlayersWarning(msg);
+      setMinPlayersWarning(getApiErrorMessage(e, 'Не удалось запустить игру'));
     }
   };
 
@@ -245,7 +240,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       navigate('/mafia');
     } catch (e) {
       setStartingGame(false);
-      setMinPlayersWarning(e?.message || 'Не удалось запустить игру');
+      setMinPlayersWarning(getApiErrorMessage(e, 'Не удалось запустить игру'));
     }
   };
 
@@ -288,12 +283,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       navigate('/elias');
     } catch (e) {
       setStartingGame(false);
-      let msg = e?.message || 'Не удалось запустить игру';
-      try {
-        const d = JSON.parse(e.message);
-        if (d?.error) msg = d.error;
-      } catch (_) {}
-      setMinPlayersWarning(msg);
+      setMinPlayersWarning(getApiErrorMessage(e, 'Не удалось запустить игру'));
     }
   };
 
@@ -318,12 +308,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       navigate('/bunker');
     } catch (e) {
       setStartingGame(false);
-      let msg = e?.message || 'Не удалось запустить игру';
-      try {
-        const d = JSON.parse(e.message);
-        if (d?.error) msg = d.error;
-      } catch (_) {}
-      setMinPlayersWarning(msg);
+      setMinPlayersWarning(getApiErrorMessage(e, 'Не удалось запустить игру'));
     }
   };
 
@@ -351,7 +336,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       navigate('/truth_dare');
     } catch (e) {
       setStartingGame(false);
-      setMinPlayersWarning(e?.message || 'Не удалось запустить игру');
+      setMinPlayersWarning(getApiErrorMessage(e, 'Не удалось запустить игру'));
     }
   };
 

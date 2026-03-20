@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
@@ -37,13 +37,20 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const [winnerTeamIndex, setWinnerTeamIndex] = useState(null);
   const [endedTeams, setEndedTeams] = useState(null);
   const [tick, setTick] = useState(0);
+  const requestSeqRef = useRef(0);
 
-  const refreshState = () => {
+  const refreshState = ({ silent = false } = {}) => {
     if (!myId) return;
+    const reqId = ++requestSeqRef.current;
+    if (!silent) setLoading(true);
     api.get(`/rooms/${roomId}/elias/state?playerId=${encodeURIComponent(myId)}`).then((s) => {
+      if (reqId !== requestSeqRef.current) return;
       setState(s);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      if (!silent) setLoading(false);
+    }).catch(() => {
+      if (reqId !== requestSeqRef.current) return;
+      if (!silent) setLoading(false);
+    });
   };
 
   useEffect(() => refreshState(), [roomId, myId]);
@@ -53,25 +60,29 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   }, [roomId, myId, state]);
 
   useEffect(() => {
-    socket.on('elias_update', refreshState);
-    socket.on('elias_timer_start', (data) => {
-      if (data?.roundEndsAt) refreshState();
-    });
-    socket.on('elias_ended', (data) => {
+    const onUpdate = () => refreshState({ silent: true });
+    const onTimer = (data) => {
+      if (data?.roundEndsAt) refreshState({ silent: true });
+    };
+    const onEnded = (data) => {
       setWinnerTeamIndex(data?.winnerTeamIndex ?? null);
       if (data?.teams) setEndedTeams(data.teams);
-    });
-    socket.on('game_ended', refreshState);
+    };
+    const onGameEnded = () => refreshState({ silent: true });
+    socket.on('elias_update', onUpdate);
+    socket.on('elias_timer_start', onTimer);
+    socket.on('elias_ended', onEnded);
+    socket.on('game_ended', onGameEnded);
     return () => {
-      socket.off('elias_update', refreshState);
-      socket.off('elias_timer_start');
-      socket.off('elias_ended');
-      socket.off('game_ended', refreshState);
+      socket.off('elias_update', onUpdate);
+      socket.off('elias_timer_start', onTimer);
+      socket.off('elias_ended', onEnded);
+      socket.off('game_ended', onGameEnded);
     };
   }, [roomId, myId]);
 
   useEffect(() => {
-    const onSock = () => refreshState();
+    const onSock = () => refreshState({ silent: true });
     socket.onConnect(onSock);
     return () => socket.offConnect(onSock);
   }, [roomId, myId]);
@@ -85,21 +96,21 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const guessed = async () => {
     try {
       await api.post(`/rooms/${roomId}/elias/guessed`, { playerId: myId });
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {}
   };
 
   const skip = async () => {
     try {
       await api.post(`/rooms/${roomId}/elias/skip`, { playerId: myId });
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {}
   };
 
   const nextTurn = async () => {
     try {
       await api.post(`/rooms/${roomId}/elias/next-turn`, { playerId: myId });
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {}
   };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
@@ -21,6 +21,12 @@ function phaseTitle(phase) {
   return 'Бункер';
 }
 
+function eliminationReason(by) {
+  if (by === 'vote') return 'Голосование';
+  if (by === 'tie_break') return 'Тай-брейк';
+  return 'Исключение';
+}
+
 export default function BunkerRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
   useSeo({ robots: 'noindex, nofollow' });
@@ -31,17 +37,23 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
   const [actionLoading, setActionLoading] = useState(null); // 'vote'
   const maxRounds = state && typeof state.maxRounds === 'number' ? state.maxRounds : null;
   const [, setTick] = useState(0);
+  const requestSeqRef = useRef(0);
 
-  const refreshState = () => {
+  const refreshState = ({ silent = false } = {}) => {
     if (!roomId || !myId) return;
-    setLoading(true);
+    const reqId = ++requestSeqRef.current;
+    if (!silent) setLoading(true);
     api
       .get(`/rooms/${roomId}/bunker/state?playerId=${encodeURIComponent(myId)}`)
       .then((s) => {
+        if (reqId !== requestSeqRef.current) return;
         setState(s);
-        setLoading(false);
+        if (!silent) setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (reqId !== requestSeqRef.current) return;
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -50,16 +62,17 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
   }, [roomId, myId]);
 
   useEffect(() => {
-    socket.on('bunker_update', refreshState);
-    socket.on('game_ended', refreshState);
+    const onUpdate = () => refreshState({ silent: true });
+    socket.on('bunker_update', onUpdate);
+    socket.on('game_ended', onUpdate);
     return () => {
-      socket.off('bunker_update', refreshState);
-      socket.off('game_ended', refreshState);
+      socket.off('bunker_update', onUpdate);
+      socket.off('game_ended', onUpdate);
     };
   }, [roomId, myId]);
 
   useEffect(() => {
-    const onSock = () => refreshState();
+    const onSock = () => refreshState({ silent: true });
     socket.onConnect(onSock);
     return () => socket.offConnect(onSock);
   }, [roomId, myId]);
@@ -94,7 +107,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
     try {
       setActionLoading('vote');
       await api.post(`/rooms/${roomId}/bunker/vote`, { playerId: myId, targetId });
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {
       // ignore
     } finally {
@@ -182,6 +195,20 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
           Живые: <strong>{(state.alive || []).length}</strong>
         </p>
       </div>
+
+      {(state.eliminatedLog || []).length ? (
+        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Журнал исключений</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+            {(state.eliminatedLog || []).map((e) => (
+              <div key={`${e.id}-${e.at || ''}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)' }}>
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>{e.name}</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>{eliminationReason(e.by)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
         <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>

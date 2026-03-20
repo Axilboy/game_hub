@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useTelegram } from './useTelegram';
 import { api } from './api';
@@ -9,23 +9,24 @@ import { getDisplayName, getAvatar } from './displayName';
 import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
 import Home from './pages/Home';
-import Profile from './pages/Profile';
-import Lobby from './pages/Lobby';
-import SpyRound from './pages/SpyRound';
-import MafiaRound from './pages/MafiaRound';
-import EliasRound from './pages/EliasRound';
-import TruthDareRound from './pages/TruthDareRound';
-import BunkerRound from './pages/BunkerRound';
-import Admin from './pages/Admin';
-import SeoLanding from './pages/SeoLanding';
-import SeoGameSpy from './pages/SeoGameSpy';
-import SeoGameElias from './pages/SeoGameElias';
-import SeoGameMafia from './pages/SeoGameMafia';
-import SeoHowToPlay from './pages/SeoHowToPlay';
-import SeoPrivacy from './pages/SeoPrivacy';
-import SeoRules from './pages/SeoRules';
-import SeoTruthDareStub from './pages/SeoTruthDareStub';
 import { ToastProvider } from './components/ui/ToastProvider';
+
+const Profile = lazy(() => import('./pages/Profile'));
+const Lobby = lazy(() => import('./pages/Lobby'));
+const SpyRound = lazy(() => import('./pages/SpyRound'));
+const MafiaRound = lazy(() => import('./pages/MafiaRound'));
+const EliasRound = lazy(() => import('./pages/EliasRound'));
+const TruthDareRound = lazy(() => import('./pages/TruthDareRound'));
+const BunkerRound = lazy(() => import('./pages/BunkerRound'));
+const Admin = lazy(() => import('./pages/Admin'));
+const SeoLanding = lazy(() => import('./pages/SeoLanding'));
+const SeoGameSpy = lazy(() => import('./pages/SeoGameSpy'));
+const SeoGameElias = lazy(() => import('./pages/SeoGameElias'));
+const SeoGameMafia = lazy(() => import('./pages/SeoGameMafia'));
+const SeoHowToPlay = lazy(() => import('./pages/SeoHowToPlay'));
+const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
+const SeoRules = lazy(() => import('./pages/SeoRules'));
+const SeoTruthDareStub = lazy(() => import('./pages/SeoTruthDareStub'));
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -266,6 +267,7 @@ function AppRoutes() {
           Нет связи с сервером — переподключаемся…
         </div>
       ) : null}
+    <Suspense fallback={<div style={{ padding: 20 }}>Загрузка…</div>}>
     <Routes>
         <Route
           path="/"
@@ -391,6 +393,7 @@ function AppRoutes() {
         <Route path="/profile" element={<Profile user={user} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </Suspense>
     </>
   );
 }

@@ -42,6 +42,23 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
   }
 }
 
+export function getApiErrorMessage(error, fallback = 'Ошибка запроса') {
+  if (!error) return fallback;
+  const raw = String(error?.message || error || '').trim();
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.trim();
+      if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim();
+    }
+  } catch (_) {
+    // message is plain text
+  }
+  if (raw.startsWith('{') && raw.endsWith('}')) return fallback;
+  return raw;
+}
+
 export const api = {
   async get(path) {
     return fetchJson(`${API_URL}/api${path}`, { method: 'GET' }, 10000);

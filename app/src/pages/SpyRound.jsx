@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, getApiErrorMessage } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
@@ -32,6 +32,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [guessText, setGuessText] = useState('');
   const [guessResult, setGuessResult] = useState(null);
   const [guessLoading, setGuessLoading] = useState(false);
+  const requestSeqRef = useRef(0);
 
   const myId = user?.id != null ? String(user.id) : '';
   const otherPlayers = (room?.players || []).filter((p) => p.id !== myId);
@@ -41,13 +42,19 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     ? Math.max(0, Math.ceil((timerStartsAt + timerSeconds * 1000 - Date.now()) / 1000))
     : null;
 
-  const fetchCard = () => {
+  const fetchCard = ({ silent = false } = {}) => {
     if (!myId) return;
+    const reqId = ++requestSeqRef.current;
+    if (!silent) setLoading(true);
     api.get(`/rooms/${roomId}/spy/card?playerId=${encodeURIComponent(myId)}`).then((r) => {
+      if (reqId !== requestSeqRef.current) return;
       setCard(r);
       if (r.timerStartsAt) setTimerStartsAt(r.timerStartsAt);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      if (!silent) setLoading(false);
+    }).catch(() => {
+      if (reqId !== requestSeqRef.current) return;
+      if (!silent) setLoading(false);
+    });
   };
 
   useEffect(() => {
@@ -63,22 +70,17 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   useEffect(() => {
     const onTimerStart = (data) => {
       if (data?.timerStartsAt) setTimerStartsAt(data.timerStartsAt);
-      else fetchCard();
+      else fetchCard({ silent: true });
     };
     socket.on('game_timer_start', onTimerStart);
     return () => socket.off('game_timer_start', onTimerStart);
   }, [roomId, myId]);
 
   useEffect(() => {
+    if (!votingEndsAt && !(card?.timerEnabled && timerStartsAt != null)) return;
     const t = setInterval(() => setVoteTick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    if (!votingEndsAt) return;
-    const t = setInterval(() => setVoteTick((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, [votingEndsAt]);
+  }, [votingEndsAt, card?.timerEnabled, timerStartsAt]);
 
   useEffect(() => {
     const onVoteStart = (data) => setVotingEndsAt(data?.votingEndsAt || null);
@@ -111,7 +113,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         const st = await api.get(`/rooms/${roomId}/spy/vote-status`);
         if (st?.active && st?.votingEndsAt) setVotingEndsAt(st.votingEndsAt);
       } catch (_) {}
-      fetchCard();
+      fetchCard({ silent: true });
     };
     socket.onConnect(resync);
     return () => socket.offConnect(resync);
@@ -162,7 +164,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         setGuessResult('Неверно. Продолжайте играть и собирать подсказки.');
       }
     } catch (e) {
-      setGuessResult(e?.message || 'Не удалось отправить попытку');
+      setGuessResult(getApiErrorMessage(e, 'Не удалось отправить попытку'));
     } finally {
       setGuessLoading(false);
     }

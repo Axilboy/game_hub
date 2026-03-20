@@ -33,24 +33,34 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const [actionLoading, setActionLoading] = useState(null); // 'kill' | 'commissioner_check' | 'vote' | 'advance'
   const [tick, setTick] = useState(0);
   const autoAdvanceRef = useRef({ phase: null, phaseStartedAt: null, sent: false });
+  const requestSeqRef = useRef(0);
 
-  const refreshState = () => {
+  const refreshState = ({ silent = false } = {}) => {
     if (!myId) return;
+    const reqId = ++requestSeqRef.current;
+    if (!silent) setLoading(true);
     api.get(`/rooms/${roomId}/mafia/state?playerId=${encodeURIComponent(myId)}`).then((s) => {
+      if (reqId !== requestSeqRef.current) return;
       setState(s);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      if (!silent) setLoading(false);
+    }).catch(() => {
+      if (reqId !== requestSeqRef.current) return;
+      if (!silent) setLoading(false);
+    });
   };
 
   useEffect(() => refreshState(), [roomId, myId]);
   useEffect(() => {
-    socket.on('mafia_phase', refreshState);
-    socket.on('mafia_ended', (data) => setWinner(data?.winner || null));
-    socket.on('game_ended', () => refreshState());
+    const onPhase = () => refreshState({ silent: true });
+    const onEnded = (data) => setWinner(data?.winner || null);
+    const onGameEnded = () => refreshState({ silent: true });
+    socket.on('mafia_phase', onPhase);
+    socket.on('mafia_ended', onEnded);
+    socket.on('game_ended', onGameEnded);
     return () => {
-      socket.off('mafia_phase', refreshState);
-      socket.off('mafia_ended');
-      socket.off('game_ended', refreshState);
+      socket.off('mafia_phase', onPhase);
+      socket.off('mafia_ended', onEnded);
+      socket.off('game_ended', onGameEnded);
     };
   }, [roomId, myId]);
 
@@ -60,7 +70,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   }, []);
 
   useEffect(() => {
-    const onSock = () => refreshState();
+    const onSock = () => refreshState({ silent: true });
     socket.onConnect(onSock);
     return () => socket.offConnect(onSock);
   }, [roomId, myId]);
@@ -76,7 +86,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
         expectedPhase,
         expectedPhaseStartedAt,
       });
-      refreshState();
+      refreshState({ silent: true });
       return true;
     } catch (_) {}
     finally {
@@ -90,7 +100,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     try {
       setActionLoading('kill');
       await api.post(`/rooms/${roomId}/mafia/action`, { playerId: myId, action: 'mafia_kill', targetId: targetId || undefined });
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {}
     finally {
       setActionLoading(null);
@@ -103,7 +113,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       setActionLoading('commissioner_check');
       const r = await api.post(`/rooms/${roomId}/mafia/action`, { playerId: myId, action: 'commissioner_check', targetId });
       setCommissionerResult(r?.isMafia != null ? (r.isMafia ? 'Мафия' : 'Мирный') : null);
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {}
     finally {
       setActionLoading(null);
@@ -116,7 +126,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       setActionLoading('vote');
       await api.post(`/rooms/${roomId}/mafia/vote`, { playerId: myId, targetId });
       setVoteTarget(targetId);
-      refreshState();
+      refreshState({ silent: true });
     } catch (_) {}
     finally {
       setActionLoading(null);
