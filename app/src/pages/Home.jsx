@@ -61,7 +61,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showInstruction, setShowInstruction] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
-  const [hasLastRoom, setHasLastRoom] = useState(false);
   const [hasRematchRoom, setHasRematchRoom] = useState(false);
   const [inviteIssue, setInviteIssue] = useState(false);
   const codeInputRef = useRef(null);
@@ -78,13 +77,12 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
   useEffect(() => {
     try {
-      setHasLastRoom(Boolean(sessionStorage.getItem('gameHub_lastRoomId')));
       setHasRematchRoom(Boolean(sessionStorage.getItem('gameHub_rematchRoomId')));
     } catch (_) {
-      setHasLastRoom(false);
       setHasRematchRoom(false);
     }
   }, []);
+  const hasLastRoom = Boolean(safeSessionGet('gameHub_lastRoomId'));
 
   useEffect(() => {
     const pending = safeSessionGet('pendingInvite');

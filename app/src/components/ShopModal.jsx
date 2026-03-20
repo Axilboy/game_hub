@@ -35,12 +35,13 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
 
   if (!open) return null;
 
-  const items = SHOP_ITEMS.filter(
+  const filteredItems = SHOP_ITEMS.filter(
     (item) =>
       (shopGameFilter === 'all' || item.game === shopGameFilter) &&
       (shopCategoryFilter === 'all' || item.category === shopCategoryFilter) &&
       (!query.trim() || `${item.name} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase()))
   );
+  const items = filteredItems.length ? filteredItems : SHOP_ITEMS;
   const popular = items.slice(0, 4);
   const purchaseHistory = Array.isArray(inv.purchases) ? [...inv.purchases].reverse().slice(0, 6) : [];
 
@@ -119,10 +120,12 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
           )}
           {items.length === 0 ? (
             <p style={{ margin: '10px 0 0', fontSize: 13, opacity: 0.82 }}>
-              По выбранным фильтрам ничего не найдено. Сбросьте фильтры на «Все игры» и «Всё».
+              По выбранным фильтрам ничего не найдено. Показаны все товары.
             </p>
           ) : items.map((item) => {
-            const locked = !item.free && !inv.hasPro;
+            const hasPack = Array.isArray(inv.unlockedItems) && inv.unlockedItems.includes(item.id);
+            const unlocked = item.free || inv.hasPro || hasPack;
+            const locked = !unlocked;
             return (
               <div key={item.id} style={{ marginBottom: 12, padding: 14, background: locked ? 'rgba(80,60,60,0.2)' : 'rgba(255,255,255,0.06)', borderRadius: 10, position: 'relative' }}>
                 {locked && (
@@ -133,9 +136,13 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{item.emoji}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{item.name}{item.free && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Бесплатно</span>}</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                      {item.name}
+                      {item.free && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Бесплатно</span>}
+                      {!item.free && unlocked && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Открыто</span>}
+                    </div>
                     <div style={{ fontSize: 13, opacity: 0.9 }}>{item.description}</div>
-                    {!item.free ? (
+                    {!item.free && !unlocked ? (
                       <button
                         type="button"
                         onClick={() => {

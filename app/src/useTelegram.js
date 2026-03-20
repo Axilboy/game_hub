@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react';
 
+const WEB_NAMES = [
+  'Веселый Барбарик',
+  'Сонный Пельмень',
+  'Шустрый Енот',
+  'Кислый Огурчик',
+  'Плюшевый Дирижабль',
+  'Танцующий Крендель',
+];
+
+function pickWebName() {
+  return WEB_NAMES[Math.floor(Math.random() * WEB_NAMES.length)];
+}
+
 export function useTelegram() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
@@ -19,10 +32,10 @@ export function useTelegram() {
           photo_url: u.photo_url,
         });
       } else {
-        setUser({ id: 'dev', first_name: 'Тест' });
+        setUser({ id: `web_${Math.random().toString(36).slice(2, 9)}`, first_name: pickWebName() });
       }
     } else {
-      setUser({ id: 'dev', first_name: 'Тест' });
+      setUser({ id: `web_${Math.random().toString(36).slice(2, 9)}`, first_name: pickWebName() });
     }
     setReady(true);
   }, []);

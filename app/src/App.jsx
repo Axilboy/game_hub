@@ -168,7 +168,6 @@ function AppRoutes() {
     setRoomId(null);
     sessionStorage.removeItem('inviteToken');
     try {
-      sessionStorage.removeItem('gameHub_lastRoomId');
       sessionStorage.removeItem('gameHub_rematchRoomId');
     } catch (_) {}
   }, [roomId, user?.id]);

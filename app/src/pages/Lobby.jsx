@@ -176,6 +176,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   useEffect(() => {
     setEditNameValue(roomName);
   }, [roomName]);
+  useEffect(() => {
+    if (isHost && selectedGame === null) setGamesPickerOpen(true);
+    if (selectedGame) setGamesPickerOpen(false);
+  }, [isHost, selectedGame]);
 
   useEffect(() => {
     setTimerEnabled(room?.gameSettings?.timerEnabled ?? false);
@@ -644,32 +648,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {selectedGame && (
-        <div className="gh-card" style={{ padding: 12, marginBottom: 16 }}>
-          <p style={{ margin: 0, fontWeight: 800, marginBottom: 6, opacity: 0.95 }}>Статус</p>
-          {startingGame ? (
-            <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>Старт идёт...</p>
-          ) : (
-            (() => {
-              const min = getMinPlayersForSelectedGame();
-              const count = room?.players?.length ?? 0;
-              const ready = min > 0 ? count >= min : true;
-              if (!isHost) {
-                return (
-                  <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>
-                    {ready ? 'Готово: ждём запуска хостом' : 'Ждём игроков'}
-                  </p>
-                );
-              }
-              return (
-                <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>
-                  {ready ? 'Готово: можно стартовать' : `Ждём игроков (${count}/${min})`}
-                </p>
-              );
-            })()
-          )}
-        </div>
-      )}
+      {null}
 
       {getHostTips() && (
         <div className="gh-card" style={{ padding: 12, marginBottom: 16, borderColor: 'rgba(255, 220, 80, 0.35)' }}>
@@ -678,56 +657,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {isHost && selectedGame === null && (
-        <div style={{ ...settingsBox, marginTop: 24 }}>
-          <button
-            type="button"
-            onClick={() => setGamesPickerOpen((v) => !v)}
-            style={{ ...btnStyle, width: '100%', marginBottom: 12, background: gamesPickerOpen ? '#555' : '#444' }}
-          >
-            {gamesPickerOpen ? 'Скрыть выбор игр' : 'Выбор игр'}
-          </button>
-
-          {gamesPickerOpen && (
-            <>
-              <p style={{ marginBottom: 12 }}>Выберите игру</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {[
-                  { id: 'spy', name: 'Шпион', available: true, minPlayers: 3 },
-                  { id: 'mafia', name: 'Мафия', available: true, minPlayers: MIN_PLAYERS.mafia },
-                  { id: 'bunker', name: 'Бункер', available: true, minPlayers: MIN_PLAYERS.bunker },
-                  { id: 'elias', name: 'Элиас', available: true, minPlayers: MIN_PLAYERS.elias },
-                  { id: 'truth_dare', name: 'Правда или действие', available: true, minPlayers: MIN_PLAYERS.truth_dare },
-                ].map((g) => (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => {
-                      if (!g.available) return;
-                      const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, spiesSeeEachOther: false, showLocationsList: false, dictionaryIds: ['free'] } : null;
-                      const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default', phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } } : null;
-                      const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, skipPenalty: 1, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
-                      const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic_truth', 'classic_dare'] } : null;
-                      const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard'), scenarioId: 'shelter_default' } : null;
-                      patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || truthDare || bunker || undefined });
-                    }}
-                    style={{
-                      ...btnStyle,
-                      padding: 20,
-                      background: g.available ? 'var(--tg-theme-button-color, #3a7bd5)' : '#333',
-                      opacity: g.available ? 1 : 0.8,
-                    }}
-                  >
-                    {g.name}
-                    {g.available && g.minPlayers > 0 && <span style={{ display: 'block', fontSize: 11, marginTop: 4, opacity: 0.9 }}>мин. {g.minPlayers} игр.</span>}
-                    {!g.available && <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>Скоро</span>}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      {null}
 
       {selectedGame === 'spy' && (
         <>
@@ -1617,6 +1547,41 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </div>
         </div>
       )}
+
+      <Modal
+        open={Boolean(isHost && selectedGame === null && gamesPickerOpen)}
+        onClose={() => setGamesPickerOpen(false)}
+        title="Выберите игру"
+        width={420}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {[
+            { id: 'spy', name: 'Шпион', minPlayers: 3 },
+            { id: 'mafia', name: 'Мафия', minPlayers: MIN_PLAYERS.mafia },
+            { id: 'bunker', name: 'Бункер', minPlayers: MIN_PLAYERS.bunker },
+            { id: 'elias', name: 'Элиас', minPlayers: MIN_PLAYERS.elias },
+            { id: 'truth_dare', name: 'Правда/Действие', minPlayers: MIN_PLAYERS.truth_dare },
+          ].map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => {
+                const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, spiesSeeEachOther: false, showLocationsList: false, dictionaryIds: ['free'] } : null;
+                const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default', phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } } : null;
+                const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, skipPenalty: 1, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
+                const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic_truth', 'classic_dare'] } : null;
+                const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard'), scenarioId: 'shelter_default' } : null;
+                patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || truthDare || bunker || undefined });
+                setGamesPickerOpen(false);
+              }}
+              style={{ ...btnStyle, padding: '14px 10px', background: 'var(--tg-theme-button-color, #3a7bd5)' }}
+            >
+              {g.name}
+              <span style={{ display: 'block', fontSize: 11, marginTop: 4, opacity: 0.9 }}>мин. {g.minPlayers}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
 
       {minPlayersWarning && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
