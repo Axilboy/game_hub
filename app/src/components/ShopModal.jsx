@@ -3,7 +3,6 @@ import { addPurchaseHistory, getInventory, purchaseDictionary, restorePurchases,
 import { SHOP_GAMES, SHOP_CATEGORIES, SHOP_ITEMS } from '../shopData';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import { track } from '../analytics';
-import Input from './ui/Input';
 import Select from './ui/Select';
 import Tooltip from './ui/Tooltip';
 
@@ -20,14 +19,12 @@ const btnStyle = {
 export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) {
   const [shopGameFilter, setShopGameFilter] = useState(initialGameFilter);
   const [shopCategoryFilter, setShopCategoryFilter] = useState('all');
-  const [query, setQuery] = useState('');
   const [inv, setInv] = useState(getInventory);
 
   useEffect(() => {
     if (open) {
       setShopGameFilter(initialGameFilter);
       setShopCategoryFilter('all');
-      setQuery('');
       setInv(getInventory());
       track('store_open', { gameFilter: initialGameFilter });
     }
@@ -39,7 +36,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
     (item) =>
       (shopGameFilter === 'all' || item.game === shopGameFilter) &&
       (shopCategoryFilter === 'all' || item.category === shopCategoryFilter) &&
-      (!query.trim() || `${item.name} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase()))
+      true
   );
   const items = filteredItems.length ? filteredItems : SHOP_ITEMS;
   const popular = items.slice(0, 4);
@@ -93,12 +90,6 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
         <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
           Витрина: тематические наборы слов и фичи по играм. С <strong>Про</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
         </p>
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск по витрине..."
-          style={{ marginBottom: 14 }}
-        />
         <p style={{ fontSize: 13, marginBottom: 12 }}>Игра</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {SHOP_GAMES.map((g) => (
@@ -112,11 +103,6 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
           options={SHOP_CATEGORIES.map((c) => ({ value: c.id, label: c.name }))}
           style={{ marginBottom: 10 }}
         />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-          {SHOP_CATEGORIES.map((c) => (
-            <button key={c.id} type="button" onClick={() => setShopCategoryFilter(c.id)} style={{ ...btnStyle, width: 'auto', padding: '8px 12px', fontSize: 13, background: shopCategoryFilter === c.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{c.name}</button>
-          ))}
-        </div>
         <div style={{ flex: 1, minHeight: 220, overflowY: 'auto', paddingRight: 2 }}>
           {popular.length > 0 && (
             <div style={{ marginBottom: 12 }}>
