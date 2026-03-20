@@ -5,6 +5,7 @@ import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 
@@ -119,21 +120,19 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   if (winner != null) {
     const winTeam = teams[winner];
     return (
-      <GameLayout
+      <PostMatchScreen
         top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
         center={true}
         padding={24}
-        textAlign="center"
-        bottom={
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
-            <button type="button" onClick={onLeave} style={{ ...btnStyle, background: '#333' }}>Выйти</button>
-          </div>
-        }
+        primaryLabel="В лобби"
+        onPrimary={() => navigate('/lobby')}
+        secondaryLabel="Выйти"
+        onSecondary={onLeave}
+        secondaryBg="#333"
       >
         <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
         <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t, i) => `${t.name} ${t.score}`).join(' — ')}</p>
-      </GameLayout>
+      </PostMatchScreen>
     );
   }
 

@@ -20,6 +20,13 @@ const TIMER_OPTIONS = [
 ];
 
 const SPY_COUNT_OPTIONS = [1, 2, 3];
+const BUNKER_DEFAULT_PHASE_TIMERS = { intro: 15, reveals: 10, discussion: 25, voting: 25, tieBreak: 10, roundEvent: 15, final: 20 };
+const BUNKER_SPEED_PRESETS = [
+  { id: 'fast', label: 'Быстро', mult: 0.75 },
+  { id: 'standard', label: 'Стандарт', mult: 1 },
+  { id: 'long', label: 'Длинно', mult: 1.3 },
+];
+const BUNKER_ROUND_OPTIONS = [2, 3, 4];
 const DICT_NAMES = {
   free: 'Базовый',
   theme1: 'Детектив (Про)',
@@ -35,7 +42,24 @@ const DICT_NAMES = {
   art: 'Искусство (Про)',
   tech: 'Технологии (Про)',
 };
-const MIN_PLAYERS = { mafia: 4, elias: 2 };
+const MIN_PLAYERS = { mafia: 4, elias: 2, truth_dare: 2, bunker: 4 };
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+function bunkerPhaseTimersFromSpeed(speedId) {
+  const preset = BUNKER_SPEED_PRESETS.find((p) => p.id === speedId) || BUNKER_SPEED_PRESETS[1];
+  const mult = preset.mult;
+  const toSec = (val) => clamp(Math.round(val * mult), 5, 120);
+  return {
+    intro: toSec(BUNKER_DEFAULT_PHASE_TIMERS.intro),
+    reveals: toSec(BUNKER_DEFAULT_PHASE_TIMERS.reveals),
+    discussion: toSec(BUNKER_DEFAULT_PHASE_TIMERS.discussion),
+    voting: toSec(BUNKER_DEFAULT_PHASE_TIMERS.voting),
+    tieBreak: toSec(BUNKER_DEFAULT_PHASE_TIMERS.tieBreak),
+    roundEvent: toSec(BUNKER_DEFAULT_PHASE_TIMERS.roundEvent),
+    final: toSec(BUNKER_DEFAULT_PHASE_TIMERS.final),
+  };
+}
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
   return n + 2;
@@ -63,6 +87,17 @@ const ELIAS_DICT_CARDS = [
   { id: 'movies', name: 'Кино', description: 'Жанры, награды, съёмки и всё про киноиндустрию.', emoji: '🎬', free: false },
   { id: 'science', name: 'Наука', description: 'Эксперименты, теории и научные понятия.', emoji: '🔬', free: false },
   { id: 'sport', name: 'Спорт', description: 'Турниры, команды, рекорды и спортивный сленг.', emoji: '⚽', free: false },
+];
+
+const TD_CATEGORIES = [
+  { slug: 'classic_truth', name: 'Классика — правда', premium: false, is18Plus: false, safe: true },
+  { slug: 'classic_dare', name: 'Классика — действие', premium: false, is18Plus: false, safe: true },
+  { slug: 'friends_truth', name: 'Друзья — правда', premium: false, is18Plus: false, safe: true },
+  { slug: 'friends_dare', name: 'Друзья — действие', premium: false, is18Plus: false, safe: true },
+  { slug: '18_truth', name: '18+ — правда', premium: false, is18Plus: true, safe: false },
+  { slug: '18_dare', name: '18+ — действие', premium: false, is18Plus: true, safe: false },
+  { slug: 'drunk_truth', name: 'Пьяное — правда (Про)', premium: true, is18Plus: false, safe: false },
+  { slug: 'drunk_dare', name: 'Пьяное — действие (Про)', premium: true, is18Plus: false, safe: false },
 ];
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
@@ -95,6 +130,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const availableDictionaries = room?.availableDictionaries || ['free'];
   const roomHasPro = room?.players?.some((p) => p.hasPro) ?? false;
 
+  const tdGameSettings = room?.gameSettings || {};
+  const tdMode = tdGameSettings.mode ?? 'mixed';
+  const tdSafeMode = tdGameSettings.safeMode !== false;
+  const tdShow18Plus = Boolean(tdGameSettings.show18Plus);
+  const tdRoundsCount = tdGameSettings.roundsCount ?? 5;
+  const tdCategorySlugs = Array.isArray(tdGameSettings.categorySlugs) && tdGameSettings.categorySlugs.length
+    ? tdGameSettings.categorySlugs
+    : ['classic_truth', 'classic_dare'];
+
   useEffect(() => {
     setEditNameValue(roomName);
   }, [roomName]);
@@ -120,7 +164,13 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }).catch(() => {});
   }, [roomId, user?.id]);
 
-  const inviteToken = room?.inviteToken || sessionStorage.getItem('inviteToken');
+  let safeInviteToken = null;
+  try {
+    safeInviteToken = sessionStorage.getItem('inviteToken');
+  } catch (_) {
+    safeInviteToken = null;
+  }
+  const inviteToken = room?.inviteToken || safeInviteToken;
   const miniAppLink = BOT_USERNAME && inviteToken ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}` : '';
   const webLink = inviteToken ? `${BASE_URL}?invite=${inviteToken}` : '';
   const inviteLink = miniAppLink || webLink || '';
@@ -153,6 +203,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         spyCount,
         allSpiesChanceEnabled,
         spiesSeeEachOther: !!room?.gameSettings?.spiesSeeEachOther,
+        showLocationsList: !!room?.gameSettings?.showLocationsList,
         dictionaryIds: dictionaryIds?.length ? dictionaryIds : ['free'],
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
@@ -160,7 +211,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       navigate('/spy');
     } catch (e) {
       setStartingGame(false);
-      setMinPlayersWarning(e?.message || 'Не удалось запустить игру');
+      let msg = e?.message || 'Не удалось запустить игру';
+      try {
+        const d = JSON.parse(e.message);
+        if (d?.error) msg = d.error;
+      } catch (_) {}
+      setMinPlayersWarning(msg);
     }
   };
 
@@ -181,6 +237,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         extended: gs.extended ?? false,
         revealRoleOnDeath: gs.revealRoleOnDeath ?? true,
         mafiaCanSkipKill: gs.mafiaCanSkipKill ?? false,
+        phaseTimers: gs.phaseTimers || { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 },
         ...opts,
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
@@ -240,11 +297,71 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
+  const startBunker = async () => {
+    if (!isHost) return;
+    const count = room?.players?.length ?? 0;
+    if (count < MIN_PLAYERS.bunker) {
+      setMinPlayersWarning(`Для игры в Бункер нужно минимум ${MIN_PLAYERS.bunker} игроков. Сейчас в лобби: ${count}.`);
+      return;
+    }
+    setStartingGame(true);
+    try {
+      const gs = room?.gameSettings || {};
+      await api.post('/rooms/bunker/start', {
+        roomId,
+        hostId: String(user?.id),
+        maxRounds: gs.maxRounds ?? 3,
+        phaseTimers: gs.phaseTimers,
+      });
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+      navigate('/bunker');
+    } catch (e) {
+      setStartingGame(false);
+      let msg = e?.message || 'Не удалось запустить игру';
+      try {
+        const d = JSON.parse(e.message);
+        if (d?.error) msg = d.error;
+      } catch (_) {}
+      setMinPlayersWarning(msg);
+    }
+  };
+
+  const startTruthDare = async () => {
+    if (!isHost) return;
+    const count = room?.players?.length ?? 0;
+    if (count < MIN_PLAYERS.truth_dare) {
+      setMinPlayersWarning(`Для игры в Правда/действие нужно минимум ${MIN_PLAYERS.truth_dare} игроков. Сейчас в лобби: ${count}.`);
+      return;
+    }
+    setStartingGame(true);
+    try {
+      const gs = room?.gameSettings || {};
+      await api.post('/rooms/truth_dare/start', {
+        roomId,
+        hostId: String(user?.id),
+        mode: gs.mode || 'mixed',
+        categorySlugs: Array.isArray(gs.categorySlugs) && gs.categorySlugs.length ? gs.categorySlugs : ['classic_truth', 'classic_dare'],
+        show18Plus: !!gs.show18Plus,
+        safeMode: gs.safeMode !== false,
+        roundsCount: gs.roundsCount ?? 5,
+      });
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+      navigate('/truth_dare');
+    } catch (e) {
+      setStartingGame(false);
+      setMinPlayersWarning(e?.message || 'Не удалось запустить игру');
+    }
+  };
+
   const getMinPlayersForSelectedGame = () => {
     if (!selectedGame) return 0;
     if (selectedGame === 'spy') return minSpyPlayers(spyCount);
     if (selectedGame === 'mafia') return MIN_PLAYERS.mafia;
     if (selectedGame === 'elias') return MIN_PLAYERS.elias;
+    if (selectedGame === 'bunker') return MIN_PLAYERS.bunker;
+    if (selectedGame === 'truth_dare') return MIN_PLAYERS.truth_dare;
     return 0;
   };
 
@@ -510,19 +627,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 {[
                   { id: 'spy', name: 'Шпион', available: true, minPlayers: 3 },
                   { id: 'mafia', name: 'Мафия', available: true, minPlayers: MIN_PLAYERS.mafia },
-                  { id: 'bunker', name: 'Бункер', available: false, minPlayers: 0 },
+                  { id: 'bunker', name: 'Бункер', available: true, minPlayers: MIN_PLAYERS.bunker },
                   { id: 'elias', name: 'Элиас', available: true, minPlayers: MIN_PLAYERS.elias },
-                  { id: 'truth_dare', name: 'Правда или действие', available: false, minPlayers: 0 },
+                  { id: 'truth_dare', name: 'Правда или действие', available: true, minPlayers: MIN_PLAYERS.truth_dare },
                 ].map((g) => (
                   <button
                     key={g.id}
                     type="button"
                     onClick={() => {
                       if (!g.available) return;
-                      const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, dictionaryIds: ['free'] } : null;
-                      const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default' } : null;
+                      const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, spiesSeeEachOther: false, showLocationsList: false, dictionaryIds: ['free'] } : null;
+                      const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default', phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } } : null;
                       const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
-                      patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || undefined });
+                      const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic_truth', 'classic_dare'] } : null;
+                      const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard') } : null;
+                      patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || truthDare || bunker || undefined });
                     }}
                     style={{
                       ...btnStyle,
@@ -556,6 +675,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <p style={{ margin: 0, fontSize: 14 }}>Шпионов: {room.gameSettings.spyCount ?? 1}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Все шпионы (редко): {room.gameSettings.allSpiesChanceEnabled ? 'да' : 'нет'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Шпионы видят друг друга: {room.gameSettings.spiesSeeEachOther ? 'да' : 'нет'}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Список локаций в раунде: {room.gameSettings.showLocationsList ? 'показан всем' : 'скрыт'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {minSpyPlayers(room?.gameSettings?.spyCount ?? 1)} игроков</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Таймер: {room.gameSettings.timerEnabled ? `${(room.gameSettings.timerSeconds || 60) / 60} мин` : 'выкл'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Словари: {(room.gameSettings.dictionaryIds || ['free']).map((d) => DICT_NAMES[d] || d).join(', ')}</p>
@@ -625,6 +745,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     />
                     <span>Шпионы видят друг друга</span>
                   </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!room?.gameSettings?.showLocationsList}
+                      onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, showLocationsList: e.target.checked } })}
+                    />
+                    <span>Показывать всем список возможных локаций</span>
+                  </label>
                   <p style={{ marginBottom: 8 }}>Локации</p>
                   <button type="button" onClick={() => setSpyLocationsModalOpen(true)} style={{ ...btnStyle, marginBottom: 16, background: '#555' }}>
                     Локации (выбрано: {dictionaryIds.length})
@@ -680,6 +808,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
               <p style={{ margin: 0, fontSize: 14 }}>Режим: {room.gameSettings.extended ? 'Расширенный (Про)' : 'Классика'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Ведущий: {room.gameSettings.hostSelection === 'choose' ? 'выбор' : 'случайно'}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>
+                Таймеры фаз: ночь {room.gameSettings.phaseTimers?.nightMafia ?? 45}с, день {room.gameSettings.phaseTimers?.day ?? 90}с, голосование {room.gameSettings.phaseTimers?.voting ?? 45}с
+              </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.mafia} игроков</p>
             </div>
           )}
@@ -730,6 +861,27 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     <input type="checkbox" checked={!!room?.gameSettings?.mafiaCanSkipKill} onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mafiaCanSkipKill: e.target.checked } })} />
                     <span>Мафия может не убивать ночью</span>
                   </label>
+                  <p style={{ margin: '0 0 6px', fontSize: 14 }}>Скорость фаз</p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {[
+                      { id: 'fast', label: 'Быстро', val: { nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
+                      { id: 'std', label: 'Стандарт', val: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
+                      { id: 'long', label: 'Дольше', val: { nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
+                    ].map((p) => {
+                      const cur = room?.gameSettings?.phaseTimers || {};
+                      const active = cur.nightMafia === p.val.nightMafia && cur.day === p.val.day && cur.voting === p.val.voting;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, phaseTimers: p.val } })}
+                          style={{ ...btnStyle, flex: 1, padding: 10, background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </>
               )}
 
@@ -942,10 +1094,231 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </>
       )}
 
-      {isHost && selectedGame && (selectedGame === 'bunker' || selectedGame === 'truth_dare') && (
+      {selectedGame === 'truth_dare' && (
+        <>
+          <p style={{ marginTop: 24, marginBottom: 8 }}>
+            Игра: <strong>Правда или действие</strong>
+            {isHost && (
+              <button
+                type="button"
+                onClick={() => patchLobbyGame({ selectedGame: null })}
+                style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}
+              >
+                другая
+              </button>
+            )}
+          </p>
+
+          {(room?.gameSettings && !isHost) && (
+            <div style={{ ...settingsBox, marginBottom: 16 }}>
+              <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки</p>
+              <p style={{ margin: 0, fontSize: 14 }}>
+                Режим:{' '}
+                {tdMode === 'mixed' ? 'смешанный' : tdMode === 'truth' ? 'только правда' : 'только действие'}
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Safe: {tdSafeMode ? 'да' : 'нет'}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>
+                18+: {tdSafeMode ? 'нет (safe)' : tdShow18Plus ? 'да' : 'нет'}
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Раундов: {tdRoundsCount}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.truth_dare} игроков</p>
+            </div>
+          )}
+
+          {isHost && (
+            <div style={{ ...settingsBox }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {[
+                  { id: 'truth', label: 'Правда' },
+                  { id: 'dare', label: 'Действие' },
+                  { id: 'mixed', label: 'Смешанный' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mode: opt.id } })}
+                    style={{ ...btnStyle, flex: 1, padding: 10, background: tdMode === opt.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', fontSize: 14 }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={tdSafeMode}
+                  onChange={(e) => {
+                    const nextSafeMode = e.target.checked;
+                    const nextShow18Plus = nextSafeMode ? false : tdShow18Plus;
+                    const nextCats = tdCategorySlugs.filter((slug) => {
+                      const cat = TD_CATEGORIES.find((c) => c.slug === slug);
+                      if (!cat) return false;
+                      if (nextSafeMode && !cat.safe) return false;
+                      if (cat.is18Plus && !nextShow18Plus) return false;
+                      return true;
+                    });
+                    patchLobbyGame({
+                      gameSettings: {
+                        ...room?.gameSettings,
+                        safeMode: nextSafeMode,
+                        show18Plus: nextShow18Plus,
+                        categorySlugs: nextCats.length ? nextCats : ['classic_truth', 'classic_dare'],
+                      },
+                    });
+                  }}
+                />
+                <span>Safe режим (мягкие карточки)</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <input
+                  type="checkbox"
+                  checked={tdShow18Plus}
+                  disabled={tdSafeMode}
+                  onChange={(e) => {
+                    const nextShow18Plus = e.target.checked;
+                    const nextCats = tdCategorySlugs.filter((slug) => {
+                      const cat = TD_CATEGORIES.find((c) => c.slug === slug);
+                      if (!cat) return false;
+                      if (cat.is18Plus && !nextShow18Plus) return false;
+                      if (tdSafeMode && !cat.safe) return false;
+                      return true;
+                    });
+                    patchLobbyGame({
+                      gameSettings: {
+                        ...room?.gameSettings,
+                        show18Plus: nextShow18Plus,
+                        categorySlugs: nextCats.length ? nextCats : ['classic_truth', 'classic_dare'],
+                      },
+                    });
+                  }}
+                />
+                <span>Показывать 18+ (нужно 18+ подтверждение)</span>
+              </label>
+
+              <p style={{ marginBottom: 8, fontSize: 14 }}>Раундов</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {[3, 5, 7, 10].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, roundsCount: n } })}
+                    style={{ ...btnStyle, flex: 1, padding: 10, background: tdRoundsCount === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', fontSize: 14 }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <p style={{ marginBottom: 8, fontSize: 14 }}>Категории</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                {TD_CATEGORIES.map((c) => {
+                  const lockedByPro = c.premium && !roomHasPro;
+                  const lockedBySafe = tdSafeMode && !c.safe;
+                  const lockedBy18 = c.is18Plus && !tdShow18Plus;
+                  const locked = lockedByPro || lockedBySafe || lockedBy18;
+                  const active = tdCategorySlugs.includes(c.slug);
+                  return (
+                    <button
+                      key={c.slug}
+                      type="button"
+                      disabled={locked}
+                      onClick={() => {
+                        const isActive = tdCategorySlugs.includes(c.slug);
+                        let next = isActive ? tdCategorySlugs.filter((x) => x !== c.slug) : [...tdCategorySlugs, c.slug];
+                        if (next.length === 0) next = ['classic_truth', 'classic_dare'];
+                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: next } });
+                      }}
+                      style={{
+                        ...btnStyle,
+                        width: 'auto',
+                        padding: '10px 10px',
+                        fontSize: 12,
+                        background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                        opacity: locked ? 0.6 : 1,
+                      }}
+                      title={lockedByPro ? 'Нужен Про' : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button type="button" onClick={startTruthDare} disabled={startingGame} style={btnStyle}>
+                {startingGame ? 'Запуск...' : 'Начать игру'}
+              </button>
+
+              <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+                Примечание: карточки подбираются под текущего игрока (Pro/18+ учёт на сервере).
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {isHost && selectedGame && selectedGame === 'bunker' && (
         <div style={{ ...settingsBox, marginTop: 24 }}>
-          <p style={{ marginBottom: 8 }}>{selectedGame === 'bunker' ? 'Бункер — скоро' : 'Правда или действие — скоро'}</p>
-          <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={btnStyle}>Выбрать другую игру</button>
+          <p style={{ marginBottom: 8 }}>Бункер: настройки</p>
+
+          <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Раундов</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {BUNKER_ROUND_OPTIONS.map((n) => {
+              const active = (room?.gameSettings?.maxRounds ?? 3) === n;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), maxRounds: n } });
+                  }}
+                  disabled={startingGame}
+                  style={{
+                    ...btnStyle,
+                    width: 'auto',
+                    padding: '8px 14px',
+                    background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                    opacity: startingGame ? 0.7 : 1,
+                  }}
+                >
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+
+          <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Скорость фаз</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+            {BUNKER_SPEED_PRESETS.map((p) => {
+              const activeId = room?.gameSettings?.phaseSpeed || 'standard';
+              const active = activeId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    const phaseTimers = bunkerPhaseTimersFromSpeed(p.id);
+                    patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), phaseSpeed: p.id, phaseTimers } });
+                  }}
+                  disabled={startingGame}
+                  style={{
+                    ...btnStyle,
+                    width: 'auto',
+                    padding: '8px 14px',
+                    background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                    opacity: startingGame ? 0.7 : 1,
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <button type="button" onClick={startBunker} disabled={startingGame} style={btnStyle}>
+            {startingGame ? 'Запуск...' : 'Начать игру'}
+          </button>
         </div>
       )}
 

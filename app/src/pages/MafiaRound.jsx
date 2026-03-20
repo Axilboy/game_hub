@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 
@@ -30,6 +31,8 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const [voteTarget, setVoteTarget] = useState(null);
   const [commissionerResult, setCommissionerResult] = useState(null);
   const [actionLoading, setActionLoading] = useState(null); // 'kill' | 'commissioner_check' | 'vote' | 'advance'
+  const [tick, setTick] = useState(0);
+  const autoAdvanceRef = useRef({ phase: null, phaseStartedAt: null, sent: false });
 
   const refreshState = () => {
     if (!myId) return;
@@ -52,21 +55,34 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   }, [roomId, myId]);
 
   useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
     const onSock = () => refreshState();
     socket.onConnect(onSock);
     return () => socket.offConnect(onSock);
   }, [roomId, myId]);
 
-  const advancePhase = async () => {
+  const advancePhase = async (opts = {}) => {
     if (actionLoading) return;
     try {
       setActionLoading('advance');
-      await api.post(`/rooms/${roomId}/mafia/advance`, { playerId: myId });
+      const expectedPhase = opts.expectedPhase ?? state?.phase ?? undefined;
+      const expectedPhaseStartedAt = opts.expectedPhaseStartedAt ?? state?.phaseStartedAt ?? undefined;
+      await api.post(`/rooms/${roomId}/mafia/advance`, {
+        playerId: myId,
+        expectedPhase,
+        expectedPhaseStartedAt,
+      });
       refreshState();
+      return true;
     } catch (_) {}
     finally {
       setActionLoading(null);
     }
+    return false;
   };
 
   const sendMafiaKill = async (targetId) => {
@@ -116,23 +132,55 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const alive = state.alive || [];
   const amAlive = alive.some((p) => p.id === myId);
   const isDead = !amAlive && myRole;
+  const phaseSecondsLeft = state.phaseStartedAt && state.phaseDurationSec
+    ? Math.max(0, Math.ceil((state.phaseStartedAt + state.phaseDurationSec * 1000 - Date.now()) / 1000))
+    : null;
+
+  // Reset auto-advance latch when phase changes.
+  useEffect(() => {
+    if (!isModerator) {
+      autoAdvanceRef.current = { phase: null, phaseStartedAt: null, sent: false };
+      return;
+    }
+    autoAdvanceRef.current = { phase, phaseStartedAt: state?.phaseStartedAt ?? null, sent: false };
+  }, [isModerator, phase, state?.phaseStartedAt]);
+
+  // Auto-advance: moderator triggers `advance` once when timer reaches 0.
+  useEffect(() => {
+    if (!isModerator) return;
+    if (actionLoading) return;
+    if (phaseSecondsLeft == null) return;
+    if (phaseSecondsLeft !== 0) return;
+    if (!state?.phaseStartedAt || !state?.phaseDurationSec) return;
+    if (autoAdvanceRef.current.sent) return;
+
+    autoAdvanceRef.current.sent = true;
+    // Use expectedPhase/expectedPhaseStartedAt so server ignores stale duplicates.
+    (async () => {
+      const ok = await advancePhase({
+        expectedPhase: phase,
+        expectedPhaseStartedAt: state.phaseStartedAt,
+      });
+      if (!ok) autoAdvanceRef.current.sent = false;
+    })();
+  }, [isModerator, actionLoading, phaseSecondsLeft, tick, phase, state?.phaseStartedAt, state?.phaseDurationSec]);
 
   if (winner) {
     return (
-      <GameLayout
+      <PostMatchScreen
         top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
         center={true}
         padding={24}
-        textAlign="center"
-        bottom={
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button type="button" onClick={() => navigate('/lobby')} style={btnStyle}>В лобби</button>
-            <button type="button" onClick={onLeave} style={{ ...btnStyle, background: '#333' }}>Выйти</button>
-          </div>
-        }
+        primaryLabel="В лобби"
+        onPrimary={() => navigate('/lobby')}
+        secondaryLabel="Выйти"
+        onSecondary={onLeave}
+        secondaryBg="#333"
       >
-        <p style={{ fontSize: 22, marginBottom: 16 }}>{winner === 'civilians' ? 'Победили мирные!' : 'Победила мафия!'}</p>
-      </GameLayout>
+        <p style={{ fontSize: 22, marginBottom: 16 }}>
+          {winner === 'civilians' ? 'Победили мирные!' : 'Победила мафия!'}
+        </p>
+      </PostMatchScreen>
     );
   }
 
@@ -151,6 +199,11 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     >
       <div className="gh-card" style={{ marginBottom: 12, padding: 12 }}>
         <p style={{ marginBottom: 8, opacity: 0.9 }}>Фаза: {phase === 'night_mafia' ? 'Ночь — мафия' : phase === 'night_commissioner' ? 'Ночь — комиссар' : phase === 'day' ? 'День' : 'Голосование'}</p>
+        {phaseSecondsLeft != null && (
+          <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>
+            Таймер фазы: {phaseSecondsLeft} сек
+          </p>
+        )}
 
         {isModerator && <p style={{ fontSize: 16, color: '#8af', marginBottom: 8 }}>Вы ведущий</p>}
         {myRole && (
@@ -243,7 +296,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
           disabled={!!actionLoading}
           style={{ ...btnStyle, marginTop: 16, background: '#6a5', opacity: actionLoading ? 0.7 : 1 }}
         >
-          {actionLoading === 'advance' ? 'Идёт...' : 'Далее (ведущий)'}
+          {actionLoading === 'advance' ? 'Идёт...' : phaseSecondsLeft === 0 ? 'Таймер вышел — далее' : 'Далее (ведущий)'}
         </button>
       )}
 

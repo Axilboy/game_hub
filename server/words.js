@@ -49,12 +49,18 @@ const DICTIONARIES = {
 export const SPY_PREMIUM_IDS = ['theme1', 'theme2', 'travel', 'food', 'sports', 'movies', 'music', 'nature', 'science', 'history', 'art', 'tech'];
 
 export function getRandomWord(dictionaryIds = ['free']) {
+  const words = getWordsByDictionaryIds(dictionaryIds);
+  if (words.length === 0) words.push(...FREE_WORDS);
+  return words[Math.floor(Math.random() * words.length)];
+}
+
+export function getWordsByDictionaryIds(dictionaryIds = ['free']) {
   const allowed = Array.isArray(dictionaryIds) ? dictionaryIds : ['free'];
   const words = [];
   for (const id of allowed) {
     const list = DICTIONARIES[id];
     if (list) words.push(...list);
   }
-  if (words.length === 0) words.push(...FREE_WORDS);
-  return words[Math.floor(Math.random() * words.length)];
+  const uniq = [...new Set(words.map((w) => String(w).trim()).filter(Boolean))];
+  return uniq.length ? uniq : [...FREE_WORDS];
 }

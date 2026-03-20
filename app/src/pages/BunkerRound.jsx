@@ -1,0 +1,303 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
+import { socket } from '../socket';
+import BackArrow from '../components/BackArrow';
+import useSeo from '../hooks/useSeo';
+import GameLayout from '../components/game/GameLayout';
+import Loader from '../components/ui/Loader';
+import ErrorState from '../components/ui/ErrorState';
+import Button from '../components/ui/Button';
+import PostMatchScreen from '../components/game/PostMatchScreen';
+
+function phaseTitle(phase) {
+  if (phase === 'intro') return 'Ознакомление';
+  if (phase === 'reveals') return 'Раскрытия';
+  if (phase === 'discussion') return 'Обсуждение';
+  if (phase === 'voting') return 'Голосование';
+  if (phase === 'tie_break') return 'Тай-брейк';
+  if (phase === 'round_event') return 'Событие раунда';
+  if (phase === 'final') return 'Финал';
+  return 'Бункер';
+}
+
+export default function BunkerRound({ roomId, user, room, onLeave }) {
+  const navigate = useNavigate();
+  useSeo({ robots: 'noindex, nofollow' });
+
+  const myId = user?.id != null ? String(user.id) : '';
+  const [state, setState] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null); // 'vote'
+  const maxRounds = state && typeof state.maxRounds === 'number' ? state.maxRounds : null;
+  const [, setTick] = useState(0);
+
+  const refreshState = () => {
+    if (!roomId || !myId) return;
+    setLoading(true);
+    api
+      .get(`/rooms/${roomId}/bunker/state?playerId=${encodeURIComponent(myId)}`)
+      .then((s) => {
+        setState(s);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refreshState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, myId]);
+
+  useEffect(() => {
+    socket.on('bunker_update', refreshState);
+    socket.on('game_ended', refreshState);
+    return () => {
+      socket.off('bunker_update', refreshState);
+      socket.off('game_ended', refreshState);
+    };
+  }, [roomId, myId]);
+
+  useEffect(() => {
+    const onSock = () => refreshState();
+    socket.onConnect(onSock);
+    return () => socket.offConnect(onSock);
+  }, [roomId, myId]);
+
+  useEffect(() => {
+    if (!state?.phaseEndsAt) return;
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [state?.phaseEndsAt]);
+
+  const leaveToLobby = async () => {
+    try {
+      await onLeave?.();
+    } catch (_) {}
+    navigate('/lobby');
+  };
+
+  const exitToHome = () => {
+    try {
+      onLeave?.();
+    } catch (_) {}
+    navigate('/');
+  };
+
+  const vote = async (targetId) => {
+    if (actionLoading) return;
+    if (!state?.votes || !state?.phase) return;
+    if (state.phase !== 'voting') return;
+    if (!Array.isArray(state.alive) || !state.alive.some((p) => p.id === myId)) return;
+    const already = state.votes?.[myId];
+    if (already) return;
+    try {
+      setActionLoading('vote');
+      await api.post(`/rooms/${roomId}/bunker/vote`, { playerId: myId, targetId });
+      refreshState();
+    } catch (_) {
+      // ignore
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Loader label="Загрузка Бункера..." minHeight="50vh" />
+      </div>
+    );
+  }
+
+  if (!state) {
+    return (
+      <div style={{ padding: 24 }}>
+        <ErrorState title="Нет данных" message="Состояние Бункера не загружено." actionLabel="В лобби" onAction={leaveToLobby} />
+      </div>
+    );
+  }
+
+  if (state.phase === 'final') {
+    const winner =
+      Array.isArray(state.alive) && state.alive.length === 1
+        ? state.alive[0]?.name || state.alive[0]?.id || '—'
+        : '—';
+
+    return (
+      <PostMatchScreen
+        top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
+        center={false}
+        padding={24}
+        primaryLabel="В лобби"
+        onPrimary={leaveToLobby}
+        secondaryLabel="Выйти"
+        onSecondary={exitToHome}
+        secondaryBg="#333"
+      >
+        <div className="gh-card" style={{ padding: 16 }}>
+          <p style={{ fontSize: 22, margin: 0, marginBottom: 12, fontWeight: 800 }}>
+            Бункер завершён
+          </p>
+          <p style={{ margin: 0, fontSize: 16, opacity: 0.92 }}>
+            Победитель: <strong>{winner}</strong>
+          </p>
+        </div>
+      </PostMatchScreen>
+    );
+  }
+
+  const aliveIds = (state.alive || []).map((p) => p.id);
+  const myAlive = aliveIds.includes(myId);
+  const myVote = state.votes?.[myId] || null;
+  const playerNameById = (id) => (state.alive || []).find((p) => p.id === id)?.name || id;
+
+  return (
+    <GameLayout
+      top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
+      center={false}
+      padding={24}
+      bottom={
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Button variant="ghost" fullWidth onClick={leaveToLobby} style={{ background: '#444' }}>
+            В лобби
+          </Button>
+        </div>
+      }
+    >
+      <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
+          Фаза: <strong>{phaseTitle(state.phase)}</strong>
+        </p>
+        {state.phaseSecondsLeft != null && (
+          <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>
+            Таймер: {state.phaseEndsAt != null ? Math.max(0, Math.ceil((state.phaseEndsAt - Date.now()) / 1000)) : state.phaseSecondsLeft} сек
+          </p>
+        )}
+        <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>
+          Раунд: {(state.roundIndex ?? 0) + 1}
+          {maxRounds != null ? `/${maxRounds}` : ''}
+        </p>
+        <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>
+          Живые: <strong>{(state.alive || []).length}</strong>
+        </p>
+      </div>
+
+      <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
+          Ваша персона:
+        </p>
+        {state.myCharacter ? (
+          <div style={{ marginTop: 10, lineHeight: 1.5, fontSize: 14, opacity: 0.95 }}>
+            <div>Профессия: <strong>{state.myCharacter.profession}</strong></div>
+            <div>Навык: <strong>{state.myCharacter.skill}</strong></div>
+            <div>Фобия: <strong>{state.myCharacter.phobia}</strong></div>
+            <div>Багаж: <strong>{state.myCharacter.baggage}</strong></div>
+          </div>
+        ) : (
+          <p style={{ marginTop: 10, opacity: 0.8 }}>—</p>
+        )}
+      </div>
+
+      {state.phase === 'round_event' && (
+        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Событие раунда</p>
+          <p style={{ margin: '10px 0 0', fontSize: 18, fontWeight: 800 }}>{state.currentCrisis?.name || '—'}</p>
+          <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>{state.currentCrisis?.description || ''}</p>
+        </div>
+      )}
+
+      {(state.phase === 'reveals' || state.phase === 'discussion') && state.publicCharacters && (
+        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Раскрытия</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {Object.entries(state.publicCharacters).map(([pid, ch]) => (
+              <div key={pid} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)' }}>
+                <div style={{ fontWeight: 800, marginBottom: 6, opacity: 0.95 }}>
+                  {playerNameById(pid)} {pid === myId ? '(вы)' : ''}
+                </div>
+                <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
+                  Профессия: <strong>{ch.profession || '—'}</strong>
+                  <br />
+                  Навык: <strong>{ch.skill || '—'}</strong>
+                  <br />
+                  Фобия: <strong>{ch.phobia || '—'}</strong>
+                  <br />
+                  Багаж: <strong>{ch.baggage || '—'}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {state.phase === 'voting' && (
+        <div className="gh-card" style={{ padding: 16 }}>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14, marginBottom: 10 }}>Кого исключить?</p>
+          {!myAlive ? (
+            <p style={{ margin: 0, opacity: 0.85 }}>Вы уже выбыли.</p>
+          ) : myVote ? (
+            <p style={{ margin: 0, opacity: 0.85 }}>
+              Голос учтён: <strong>{playerNameById(myVote)}</strong>
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(state.alive || [])
+                .filter((p) => p.id !== myId)
+                .map((p) => (
+                  <Button
+                    key={p.id}
+                    variant="secondary"
+                    fullWidth
+                    disabled={actionLoading === 'vote'}
+                    onClick={() => vote(p.id)}
+                    style={{ background: '#444', borderRadius: 10 }}
+                  >
+                    {p.name}
+                  </Button>
+                ))}
+            </div>
+          )}
+
+          {state.voteCounts && Object.keys(state.voteCounts).length ? (
+            <div style={{ marginTop: 14 }}>
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Текущий счёт</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {Object.entries(state.voteCounts)
+                  .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                  .slice(0, 6)
+                  .map(([targetId, count]) => (
+                    <div key={targetId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, opacity: 0.92 }}>
+                      <span>{playerNameById(targetId)}</span>
+                      <strong>{count}</strong>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {state.phase === 'tie_break' && (
+        <div className="gh-card" style={{ padding: 16 }}>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Тай-брейк идёт...</p>
+          {(state.tieCandidates || []).length ? (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ margin: 0, opacity: 0.85, fontSize: 14 }}>Кандидаты:</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                {(state.tieCandidates || []).map((id) => (
+                  <div key={id} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', opacity: 0.95 }}>
+                    {playerNameById(id)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>Кандидаты: —</p>
+          )}
+        </div>
+      )}
+    </GameLayout>
+  );
+}
+

@@ -15,6 +15,7 @@ import SpyRound from './pages/SpyRound';
 import MafiaRound from './pages/MafiaRound';
 import EliasRound from './pages/EliasRound';
 import TruthDareRound from './pages/TruthDareRound';
+import BunkerRound from './pages/BunkerRound';
 import Admin from './pages/Admin';
 import SeoLanding from './pages/SeoLanding';
 import SeoGameSpy from './pages/SeoGameSpy';
@@ -366,7 +367,19 @@ function AppRoutes() {
           path="/truth_dare"
           element={
             roomId && room?.state === 'playing' && room?.game === 'truth_dare' ? (
-              <TruthDareRound onLeave={leaveRoom} />
+              <TruthDareRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
+            ) : roomId ? (
+              <Navigate to="/lobby" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/bunker"
+          element={
+            roomId && room?.state === 'playing' && room?.game === 'bunker' ? (
+              <BunkerRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
             ) : (

@@ -19,7 +19,7 @@ export function getRoleDisplayName(role, themeId = 'default') {
 }
 
 export function createMafiaState(players, settings = {}) {
-  const { extended = false, revealRoleOnDeath = true, mafiaCanSkipKill = false, moderatorId = null, theme = 'default' } = settings;
+  const { extended = false, revealRoleOnDeath = true, mafiaCanSkipKill = false, moderatorId = null, theme = 'default', phaseTimers = null } = settings;
   const pool = players.filter((p) => p.id !== moderatorId);
   const roles = [...(extended ? EXTENDED_ROLES : CLASSIC_ROLES)];
   const count = pool.length;
@@ -45,7 +45,7 @@ export function createMafiaState(players, settings = {}) {
     moderatorId,
     alive: aliveIds,
     phase: 'night_mafia',
-    settings: { extended, revealRoleOnDeath, mafiaCanSkipKill, theme },
+    settings: { extended, revealRoleOnDeath, mafiaCanSkipKill, theme, phaseTimers },
     mafiaVotes: {},
     commissionerCheck: null,
     doctorSave: null,
@@ -55,6 +55,8 @@ export function createMafiaState(players, settings = {}) {
     eliminatedToday: [],
     revealed: [],
     commissionerCheckedId: null,
+    phaseStartedAt: Date.now(),
+    phaseDurationSec: null,
   };
 }
 
@@ -136,6 +138,8 @@ export function toClientState(gs, playerId, players) {
   const getPlayerName = (id) => players.find((p) => p.id === id)?.name || id;
   const publicInfo = {
     phase: gs.phase,
+    phaseStartedAt: gs.phaseStartedAt || null,
+    phaseDurationSec: Number(gs.phaseDurationSec) || null,
     alive: aliveList.map((p) => ({ id: p.id, name: p.name })),
     killedTonight: (gs.killedTonight || []).map((id) => ({ id, name: getPlayerName(id) })),
     eliminatedToday: (gs.eliminatedToday || []).map((id) => ({ id, name: getPlayerName(id) })),

@@ -5,6 +5,7 @@ import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 
@@ -28,6 +29,9 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [voteTick, setVoteTick] = useState(0);
   const [voteRequestLock, setVoteRequestLock] = useState(false);
   const [startVoteLock, setStartVoteLock] = useState(false);
+  const [guessText, setGuessText] = useState('');
+  const [guessResult, setGuessResult] = useState(null);
+  const [guessLoading, setGuessLoading] = useState(false);
 
   const myId = user?.id != null ? String(user.id) : '';
   const otherPlayers = (room?.players || []).filter((p) => p.id !== myId);
@@ -79,11 +83,24 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   useEffect(() => {
     const onVoteStart = (data) => setVotingEndsAt(data?.votingEndsAt || null);
     const onVoteEnd = (data) => setVoteResult(data || null);
+    const onGuessResult = (data) => {
+      if (data?.correct) {
+        setVoteResult({
+          guessMode: true,
+          isSpy: true,
+          votedOutName: data.guessedByName || 'Шпион',
+          guessedLocation: data.guessedLocation || null,
+          actualLocation: data.actualLocation || null,
+        });
+      }
+    };
     socket.on('game_vote_start', onVoteStart);
     socket.on('game_vote_end', onVoteEnd);
+    socket.on('game_guess_result', onGuessResult);
     return () => {
       socket.off('game_vote_start', onVoteStart);
       socket.off('game_vote_end', onVoteEnd);
+      socket.off('game_guess_result', onGuessResult);
     };
   }, []);
 
@@ -131,6 +148,25 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   };
 
   const isHost = room?.players?.some((p) => p.id === myId && p.isHost);
+  const canSpyGuess = isSpy && !votingActive && !voteResult;
+
+  const submitGuess = async () => {
+    if (!canSpyGuess || guessLoading) return;
+    const val = guessText.trim();
+    if (!val) return;
+    setGuessLoading(true);
+    setGuessResult(null);
+    try {
+      const r = await api.post(`/rooms/${roomId}/spy/guess-location`, { playerId: myId, guess: val });
+      if (!r?.correct) {
+        setGuessResult('Неверно. Продолжайте играть и собирать подсказки.');
+      }
+    } catch (e) {
+      setGuessResult(e?.message || 'Не удалось отправить попытку');
+    } finally {
+      setGuessLoading(false);
+    }
+  };
 
   const [exitConfirm, setExitConfirm] = useState(false);
   const goLobby = () => { if (onGoLobby) onGoLobby(); else navigate('/lobby'); };
@@ -150,43 +186,45 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
 
   if (voteResult) {
     return (
-      <GameLayout
+      <PostMatchScreen
         top={<BackArrow onClick={goLobby} title="В лобби" />}
         center={false}
         padding={24}
-      bottom={
-        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-          <button type="button" onClick={goLobby} style={btnStyle}>
-            Ок
-          </button>
-          <button type="button" onClick={() => setExitConfirm(true)} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>
-            Выйти
-          </button>
-          {exitConfirm && (
-            <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
-              <p style={{ marginBottom: 12 }}>Вы уверены?</p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={exitToHome} style={{ ...btnStyle, flex: 1, background: '#c44' }}>Да</button>
-                <button type="button" onClick={() => setExitConfirm(false)} style={{ ...btnStyle, flex: 1, background: '#555' }}>Нет</button>
-              </div>
-            </div>
-          )}
-        </div>
-      }
+        primaryLabel="Ок"
+        onPrimary={goLobby}
+        secondaryLabel="Выйти"
+        onSecondary={exitToHome}
+        secondaryBg="#333"
+        confirmSecondary={true}
+        confirmTitle="Вы уверены?"
+        confirmText="Выйти прямо сейчас — вы покинете комнату."
       >
         <div className="gh-card" style={{ padding: 16 }}>
           {(voteResult.allSpiesRound || voteResult.isSpy) && (
-            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>{voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}</p>
+            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>
+              {voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}
+            </p>
           )}
           <p style={{ fontSize: 22, marginBottom: 12 }}>
-            {voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
+            {voteResult.guessMode
+              ? 'Шпион угадал локацию!'
+              : voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
           </p>
-          {voteResult.isSpy && (
+          {voteResult.guessMode ? (
+            <>
+              <p style={{ fontSize: 18, marginBottom: 8 }}>Шпион: {voteResult.votedOutName}</p>
+              <p style={{ opacity: 0.9, marginBottom: 0 }}>
+                Локация: {voteResult.actualLocation || voteResult.guessedLocation || 'скрыто'}
+              </p>
+            </>
+          ) : voteResult.isSpy && (
             <p style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Им был: {voteResult.votedOutName}</p>
           )}
-          <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
+          {!voteResult.guessMode ? (
+            <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
+          ) : null}
         </div>
-      </GameLayout>
+      </PostMatchScreen>
     );
   }
 
@@ -270,7 +308,39 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
               </div>
             </>
           )}
+          {card.showLocationsList && Array.isArray(card.locationList) && card.locationList.length > 0 && (
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }}>
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.9, fontWeight: 700 }}>Возможные локации ({card.locationList.length})</p>
+              <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+                {card.locationList.join(', ')}
+              </p>
+            </div>
+          )}
         </div>
+
+        {canSpyGuess && (
+          <div className="gh-card" style={{ marginTop: 12, padding: 12 }}>
+            <p style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>Попытка шпиона: угадать локацию</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                value={guessText}
+                onChange={(e) => setGuessText(e.target.value)}
+                placeholder="Введите локацию"
+                style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #555', background: 'transparent', color: 'inherit' }}
+              />
+              <button
+                type="button"
+                onClick={submitGuess}
+                disabled={guessLoading || !guessText.trim()}
+                style={{ ...btnStyle, width: 'auto', background: '#8a5', opacity: guessLoading ? 0.7 : 1 }}
+              >
+                {guessLoading ? '...' : 'Угадать'}
+              </button>
+            </div>
+            {guessResult ? <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9 }}>{guessResult}</p> : null}
+          </div>
+        )}
 
         {!votingActive && !voteResult && (
           isHost ? (
