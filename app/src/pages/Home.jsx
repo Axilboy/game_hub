@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { canStartTrial, getInventory, getOrCreateReferralCode, redeemReferralCode, setPro, startTrialUnlock } from '../inventory';
 import { api, getApiErrorMessage } from '../api';
-import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
+import { getDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
@@ -56,8 +56,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [showShopStub, setShowShopStub] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [editingName, setEditingName] = useState(false);
-  const [displayNameValue, setDisplayNameValue] = useState(getDisplayName() || '');
   const [displayNameState, setDisplayNameState] = useState(getDisplayName() || '');
   const [avatarState, setAvatarState] = useState(getAvatar() || '');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -66,7 +64,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [hasLastRoom, setHasLastRoom] = useState(false);
   const [hasRematchRoom, setHasRematchRoom] = useState(false);
   const [inviteIssue, setInviteIssue] = useState(false);
-  const [publicStats, setPublicStats] = useState(null);
   const codeInputRef = useRef(null);
   const shownName = displayNameState || user?.first_name || 'Игрок';
   const myReferralCode = getOrCreateReferralCode();
@@ -86,10 +83,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       setHasLastRoom(false);
       setHasRematchRoom(false);
     }
-  }, []);
-
-  useEffect(() => {
-    api.get('/stats/public').then(setPublicStats).catch(() => setPublicStats(null));
   }, []);
 
   useEffect(() => {
@@ -243,14 +236,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
     }
   };
 
-  const saveDisplayName = () => {
-    setEditingName(false);
-    const v = (displayNameValue || '').trim();
-    setDisplayName(v || '');
-    setDisplayNameValue(v || '');
-    setDisplayNameState(v || '');
-  };
-
   const pickAvatar = (emoji) => {
     setAvatar(emoji || '');
     setAvatarState(emoji || '');
@@ -267,8 +252,13 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <div style={{ fontSize: 16, opacity: 0.85, marginTop: 6 }}>Без регистрации</div>
       </section>
 
-      <header className="gh-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, padding: 14 }}>
-        <div onClick={() => setShowAvatarPicker(true)} title="Нажмите, чтобы сменить аватар" style={{ cursor: 'pointer', flexShrink: 0 }}>
+      <header
+        className="gh-card"
+        style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, padding: 14, cursor: 'pointer' }}
+        onClick={() => navigate('/profile')}
+        title="Открыть профиль и достижения"
+      >
+        <div style={{ flexShrink: 0 }}>
           {avatarState ? (
             <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
               {avatarState}
@@ -282,31 +272,10 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {editingName ? (
-            <input
-              type="text"
-              value={displayNameValue}
-              onChange={(e) => setDisplayNameValue(e.target.value)}
-              onBlur={saveDisplayName}
-              onKeyDown={(e) => e.key === 'Enter' && saveDisplayName()}
-              autoFocus
-              placeholder="Имя"
-              style={{ width: '100%', padding: 6, fontSize: 18, fontWeight: 'bold', borderRadius: 6, border: '1px solid #555' }}
-            />
-          ) : (
-            <div style={{ fontWeight: 'bold', fontSize: 18, cursor: 'pointer' }} onClick={() => setEditingName(true)} title="Нажмите, чтобы изменить имя">
-              {shownName}
-            </div>
-          )}
+          <div style={{ fontWeight: 'bold', fontSize: 18 }}>{shownName}</div>
           <div style={{ fontSize: 14, opacity: 0.85 }}>{inv.hasPro ? 'Про' : 'Подписка отсутствует'}</div>
         </div>
       </header>
-
-      <div style={{ marginBottom: 16 }}>
-        <Button variant="secondary" fullWidth onClick={() => navigate('/profile')}>
-          Профиль и достижения
-        </Button>
-      </div>
 
       {showAvatarPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
@@ -369,38 +338,16 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         </section>
       )}
       <section style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            className="gh-btn gh-btn--flex"
-            onClick={handleCreate}
-            disabled={loading}
-            aria-label="Создать новую комнату"
-          >
-            Создать комнату
-          </button>
-          <button
-            type="button"
-            className="gh-btn gh-btn--flex"
-            onClick={() => codeInputRef.current?.focus()}
-            disabled={loading}
-            style={{ background: '#444' }}
-            aria-label="Перейти к вводу кода комнаты"
-          >
-            Ввести код
-          </button>
-        </div>
+        <button
+          type="button"
+          className="gh-btn gh-btn--block"
+          onClick={handleCreate}
+          disabled={loading}
+          aria-label="Начать игру и создать комнату"
+        >
+          Начать игру
+        </button>
       </section>
-
-      {publicStats && (
-        <section className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
-          <div style={{ fontSize: 13, opacity: 0.88, marginBottom: 6 }}>Сегодня в сообществе</div>
-          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            Игроков: <strong>{publicStats.playersToday ?? '—'}</strong> ·
-            Стартов: <strong> {publicStats.gamesStartedToday ?? '—'}</strong>
-          </div>
-        </section>
-      )}
 
       <section className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
         <p style={{ marginBottom: 8 }}>Войти по коду</p>
@@ -645,11 +592,11 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         width={360}
       >
         <div style={{ lineHeight: 1.6, opacity: 0.92, fontSize: 14 }}>
-          <div>1) Создай комнату и разошли друзьям код или приглашение.</div>
-          <div style={{ marginTop: 6 }}>2) В лобби хост выбирает игру и нажимает «Начать».</div>
-          <div style={{ marginTop: 6 }}>3) После старта каждый видит свою карточку/роль.</div>
-          <div style={{ marginTop: 6 }}>4) Управление в игре только у ведущего (остальные угадывают/голосуют).</div>
-          <div style={{ marginTop: 6 }}>5) Кнопка «Назад» сверху слева дублирует действие «Назад».</div>
+          <div>1) Нажмите «Начать игру», чтобы создать комнату.</div>
+          <div style={{ marginTop: 6 }}>2) Поделитесь ссылкой или дайте друзьям код из блока «Войти по коду».</div>
+          <div style={{ marginTop: 6 }}>3) В лобби выберите игру и настройте параметры.</div>
+          <div style={{ marginTop: 6 }}>4) Профиль открывается нажатием на карточку с аватаром и именем.</div>
+          <div style={{ marginTop: 6 }}>5) Магазин открывается с главной, покупки сохраняются локально.</div>
         </div>
         <div style={{ marginTop: 16 }}>
           <Button variant="secondary" fullWidth onClick={() => setShowInstruction(false)}>

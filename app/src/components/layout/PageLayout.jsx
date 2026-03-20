@@ -21,6 +21,19 @@ export default function PageLayout({
         </div>
       </header>
       <main className="gh-shell__content gh-page">{children}</main>
+      <footer style={{ padding: '8px 12px 14px', opacity: 0.82 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12 }}>
+          <a href="/seo">SEO</a>
+          <a href="/how-to-play">Как играть</a>
+          <a href="/games/spy">Шпион</a>
+          <a href="/games/mafia">Мафия</a>
+          <a href="/games/elias">Элиас</a>
+          <a href="/games/truth_dare">Правда/Действие</a>
+          <a href="/games/bunker">Бункер</a>
+          <a href="/privacy">Приватность</a>
+          <a href="/rules">Правила</a>
+        </div>
+      </footer>
       {stickyBottom ? <div className="gh-actionbar">{stickyBottom}</div> : null}
     </div>
   );
