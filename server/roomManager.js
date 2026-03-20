@@ -7,6 +7,8 @@ const codeGen = customAlphabet(alphabet, 6);
 const rooms = new Map();
 const codes = new Map();
 const inviteTokens = new Map();
+const ADJ = ['Веселые', 'Летучие', 'Танцующие', 'Сонные', 'Пьяные', 'Мохнатые', 'Шумные', 'Добрые'];
+const NOUN = ['Плясуны', 'Барабашки', 'Финтиплюшки', 'Крендельки', 'Карасики', 'Хохотуны', 'Скворечники', 'Булочки'];
 
 function generateCode() {
   let code;
@@ -21,6 +23,12 @@ function generateInviteToken() {
   return inviteTokens.has(token) ? generateInviteToken() : token;
 }
 
+function generateRoomName() {
+  const a = ADJ[Math.floor(Math.random() * ADJ.length)];
+  const b = NOUN[Math.floor(Math.random() * NOUN.length)];
+  return `${a} ${b}`;
+}
+
 export const roomManager = {
   create(hostId, hostName = 'Хост', hostPhotoUrl = null, hostHasPro = false, hostAvatarEmoji = null) {
     const roomId = crypto.randomUUID();
@@ -31,7 +39,7 @@ export const roomManager = {
       hostId,
       code,
       inviteToken,
-      name: 'Лобби',
+      name: generateRoomName(),
       players: [{ id: hostId, name: hostName, isHost: true, photo_url: hostPhotoUrl || null, avatar_emoji: hostAvatarEmoji || null }],
       playerInventories: { [hostId]: { dictionaries: ['free'], hasPro: false } },
       selectedGame: null,

@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
 import { getInventory } from '../inventory';
-import { getAvatar } from '../displayName';
+import { getAvatar, getProfilePhoto } from '../displayName';
 import { exportCustomDictionariesText, getCustomDictionaries, importCustomDictionariesText, saveCustomEliasWords } from '../customDictionaries';
-import { buildInviteLinks, INVITE_TEMPLATES, shareInviteSmart } from '../invite';
+import { buildInviteLinks, shareInviteSmart } from '../invite';
 import ShopModal from '../components/ShopModal';
 import { useToast } from '../components/ui/ToastProvider';
 import Modal from '../components/ui/Modal';
@@ -149,8 +149,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [gamesPickerOpen, setGamesPickerOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
-  const [quickGuideOpen, setQuickGuideOpen] = useState(false);
-  const [inviteTemplate, setInviteTemplate] = useState('classic');
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
@@ -195,10 +193,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   useEffect(() => {
     const inv = getInventory();
     const avatarEmoji = getAvatar();
+    const localPhoto = getProfilePhoto();
     api.patch(`/rooms/${roomId}/players/me`, {
       playerId: String(user?.id),
-      inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
-      photo_url: user?.photo_url || null,
+      inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
+      photo_url: localPhoto || user?.photo_url || null,
       avatar_emoji: avatarEmoji || null,
     }).then((r) => {
       if (r.room) onRoomUpdate(r.room);
@@ -454,11 +453,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       roomName,
       miniAppLink,
       webLink,
-      templateId: inviteTemplate,
       preferTelegram: true,
     });
     if (result.ok) {
-      track('invite_share', { source: 'lobby', mode: result.mode || 'unknown', template: inviteTemplate });
+      track('invite_share', { source: 'lobby', mode: result.mode || 'unknown' });
       showToast({
         type: result.mode === 'clipboard' ? 'success' : 'info',
         message: result.mode === 'clipboard' ? 'Ссылка скопирована — вставьте в чат' : 'Выберите чат для отправки',
@@ -488,18 +486,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const playersList = room.players || [];
   const onlineCount = playersList.filter((p) => p.online !== false).length;
-  const quickGuideText = selectedGame === 'spy'
-    ? 'Шпион: хост запускает игру, игроки обсуждают, затем голосование. Мирные ищут шпиона.'
-    : selectedGame === 'mafia'
-      ? 'Мафия: ночь по ролям, день обсуждение, затем голосование. Держите темп через таймеры.'
-      : selectedGame === 'elias'
-        ? 'Элиас: активная команда объясняет слово, угадывания дают очки, пропуск может штрафовать.'
-        : selectedGame === 'truth_dare'
-          ? 'Правда/Действие: по очереди выполняйте карточку. Для 18+ включается подтверждение возраста.'
-          : selectedGame === 'bunker'
-            ? 'Бункер: раскрытия, обсуждение, голосование и выбывания. Побеждают выжившие к финалу.'
-            : 'Выберите игру в списке и настройте параметры перед стартом.';
-
   return (
     <PageLayout
       title={roomName}
@@ -541,20 +527,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       {inviteLink && (
         <div style={{ marginBottom: 16 }}>
           <p>Приглашение:</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-            {INVITE_TEMPLATES.map((tpl) => (
-              <Chip
-                key={tpl.id}
-                active={inviteTemplate === tpl.id}
-                onClick={() => {
-                  setInviteTemplate(tpl.id);
-                  track('invite_template_selected', { source: 'lobby', template: tpl.id });
-                }}
-              >
-                {tpl.label}
-              </Chip>
-            ))}
-          </div>
           {miniAppLink && (
             <p style={{ marginBottom: 4 }}>
               <a href={miniAppLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
@@ -584,15 +556,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <Chip onClick={shareInvite} active>
               Поделиться
-            </Chip>
-            <Chip onClick={() => setShopOpen(true)}>
-              Магазин
-            </Chip>
-            <Chip onClick={() => setGamesPickerOpen((v) => !v)} active={gamesPickerOpen}>
-              Выбор игр
-            </Chip>
-            <Chip onClick={() => setQuickGuideOpen(true)}>
-              Гайд
             </Chip>
             <Chip onClick={() => setLeaveConfirmOpen(true)}>
               Выйти
@@ -1789,13 +1752,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         ) : (
           <EmptyState title="Нет ссылки" message="Сначала создайте или восстановите комнату." />
         )}
-      </Modal>
-
-      <Modal open={quickGuideOpen} onClose={() => setQuickGuideOpen(false)} title="Быстрый гайд" width={360}>
-        <p style={{ marginTop: 0, marginBottom: 12, lineHeight: 1.45 }}>{quickGuideText}</p>
-        <Button variant="secondary" fullWidth onClick={() => setQuickGuideOpen(false)}>
-          Понял
-        </Button>
       </Modal>
 
       <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} initialGameFilter={selectedGame || 'all'} />

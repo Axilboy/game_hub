@@ -5,7 +5,7 @@ import { api } from './api';
 import { socket } from './socket';
 import { addSessionTime, recordGameFinish, recordGameStart, touchVisit } from './stats';
 import { getInventory } from './inventory';
-import { getDisplayName, getAvatar } from './displayName';
+import { getAvatar, getDisplayName, getProfilePhoto } from './displayName';
 import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
 import Home from './pages/Home';
@@ -82,10 +82,11 @@ function AppRoutes() {
     const inv = getInventory();
     const displayName = getDisplayName();
     const avatarEmoji = getAvatar();
+    const customPhoto = getProfilePhoto();
     const { room: r, inviteToken } = await api.post('/rooms', {
       hostId: String(user.id),
       hostName: displayName || user.first_name || 'Хост',
-      hostPhotoUrl: user.photo_url || null,
+      hostPhotoUrl: customPhoto || user.photo_url || null,
       hostHasPro: inv.hasPro,
       hostAvatarEmoji: avatarEmoji || null,
     });
@@ -104,12 +105,13 @@ function AppRoutes() {
     const inv = getInventory();
     const displayName = getDisplayName();
     const avatarEmoji = getAvatar();
+    const customPhoto = getProfilePhoto();
     const { room: r } = await api.post('/rooms/join', {
       code: code.trim(),
       playerId: String(user.id),
       playerName: displayName || user.first_name || 'Игрок',
       inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
-      photo_url: user.photo_url || null,
+      photo_url: customPhoto || user.photo_url || null,
       avatar_emoji: avatarEmoji || null,
     });
     setRoom(r);
@@ -127,6 +129,7 @@ function AppRoutes() {
     const inv = getInventory();
     const displayName = getDisplayName();
     const avatarEmoji = getAvatar();
+    const customPhoto = getProfilePhoto();
     track('invite_join_attempt', { source: 'invite' });
     try {
       const { room: r } = await api.post('/rooms/join', {
@@ -134,7 +137,7 @@ function AppRoutes() {
         playerId: String(user.id),
         playerName: displayName || user.first_name || 'Игрок',
         inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
-        photo_url: user.photo_url || null,
+        photo_url: customPhoto || user.photo_url || null,
         avatar_emoji: avatarEmoji || null,
       });
       setRoom(r);

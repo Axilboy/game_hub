@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { canStartTrial, getInventory, getOrCreateReferralCode, redeemReferralCode, setPro, startTrialUnlock } from '../inventory';
 import { api, getApiErrorMessage } from '../api';
-import { getDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
+import { getDisplayName, getAvatar, getProfilePhoto, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
@@ -66,6 +66,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [inviteIssue, setInviteIssue] = useState(false);
   const codeInputRef = useRef(null);
   const shownName = displayNameState || user?.first_name || 'Игрок';
+  const profilePhoto = getProfilePhoto();
   const myReferralCode = getOrCreateReferralCode();
 
   const inviteToken = safeSessionGet('inviteToken');
@@ -263,6 +264,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
             <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
               {avatarState}
             </div>
+          ) : profilePhoto ? (
+            <img src={profilePhoto} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
           ) : user?.photo_url ? (
             <img src={user.photo_url} alt="" style={{ width: 48, height: 48, borderRadius: '50%' }} />
           ) : (
@@ -338,6 +341,17 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         </section>
       )}
       <section style={{ marginBottom: 12 }}>
+        {hasLastRoom && (
+          <button
+            type="button"
+            className="gh-btn gh-btn--block gh-btn--muted"
+            onClick={handleResumeRoom}
+            disabled={loading}
+            style={{ marginBottom: 8 }}
+          >
+            Вернуться в игру
+          </button>
+        )}
         <button
           type="button"
           className="gh-btn gh-btn--block"
@@ -391,18 +405,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           </p>
           <Button variant="primary" fullWidth onClick={handleRematchRejoin} disabled={loading}>
             Вернуться на рематч
-          </Button>
-        </section>
-      )}
-
-      {hasLastRoom && !hasRematchRoom && (
-        <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Последняя комната</div>
-          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
-            Вернуться в ту же сессию, если сервер ещё держит лобби.
-          </p>
-          <Button variant="primary" fullWidth onClick={handleResumeRoom} disabled={loading}>
-            Продолжить игру
           </Button>
         </section>
       )}

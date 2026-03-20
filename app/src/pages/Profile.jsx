@@ -4,7 +4,7 @@ import useSeo from '../hooks/useSeo';
 import { api } from '../api';
 import { getLevelProgress, getStats } from '../stats';
 import { getInventory } from '../inventory';
-import { getDisplayName, getAvatar } from '../displayName';
+import { AVATAR_EMOJI_LIST, getAvatar, getDisplayName, getProfilePhoto, setAvatar, setDisplayName, setProfilePhoto } from '../displayName';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
@@ -78,6 +78,9 @@ export default function Profile({ user }) {
       return 'default';
     }
   });
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [photo, setPhoto] = useState(() => getProfilePhoto());
 
   useEffect(() => {
     api
@@ -90,6 +93,9 @@ export default function Profile({ user }) {
     setLocal(getStats());
     setFunnel(getFunnelSummary());
   }, []);
+  useEffect(() => {
+    setNameDraft(getDisplayName() || user?.first_name || 'Игрок');
+  }, [user?.first_name]);
 
   const gamesPlayed = local.gamesPlayed ?? 0;
   const level = getLevelProgress(local);
@@ -112,6 +118,24 @@ export default function Profile({ user }) {
     `Любимая игра: ${topGame}\n` +
     `Streak: ${currentStreak} (рекорд ${bestStreak})\n` +
     `Про: ${inv.hasPro ? 'да' : 'нет'}`;
+
+  const saveName = () => {
+    const v = String(nameDraft || '').trim();
+    setDisplayName(v);
+    setNameDraft(v || (user?.first_name || 'Игрок'));
+  };
+
+  const onUploadPhoto = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || '');
+      setProfilePhoto(url);
+      setPhoto(url);
+    };
+    reader.readAsDataURL(f);
+  };
 
   const exportProfileCard = async () => {
     try {
@@ -172,17 +196,57 @@ export default function Profile({ user }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {avatar ? (
             <div style={{ fontSize: 36, lineHeight: 1 }}>{avatar}</div>
+          ) : photo ? (
+            <img src={photo} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
           ) : user?.photo_url ? (
             <img src={user.photo_url} alt="" style={{ width: 52, height: 52, borderRadius: '50%' }} />
           ) : (
             <div style={{ fontSize: 36, lineHeight: 1 }}>👤</div>
           )}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 18 }}>{name}</div>
+            {editingName ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  className="gh-input gh-input--full"
+                  style={{ maxWidth: 220 }}
+                />
+                <Button variant="secondary" onClick={() => { saveName(); setEditingName(false); }} style={{ padding: '6px 10px' }}>
+                  OK
+                </Button>
+              </div>
+            ) : (
+              <div style={{ fontWeight: 800, fontSize: 18 }}>{name}</div>
+            )}
             <div style={{ fontSize: 14, opacity: 0.85, marginTop: 4 }}>
               {inv.hasPro ? <Badge tone="success">Про активна</Badge> : <Badge>Без Про</Badge>}
             </div>
           </div>
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Button variant="secondary" onClick={() => setEditingName((v) => !v)} style={{ padding: '8px 10px' }}>
+            {editingName ? 'Отмена' : 'Изменить имя'}
+          </Button>
+          <label className="gh-btn gh-btn--muted" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+            Загрузить фото
+            <input type="file" accept="image/*" onChange={onUploadPhoto} style={{ display: 'none' }} />
+          </label>
+          <Button variant="secondary" onClick={() => { setProfilePhoto(''); setPhoto(null); }} style={{ padding: '8px 10px' }}>
+            Сброс фото
+          </Button>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {AVATAR_EMOJI_LIST.slice(0, 12).map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => setAvatar(e)}
+              style={{ border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', background: avatar === e ? 'rgba(90,160,90,0.35)' : 'rgba(255,255,255,0.08)' }}
+            >
+              {e}
+            </button>
+          ))}
         </div>
       </header>
 
