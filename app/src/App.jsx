@@ -251,17 +251,35 @@ function AppRoutes() {
     const pid = String(user.id);
     try {
       const { room: r } = await api.get(`/rooms/${id}`);
+      const displayName = getDisplayName() || user.first_name || 'Игрок';
+      const avatarEmoji = getAvatar();
+      const inv = getInventory();
+
+      let roomToUse = r;
+      // If user left the room earlier but lobby is still active, rejoin by code.
       if (!r?.players?.some((p) => p.id === pid)) {
+        const joined = await api.post('/rooms/join', {
+          code: String(r?.code || '').trim(),
+          playerId: pid,
+          playerName: displayName,
+          inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
+          photo_url: user?.photo_url || null,
+          avatar_emoji: avatarEmoji || null,
+        });
+        roomToUse = joined?.room || null;
+      }
+
+      if (!roomToUse) {
         sessionStorage.removeItem('gameHub_lastRoomId');
         return null;
       }
-      const displayName = getDisplayName() || user.first_name || 'Игрок';
-      const isHost = r.hostId === pid;
-      setRoom(r);
+
+      const isHost = roomToUse.hostId === pid;
+      setRoom(roomToUse);
       setRoomId(id);
-      if (r.inviteToken) sessionStorage.setItem('inviteToken', r.inviteToken);
+      if (roomToUse.inviteToken) sessionStorage.setItem('inviteToken', roomToUse.inviteToken);
       socket.connect(id, { id: pid, name: displayName, isHost });
-      return r;
+      return roomToUse;
     } catch (_) {
       try {
         sessionStorage.removeItem('gameHub_lastRoomId');

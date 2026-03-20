@@ -75,7 +75,20 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={onClose}>
-      <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 380, width: '100%', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+      <div
+        style={{
+          background: 'var(--tg-theme-bg-color, #1a1a1a)',
+          padding: 20,
+          borderRadius: 12,
+          maxWidth: 380,
+          width: '100%',
+          height: 'min(90vh, 760px)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин и словари</h3>
         <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
           Витрина: тематические наборы слов и фичи по играм. С <strong>Про</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
@@ -104,7 +117,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
             <button key={c.id} type="button" onClick={() => setShopCategoryFilter(c.id)} style={{ ...btnStyle, width: 'auto', padding: '8px 12px', fontSize: 13, background: shopCategoryFilter === c.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{c.name}</button>
           ))}
         </div>
-        <div style={{ overflowY: 'auto', maxHeight: '48vh' }}>
+        <div style={{ flex: 1, minHeight: 220, overflowY: 'auto', paddingRight: 2 }}>
           {popular.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ margin: '0 0 8px', fontSize: 13, opacity: 0.9 }}>Популярное</p>
