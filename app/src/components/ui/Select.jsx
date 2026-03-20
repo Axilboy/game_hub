@@ -5,6 +5,8 @@ export default function Select({
   className = '',
   style,
   disabled = false,
+  'aria-label': ariaLabel,
+  ...rest
 }) {
   return (
     <select
@@ -13,6 +15,8 @@ export default function Select({
       disabled={disabled}
       className={`gh-input gh-input--full ${className}`.trim()}
       style={style}
+      aria-label={ariaLabel}
+      {...rest}
     >
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>

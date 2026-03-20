@@ -90,17 +90,20 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
         <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
           Витрина: тематические наборы слов и фичи по играм. С <strong>Про</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
         </p>
-        <p style={{ fontSize: 13, marginBottom: 12 }}>Игра</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-          {SHOP_GAMES.map((g) => (
-            <button key={g.id} type="button" onClick={() => setShopGameFilter(g.id)} style={{ ...btnStyle, width: 'auto', padding: '8px 12px', fontSize: 13, background: shopGameFilter === g.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{g.name}</button>
-          ))}
-        </div>
-        <p style={{ fontSize: 13, marginBottom: 12 }}>Категория</p>
+        <p style={{ fontSize: 13, marginBottom: 8 }}>Игра</p>
+        <Select
+          value={shopGameFilter}
+          onChange={(e) => setShopGameFilter(e.target.value)}
+          options={SHOP_GAMES.map((g) => ({ value: g.id, label: g.name }))}
+          aria-label="Фильтр по игре"
+          style={{ marginBottom: 14 }}
+        />
+        <p style={{ fontSize: 13, marginBottom: 8 }}>Категория</p>
         <Select
           value={shopCategoryFilter}
           onChange={(e) => setShopCategoryFilter(e.target.value)}
           options={SHOP_CATEGORIES.map((c) => ({ value: c.id, label: c.name }))}
+          aria-label="Фильтр по категории"
           style={{ marginBottom: 10 }}
         />
         <div style={{ flex: 1, minHeight: 220, overflowY: 'auto', paddingRight: 2 }}>

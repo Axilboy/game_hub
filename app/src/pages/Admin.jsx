@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import BackArrow from '../components/BackArrow';
+import SeoFooter from '../components/layout/SeoFooter';
 import { useToast } from '../components/ui/ToastProvider';
 
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
@@ -135,6 +136,7 @@ export default function Admin() {
       <button type="button" onClick={() => setPromoView(true)} style={btnStyle}>Создать промокод</button>
       <button type="button" onClick={loadStats} style={{ ...btnStyle, marginTop: 8, background: '#555' }}>Обновить статистику</button>
       <button type="button" onClick={exitAdmin} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>Выйти из админки</button>
+      <SeoFooter style={{ marginTop: 24 }} />
     </div>
   );
 }

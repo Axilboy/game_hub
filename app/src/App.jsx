@@ -146,7 +146,7 @@ function AppRoutes() {
         sessionStorage.removeItem('gameHub_rematchRoomId');
       } catch (_) {}
       track('room_join', { roomId: r.id, source: 'invite' });
-      socket.connect(r.id, { id: String(user.id), name: user.first_name || 'Игрок', isHost: false });
+      socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: false });
       return r;
     } catch (e) {
       track('invite_join_failed', { source: 'invite', reason: String(e?.message || 'unknown') });
@@ -256,6 +256,7 @@ function AppRoutes() {
       const inv = getInventory();
 
       let roomToUse = r;
+      const customPhoto = getProfilePhoto();
       // If user left the room earlier but lobby is still active, rejoin by code.
       if (!r?.players?.some((p) => p.id === pid)) {
         const joined = await api.post('/rooms/join', {
@@ -263,7 +264,7 @@ function AppRoutes() {
           playerId: pid,
           playerName: displayName,
           inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
-          photo_url: user?.photo_url || null,
+          photo_url: customPhoto || user?.photo_url || null,
           avatar_emoji: avatarEmoji || null,
         });
         roomToUse = joined?.room || null;

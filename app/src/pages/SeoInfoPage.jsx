@@ -1,5 +1,6 @@
 import useSeo from '../hooks/useSeo';
 import BackArrow from '../components/BackArrow';
+import SeoFooter from '../components/layout/SeoFooter';
 
 const btnStyle = {
   padding: '12px 20px',
@@ -46,6 +47,8 @@ export default function SeoInfoPage({
           {ctaLabel}
         </button>
       ) : null}
+
+      <SeoFooter />
     </div>
   );
 }

@@ -567,6 +567,17 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </div>
         </div>
       )}
+
+      {isHost && selectedGame === null && !gamesPickerOpen && (
+        <div className="gh-card" style={{ padding: 12, marginBottom: 16 }}>
+          <p style={{ margin: '0 0 10px', fontSize: 13, opacity: 0.88, lineHeight: 1.4 }}>
+            Выберите режим для комнаты — откроется список игр.
+          </p>
+          <Button variant="primary" fullWidth onClick={() => setGamesPickerOpen(true)} aria-label="Открыть выбор игры">
+            Выбрать игру
+          </Button>
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
         {playersList.length === 0 ? (
           <EmptyState title="Игроков пока нет" message="Поделитесь кодом комнаты или ссылкой-приглашением." />
@@ -648,16 +659,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {null}
-
       {getHostTips() && (
         <div className="gh-card" style={{ padding: 12, marginBottom: 16, borderColor: 'rgba(255, 220, 80, 0.35)' }}>
           <p style={{ margin: 0, fontWeight: 800, marginBottom: 6, opacity: 0.95, color: '#fd8' }}>Подсказка хосту</p>
           <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>{getHostTips()}</p>
         </div>
       )}
-
-      {null}
 
       {selectedGame === 'spy' && (
         <>

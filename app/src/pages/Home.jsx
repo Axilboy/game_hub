@@ -323,7 +323,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               }}
               disabled={loading}
             >
-              Создать комнату
+              Начать игру
             </button>
             {hasRematchRoom && (
               <button
@@ -580,6 +580,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/elias')}>Элиас</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/mafia')}>Мафия</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/truth_dare')}>Правда/действие</button>
+          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/bunker')}>Бункер</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/privacy')}>Приватность</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/rules')}>Правила</button>
         </div>

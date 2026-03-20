@@ -9,11 +9,11 @@ export default function SeoHowToPlay({ onBack }) {
       onBack={onBack}
       sections={[
         {
-          title: 'Шаг 1 — создайте комнату',
+          title: 'Шаг 1 — начните игру',
           body: (
             <>
-              <div>Откройте GameHub в Telegram.</div>
-              <div style={{ marginTop: 8 }}>Создайте комнату и получите код или приглашение.</div>
+              <div>Откройте GameHub в Telegram или в браузере.</div>
+              <div style={{ marginTop: 8 }}>Нажмите «Начать игру», чтобы создать комнату и получить код или приглашение.</div>
             </>
           ),
         },

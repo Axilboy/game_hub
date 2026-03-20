@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import useSeo from '../hooks/useSeo';
 import BackArrow from '../components/BackArrow';
+import SeoFooter from '../components/layout/SeoFooter';
 
 const btnStyle = {
   padding: '12px 20px',
@@ -129,19 +130,7 @@ export default function SeoLanding({ navigateToApp, onNavigate }) {
         </dl>
       </section>
 
-      <section style={{ marginTop: 22, fontSize: 14, opacity: 0.88 }}>
-        <a href="/how-to-play" onClick={(e) => { e.preventDefault(); nav('/how-to-play'); }} style={{ color: '#7ab' }}>
-          Как играть
-        </a>
-        {' · '}
-        <a href="/privacy" onClick={(e) => { e.preventDefault(); nav('/privacy'); }} style={{ color: '#7ab' }}>
-          Приватность
-        </a>
-        {' · '}
-        <a href="/rules" onClick={(e) => { e.preventDefault(); nav('/rules'); }} style={{ color: '#7ab' }}>
-          Правила
-        </a>
-      </section>
+      <SeoFooter style={{ marginTop: 8 }} />
     </div>
   );
 }
