@@ -9,6 +9,7 @@ import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 import Button from '../components/ui/Button';
 import PostMatchScreen from '../components/game/PostMatchScreen';
+import { track } from '../analytics';
 
 function phaseTitle(phase) {
   if (phase === 'intro') return 'Ознакомление';
@@ -38,6 +39,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
   const maxRounds = state && typeof state.maxRounds === 'number' ? state.maxRounds : null;
   const [, setTick] = useState(0);
   const requestSeqRef = useRef(0);
+  const phaseTrackRef = useRef('');
 
   const refreshState = ({ silent = false } = {}) => {
     if (!roomId || !myId) return;
@@ -82,6 +84,14 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
     const id = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(id);
   }, [state?.phaseEndsAt]);
+
+  useEffect(() => {
+    if (!state?.phase) return;
+    const key = `${state.phase}:${state.roundIndex ?? 0}`;
+    if (phaseTrackRef.current === key) return;
+    phaseTrackRef.current = key;
+    track('bunker_phase_change', { phase: state.phase, round: state.roundIndex ?? 0 });
+  }, [state?.phase, state?.roundIndex]);
 
   const leaveToLobby = async () => {
     try {
@@ -137,6 +147,8 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
         ? state.alive[0]?.name || state.alive[0]?.id || '—'
         : '—';
 
+    const survived = Array.isArray(state.alive) && state.alive.some((p) => p.id === myId);
+    const crisesSeen = Array.isArray(state.crisisHistory) ? state.crisisHistory.length : 0;
     return (
       <PostMatchScreen
         top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
@@ -155,6 +167,17 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
           <p style={{ margin: 0, fontSize: 16, opacity: 0.92 }}>
             Победитель: <strong>{winner}</strong>
           </p>
+          <p style={{ margin: '10px 0 0', fontSize: 14, opacity: 0.9 }}>
+            Ваш итог: <strong>{survived ? 'Выжили' : 'Исключены'}</strong>
+          </p>
+          <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.86 }}>
+            Раундов сыграно: {state.roundIndex ?? 0} · Катастроф пережито: {crisesSeen}
+          </p>
+          {Array.isArray(state.crisisHistory) && state.crisisHistory.length > 0 && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.8, lineHeight: 1.45 }}>
+              Кризисы: {state.crisisHistory.map((c) => c.name).join(' · ')}
+            </p>
+          )}
         </div>
       </PostMatchScreen>
     );
@@ -194,6 +217,11 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
         <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>
           Живые: <strong>{(state.alive || []).length}</strong>
         </p>
+        {state.scenario?.name && (
+          <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>
+            Сценарий: <strong>{state.scenario.name}</strong>
+          </p>
+        )}
       </div>
 
       {(state.eliminatedLog || []).length ? (

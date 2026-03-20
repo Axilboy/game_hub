@@ -127,6 +127,19 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     explainingTeamIndex != null && teams[explainingTeamIndex]
       ? teams[explainingTeamIndex].name
       : null;
+  const myStats = state.playerStats?.[myId] || { guessed: 0, skipped: 0 };
+  const topPlayers = Object.entries(state.playerStats || {})
+    .map(([id, s]) => ({
+      id,
+      guessed: Number(s?.guessed) || 0,
+      skipped: Number(s?.skipped) || 0,
+      value: (Number(s?.guessed) || 0) - (Number(s?.skipped) || 0),
+    }))
+    .sort((a, b) => b.value - a.value || b.guessed - a.guessed)
+    .slice(0, 3);
+  const playerNameById = new Map(
+    (room?.players || []).map((p) => [p.id, p.name]),
+  );
 
   if (winner != null) {
     const winTeam = teams[winner];
@@ -143,6 +156,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       >
         <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
         <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t, i) => `${t.name} ${t.score}`).join(' — ')}</p>
+        {state?.mvp && (
+          <p style={{ marginBottom: 0, opacity: 0.9 }}>
+            MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
+          </p>
+        )}
       </PostMatchScreen>
     );
   }
@@ -175,6 +193,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
       <div className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
         <p style={{ marginBottom: 8, opacity: 0.9 }}>Объясняет: {state.explainerName}</p>
+        {explainingTeamName && (
+          <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>
+            Активная команда: {explainingTeamName}
+          </p>
+        )}
         {timerStarted ? (
           <>
             <p style={{ marginBottom: 6, fontSize: 20 }}>Таймер: {formatTime(timeLeft)}</p>
@@ -184,6 +207,26 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
           </>
         ) : (
           <p style={{ marginBottom: 0, fontSize: 16, opacity: 0.8 }}>Ожидание готовности всех…</p>
+        )}
+      </div>
+
+      <div className="gh-card" style={{ marginBottom: 16, padding: 12, background: 'rgba(0,0,0,0.2)' }}>
+        <p style={{ margin: '0 0 8px 0', fontWeight: 700 }}>Scoreboard раунда</p>
+        <p style={{ margin: '0 0 6px 0', fontSize: 13, opacity: 0.9 }}>
+          Ваш вклад: угадано {myStats.guessed || 0} · пропусков {myStats.skipped || 0}
+        </p>
+        <p style={{ margin: '0 0 6px 0', fontSize: 13, opacity: 0.85 }}>
+          Штраф за пропуск: −{state.skipPenalty ?? 1} очко (у активной команды)
+        </p>
+        {state.mvp && (
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.92 }}>
+            MVP объясняющего: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped}, value {state.mvp.value})
+          </p>
+        )}
+        {topPlayers.length > 0 && (
+          <p style={{ margin: '8px 0 0 0', fontSize: 13, opacity: 0.9 }}>
+            Топ раунда: {topPlayers.map((p) => `${playerNameById.get(p.id) || 'Игрок'} (${p.value})`).join(' · ')}
+          </p>
         )}
       </div>
 
@@ -218,7 +261,17 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       )}
 
       {timeUp && (
-        <button type="button" onClick={nextTurn} style={{ ...btnStyle, marginTop: 16, background: '#85a' }}>Следующий ход</button>
+        state.isCurrentExplainer ? (
+          <button type="button" onClick={nextTurn} style={{ ...btnStyle, marginTop: 16, background: '#85a' }}>
+            Следующий ход
+          </button>
+        ) : (
+          <div className="gh-card" style={{ marginTop: 16, padding: 12, background: 'rgba(0,0,0,0.2)' }}>
+            <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
+              Таймер вышел. Смену хода запускает текущий объясняющий: <strong>{state.explainerName}</strong>
+            </p>
+          </div>
+        )
       )}
     </GameLayout>
   );

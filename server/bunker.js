@@ -9,11 +9,12 @@ const DEFAULT_BUNKER_PHASE_TIMERS = {
 };
 
 const DEFAULT_MAX_ROUNDS = 3;
+const DEFAULT_SCENARIO_ID = 'shelter_default';
 
-const PROFESSIONS = ['Врач', 'Инженер', 'Архивариус', 'Навигатор', 'Психолог', 'Электрик'];
-const SKILLS = ['Мастер ремонта', 'Спокойствие', 'Смекалка', 'Наблюдательность', 'Коммуникация', 'Лидерство'];
-const PHOBIAS = ['Темнота', 'Высота', 'Одиночество', 'Громкие звуки', 'Замкнутое пространство', 'Кровь'];
-const BAGGAGES = ['Фотография', 'Аптечка', 'Книга', 'Фляга', 'Компас', 'Блокнот'];
+const PROFESSIONS = ['Врач', 'Инженер', 'Архивариус', 'Навигатор', 'Психолог', 'Электрик', 'Агроном', 'Биохимик', 'Повар', 'Пожарный', 'Механик', 'Пилот'];
+const SKILLS = ['Мастер ремонта', 'Спокойствие', 'Смекалка', 'Наблюдательность', 'Коммуникация', 'Лидерство', 'Первая помощь', 'Выживание', 'Переговоры', 'Точная стрельба', 'Планирование', 'Обучаемость'];
+const PHOBIAS = ['Темнота', 'Высота', 'Одиночество', 'Громкие звуки', 'Замкнутое пространство', 'Кровь', 'Насекомые', 'Огонь', 'Вода', 'Толпа', 'Болезни', 'Шторм'];
+const BAGGAGES = ['Фотография', 'Аптечка', 'Книга', 'Фляга', 'Компас', 'Блокнот', 'Рация', 'Фонарь', 'Набор инструментов', 'Фильтр воды', 'Сухпаек', 'Семена'];
 
 const CRISES = [
   { id: 'cr1', name: 'Тяга вентиляции упала', description: 'Воздух хуже, но паники не будет — пока есть дисциплина.' },
@@ -21,6 +22,19 @@ const CRISES = [
   { id: 'cr3', name: 'Неизвестный сигнал', description: 'Кто-то слышит “эхо”. Время на проверку ограничено.' },
   { id: 'cr4', name: 'Тепловой контур дымит', description: 'Система перегревается. Нужно решать: чинить или экономить.' },
   { id: 'cr5', name: 'Нарушение режима хранения', description: 'Часть запасов оказалась под угрозой. Действуйте быстро.' },
+  { id: 'cr6', name: 'Перебой генератора', description: 'Энергия падает рывками, требуется перераспределить нагрузку.' },
+  { id: 'cr7', name: 'Риск заражения', description: 'Один из контуров мог быть заражен. Нужен строгий протокол.' },
+  { id: 'cr8', name: 'Пыльная буря снаружи', description: 'Любой выход наружу крайне опасен в течение раунда.' },
+  { id: 'cr9', name: 'Срыв связи', description: 'Внешний канал связи пропал, решения принимаются только локально.' },
+  { id: 'cr10', name: 'Падение температуры', description: 'Система обогрева не справляется, важно сохранить ресурсы.' },
+  { id: 'cr11', name: 'Протечка воды', description: 'Резервуар поврежден, команда должна сократить расход.' },
+  { id: 'cr12', name: 'Конфликт в команде', description: 'Эмоциональное напряжение растет, нужен сильный медиатор.' },
+];
+
+export const BUNKER_SCENARIOS = [
+  { id: 'shelter_default', name: 'Классический бункер', premium: false, itemId: null, mood: 'balanced' },
+  { id: 'pandemic_plus', name: 'Пандемия+', premium: true, itemId: 'bunker_pandemic', mood: 'medical' },
+  { id: 'orbital_station', name: 'Орбитальная станция', premium: true, itemId: 'bunker_space', mood: 'space' },
 ];
 
 function pickOne(arr) {
@@ -42,7 +56,15 @@ export function normalizeBunkerSettings(input) {
     final: toSec(phaseTimersIn.final, DEFAULT_BUNKER_PHASE_TIMERS.final),
   };
   const maxRounds = Math.min(10, Math.max(1, Number(v.maxRounds) || DEFAULT_MAX_ROUNDS));
-  return { maxRounds, phaseTimers };
+  const scenarioId = typeof v.scenarioId === 'string' ? v.scenarioId : DEFAULT_SCENARIO_ID;
+  return { maxRounds, phaseTimers, scenarioId };
+}
+
+export function canUseBunkerScenario({ scenarioId, playerHasPro = false, unlockedItems = [] } = {}) {
+  const scenario = BUNKER_SCENARIOS.find((s) => s.id === scenarioId) || BUNKER_SCENARIOS[0];
+  if (!scenario.premium) return true;
+  if (playerHasPro) return true;
+  return Array.isArray(unlockedItems) && !!scenario.itemId && unlockedItems.includes(scenario.itemId);
 }
 
 export function createBunkerState(room, settings = {}) {
@@ -59,6 +81,7 @@ export function createBunkerState(room, settings = {}) {
     };
   }
 
+  const initialCrisis = pickOne(CRISES);
   return {
     phase: 'intro',
     phaseStartedAt: Date.now(),
@@ -67,6 +90,7 @@ export function createBunkerState(room, settings = {}) {
     bunkerPhaseTimeoutId: null,
 
     settings: normalized,
+    scenarioId: normalized.scenarioId || DEFAULT_SCENARIO_ID,
     maxRounds: normalized.maxRounds,
     roundIndex: 0, // сколько раундов уже завершено
 
@@ -75,7 +99,8 @@ export function createBunkerState(room, settings = {}) {
     eliminated: [], // { id, by, at }
 
     characters,
-    currentCrisis: pickOne(CRISES),
+    currentCrisis: initialCrisis,
+    crisisHistory: initialCrisis ? [{ id: initialCrisis.id, name: initialCrisis.name, at: Date.now() }] : [],
 
     discussionNotes: null,
     votes: {}, // voterId -> targetId

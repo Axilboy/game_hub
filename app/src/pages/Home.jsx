@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getInventory, setPro } from '../inventory';
-import { api } from '../api';
+import { canStartTrial, getInventory, getOrCreateReferralCode, redeemReferralCode, setPro, startTrialUnlock } from '../inventory';
+import { api, getApiErrorMessage } from '../api';
 import { getDisplayName, setDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
-import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
 import { track } from '../analytics';
+import { buildInviteLinks, shareInviteSmart } from '../invite';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import PageLayout from '../components/layout/PageLayout';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -25,6 +26,22 @@ function safeSessionGet(key) {
   }
 }
 
+function inviteJoinErrorMessage(err) {
+  const msg = getApiErrorMessage(err, '').toLowerCase();
+  if (msg.includes('room not found') || msg.includes('комната не найдена')) {
+    return 'Ссылка-приглашение устарела или комната уже закрыта.';
+  }
+  if (msg.includes('not in room')) {
+    return 'Вы больше не состоите в этой комнате. Войдите по коду или создайте новую.';
+  }
+  return 'Не удалось войти по приглашению';
+}
+
+function isInviteExpiredError(err) {
+  const msg = getApiErrorMessage(err, '').toLowerCase();
+  return msg.includes('room not found') || msg.includes('комната не найдена') || msg.includes('not in room');
+}
+
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
   useSeo({ robots: 'noindex, nofollow' });
@@ -35,6 +52,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [showSubStub, setShowSubStub] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [showShopStub, setShowShopStub] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
@@ -46,18 +64,32 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [showInstruction, setShowInstruction] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const [hasLastRoom, setHasLastRoom] = useState(false);
+  const [hasRematchRoom, setHasRematchRoom] = useState(false);
+  const [inviteIssue, setInviteIssue] = useState(false);
+  const [publicStats, setPublicStats] = useState(null);
+  const codeInputRef = useRef(null);
   const shownName = displayNameState || user?.first_name || 'Игрок';
+  const myReferralCode = getOrCreateReferralCode();
 
   const inviteToken = safeSessionGet('inviteToken');
-  const miniAppLink = BOT_USERNAME && inviteToken ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}` : '';
-  const webInviteLink = inviteToken ? `${BASE_URL.replace(/\/$/, '')}?invite=${inviteToken}` : '';
+  const { miniAppLink, webLink: webInviteLink } = buildInviteLinks({
+    inviteToken,
+    baseUrl: BASE_URL,
+    botUsername: BOT_USERNAME,
+  });
 
   useEffect(() => {
     try {
       setHasLastRoom(Boolean(sessionStorage.getItem('gameHub_lastRoomId')));
+      setHasRematchRoom(Boolean(sessionStorage.getItem('gameHub_rematchRoomId')));
     } catch (_) {
       setHasLastRoom(false);
+      setHasRematchRoom(false);
     }
+  }, []);
+
+  useEffect(() => {
+    api.get('/stats/public').then(setPublicStats).catch(() => setPublicStats(null));
   }, []);
 
   useEffect(() => {
@@ -68,14 +100,22 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       } catch (_) {}
       setLoading(true);
       onJoinByInvite(pending)
-        .then(() => navigate('/lobby'))
-        .catch(() => setError('Не удалось войти по приглашению'))
+        .then(() => {
+          setInviteIssue(false);
+          navigate('/lobby');
+        })
+        .catch((e) => {
+          track('invite_expired_or_invalid', { reason: String(e?.message || 'unknown') });
+          setInviteIssue(isInviteExpiredError(e));
+          setError(inviteJoinErrorMessage(e));
+        })
         .finally(() => setLoading(false));
     }
   }, []);
 
   const handleCreate = async () => {
     setError('');
+    setInviteIssue(false);
     setLoading(true);
     try {
       await onCreateRoom();
@@ -106,6 +146,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
   const handleResumeRoom = async () => {
     setError('');
+    setInviteIssue(false);
     setLoading(true);
     try {
       const r = await onResumeLastRoom?.();
@@ -118,15 +159,41 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
     }
   };
 
-  const copyInviteHint = async () => {
-    const text = miniAppLink || webInviteLink;
-    if (!text) return;
+  const handleRematchRejoin = async () => {
+    setError('');
+    setInviteIssue(false);
+    setLoading(true);
     try {
-      await navigator.clipboard.writeText(text);
-      track('invite_copied', { source: 'home' });
+      track('rematch_rejoin_click', { source: 'home' });
+      const r = await onResumeLastRoom?.();
+      if (r) {
+        try {
+          sessionStorage.removeItem('gameHub_rematchRoomId');
+        } catch (_) {}
+        setHasRematchRoom(false);
+        navigate('/lobby');
+      } else {
+        setError('Рематч-комната уже недоступна');
+      }
     } catch (_) {
-      setError('Не удалось скопировать ссылку');
+      setError('Рематч-комната недоступна');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const copyInviteHint = async () => {
+    const result = await shareInviteSmart({
+      roomName: null,
+      miniAppLink,
+      webLink: webInviteLink,
+      preferTelegram: true,
+    });
+    if (result.ok) {
+      track('invite_share', { source: 'home', mode: result.mode || 'unknown' });
+      return;
+    }
+    setError('Не удалось поделиться ссылкой');
   };
 
   const handleJoinByCode = async (e) => {
@@ -165,11 +232,13 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       const r = await api.post('/promocode/redeem', { code: promoCode.trim() });
       if (r.proExpiresAt) {
         setPro(r.proExpiresAt);
+        track('paywall_promocode_success', { source: 'home' });
         setInv(getInventory());
         setPromoCode('');
         setShowSubStub(false);
       }
     } catch (e) {
+      track('paywall_promocode_fail', { source: 'home' });
       setPromoError('Неверный или использованный промокод');
     }
   };
@@ -189,8 +258,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   };
 
   return (
-    <div className="gh-page">
-      <BackArrow onClick={() => window.history.back()} title="Назад" />
+    <PageLayout title="GameHub" onBack={() => window.history.back()}>
       <section className="gh-hero" style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 18, opacity: 0.9 }}>GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
         <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
@@ -257,7 +325,49 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         </div>
       )}
 
-      {error && <p style={{ color: '#f88' }}>{error}</p>}
+      {error && <p role="alert" aria-live="assertive" style={{ color: '#f88' }}>{error}</p>}
+      {inviteIssue && (
+        <section className="gh-card gh-fade-in" style={{ marginBottom: 14, padding: 12, border: '1px solid rgba(255,120,120,0.35)' }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Приглашение больше не работает</div>
+          <p style={{ fontSize: 13, opacity: 0.9, margin: '0 0 10px', lineHeight: 1.4 }}>
+            Комната могла закрыться или ссылка устарела. Быстрые варианты:
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="gh-btn gh-btn--muted"
+              onClick={() => {
+                codeInputRef.current?.focus();
+                setInviteIssue(false);
+                track('invite_fallback_cta', { action: 'focus_code' });
+              }}
+            >
+              Ввести код
+            </button>
+            <button
+              type="button"
+              className="gh-btn"
+              onClick={async () => {
+                track('invite_fallback_cta', { action: 'create_room' });
+                await handleCreate();
+              }}
+              disabled={loading}
+            >
+              Создать комнату
+            </button>
+            {hasRematchRoom && (
+              <button
+                type="button"
+                className="gh-btn gh-btn--muted"
+                onClick={handleRematchRejoin}
+                disabled={loading}
+              >
+                Рематч
+              </button>
+            )}
+          </div>
+        </section>
+      )}
       <section style={{ marginBottom: 12 }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -265,21 +375,33 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
             className="gh-btn gh-btn--flex"
             onClick={handleCreate}
             disabled={loading}
+            aria-label="Создать новую комнату"
           >
             Создать комнату
           </button>
           <button
             type="button"
             className="gh-btn gh-btn--flex"
-            disabled
-            aria-hidden="true"
-            tabIndex={-1}
-            style={{ visibility: 'hidden' }}
+            onClick={() => codeInputRef.current?.focus()}
+            disabled={loading}
+            style={{ background: '#444' }}
+            aria-label="Перейти к вводу кода комнаты"
           >
-            Войти
+            Ввести код
           </button>
         </div>
       </section>
+
+      {publicStats && (
+        <section className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
+          <div style={{ fontSize: 13, opacity: 0.88, marginBottom: 6 }}>Сегодня в сообществе</div>
+          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+            Игроков: <strong>{publicStats.playersToday ?? '—'}</strong> ·
+            Стартов: <strong> {publicStats.gamesStartedToday ?? '—'}</strong>
+          </div>
+        </section>
+      )}
+
       <section className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
         <p style={{ marginBottom: 8 }}>Войти по коду</p>
         {showAdminPassword ? (
@@ -297,6 +419,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         ) : (
           <form onSubmit={handleJoinByCode} style={{ display: 'flex', gap: 8 }}>
             <input
+              ref={codeInputRef}
               type="text"
               className="gh-input gh-input--grow"
               inputMode="numeric"
@@ -304,6 +427,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               placeholder="000000"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              aria-label="Код комнаты из 6 цифр"
             />
             <button type="submit" className="gh-btn" disabled={loading}>
               Войти
@@ -312,7 +436,19 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         )}
       </section>
 
-      {hasLastRoom && (
+      {hasRematchRoom && (
+        <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Быстрый рематч</div>
+          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
+            Последний матч завершился. Вернитесь в лобби одним нажатием.
+          </p>
+          <Button variant="primary" fullWidth onClick={handleRematchRejoin} disabled={loading}>
+            Вернуться на рематч
+          </Button>
+        </section>
+      )}
+
+      {hasLastRoom && !hasRematchRoom && (
         <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Последняя комната</div>
           <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
@@ -329,18 +465,26 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Пригласить друзей</div>
           <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px' }}>Ссылка на текущее приглашение (после создания комнаты).</p>
           <Button variant="secondary" fullWidth onClick={copyInviteHint}>
-            Копировать ссылку
+            Поделиться ссылкой
           </Button>
         </section>
       )}
 
       <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Как это работает</div>
+        <div style={{ fontWeight: 800, marginBottom: 10 }}>Сценарий за 30 секунд</div>
+        <ol style={{ margin: '0 0 12px', paddingLeft: 18, lineHeight: 1.5, fontSize: 13, opacity: 0.92 }}>
+          <li>Нажмите «Создать комнату».</li>
+          <li>Отправьте ссылку в чат (кнопка «Поделиться»).</li>
+          <li>Выберите игру и нажмите «Начать».</li>
+        </ol>
+      </section>
+
+      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
+        <div style={{ fontWeight: 800, marginBottom: 10 }}>3 шага до игры</div>
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
           <li>Создайте комнату или введите код от друзей.</li>
           <li>Хост выбирает игру и настройки в лобби.</li>
           <li>После старта каждый видит свою роль или карточку.</li>
-          <li>Действия ведущего синхронизируются у всех в реальном времени.</li>
         </ol>
       </section>
 
@@ -356,7 +500,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       </section>
 
       <section className="gh-card" style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 10 }}>
-        <button type="button" className="gh-btn gh-btn--flex gh-btn--green" onClick={() => setShowSubStub(true)}>
+        <button type="button" className="gh-btn gh-btn--flex gh-btn--green" onClick={() => { track('paywall_open', { source: 'home' }); setShowSubStub(true); }}>
           Купить подписку
         </button>
         <button type="button" className="gh-btn gh-btn--flex gh-btn--purple" onClick={() => setShowShopStub(true)}>
@@ -368,7 +512,41 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
             <p style={{ marginBottom: 16 }}>Про убирает рекламу перед стартом, открывает премиальные словари и режимы (например, расширенную Мафию) для <strong>всех</strong> в вашей комнате на время сессии.</p>
-            <button type="button" className="gh-btn gh-btn--block gh-btn--green gh-btn--mb" onClick={() => { setPro(Date.now() + 30 * 24 * 3600 * 1000); setInv(getInventory()); setShowSubStub(false); }}>Купить подписку</button>
+            <ul style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18, fontSize: 13, opacity: 0.92, lineHeight: 1.45 }}>
+              <li>Без рекламы перед стартом.</li>
+              <li>Премиальные словари и режимы.</li>
+              <li>Ценность на всю комнату в текущей сессии.</li>
+            </ul>
+            <button
+              type="button"
+              className="gh-btn gh-btn--block gh-btn--green gh-btn--mb"
+              onClick={() => {
+                setPro(Date.now() + 30 * 24 * 3600 * 1000);
+                track('paywall_buy_click', { source: 'home', plan: 'pro_30d' });
+                setInv(getInventory());
+                setShowSubStub(false);
+              }}
+            >
+              Купить подписку
+            </button>
+            <button
+              type="button"
+              className="gh-btn gh-btn--block gh-btn--charcoal gh-btn--mb"
+              onClick={() => {
+                const started = startTrialUnlock();
+                if (!started.ok) {
+                  setPromoError('Пробный период уже активировался недавно. Попробуйте позже.');
+                  track('paywall_trial_rejected', { source: 'home' });
+                  return;
+                }
+                track('paywall_trial_unlock', { source: 'home', hours: 24 });
+                setInv(started.inv || getInventory());
+                setShowSubStub(false);
+              }}
+              disabled={!canStartTrial()}
+            >
+              Пробный unlock на 24ч
+            </button>
             <button
               type="button"
               className="gh-btn gh-btn--block gh-btn--charcoal gh-btn--mb"
@@ -389,6 +567,47 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               <button type="button" className="gh-btn gh-btn--inline" onClick={applyPromoCode}>Применить</button>
             </div>
             {promoError && <p style={{ color: '#f88', fontSize: 14, marginBottom: 12 }}>{promoError}</p>}
+            <p style={{ marginBottom: 6 }}>Реферальный код друга</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text"
+                className="gh-input gh-input--grow"
+                placeholder="GH-XXXXX"
+                value={referralCode}
+                onChange={(e) => { setReferralCode(e.target.value); setPromoError(''); }}
+              />
+              <button
+                type="button"
+                className="gh-btn gh-btn--inline"
+                onClick={() => {
+                  const r = redeemReferralCode(referralCode);
+                  if (!r.ok) {
+                    setPromoError(r.reason === 'self' ? 'Нельзя ввести собственный код' : 'Код не принят');
+                    track('paywall_referral_fail', { source: 'home', reason: r.reason || 'unknown' });
+                    return;
+                  }
+                  setReferralCode('');
+                  setPromoError('');
+                  setInv(getInventory());
+                  track('paywall_referral_success', { source: 'home' });
+                }}
+              >
+                Активировать
+              </button>
+            </div>
+            <p style={{ margin: '0 0 12px', fontSize: 12, opacity: 0.82 }}>
+              Ваш код: <strong>{myReferralCode}</strong> (бонус +12ч Про для друга)
+            </p>
+            <button
+              type="button"
+              className="gh-btn gh-btn--block gh-btn--muted gh-btn--mb"
+              onClick={() => {
+                track('paywall_restore_click', { source: 'home' });
+                setInv(getInventory());
+              }}
+            >
+              Восстановить покупки
+            </button>
             <button type="button" className="gh-btn gh-btn--block" onClick={() => setShowSubStub(false)}>Закрыть</button>
           </div>
         </div>
@@ -405,9 +624,9 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         </Button>
       </section>
 
-      <section className="gh-card" style={{ marginTop: 12, padding: 12 }}>
-        <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>SEO навигация</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <details className="gh-card" style={{ marginTop: 12, padding: 12 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 13, opacity: 0.85 }}>Дополнительные страницы</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/seo')}>SEO</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/how-to-play')}>Как играть</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/spy')}>Шпион</button>
@@ -417,7 +636,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/privacy')}>Приватность</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/rules')}>Правила</button>
         </div>
-      </section>
+      </details>
 
       <Modal
         open={showInstruction}
@@ -438,6 +657,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           </Button>
         </div>
       </Modal>
-    </div>
+    </PageLayout>
   );
 }

@@ -4,11 +4,17 @@ import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
 import { getInventory } from '../inventory';
 import { getAvatar } from '../displayName';
+import { exportCustomDictionariesText, getCustomDictionaries, importCustomDictionariesText, saveCustomEliasWords } from '../customDictionaries';
+import { buildInviteLinks, INVITE_TEMPLATES, shareInviteSmart } from '../invite';
 import ShopModal from '../components/ShopModal';
-import BackArrow from '../components/BackArrow';
 import { useToast } from '../components/ui/ToastProvider';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import PageLayout from '../components/layout/PageLayout';
+import Badge from '../components/ui/Badge';
+import Chip from '../components/ui/Chip';
+import EmptyState from '../components/ui/EmptyState';
+import IconButton from '../components/ui/IconButton';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -28,6 +34,11 @@ const BUNKER_SPEED_PRESETS = [
   { id: 'long', label: 'Длинно', mult: 1.3 },
 ];
 const BUNKER_ROUND_OPTIONS = [2, 3, 4];
+const BUNKER_SCENARIOS = [
+  { id: 'shelter_default', label: 'Классический', premium: false, itemId: null },
+  { id: 'pandemic_plus', label: 'Пандемия+', premium: true, itemId: 'bunker_pandemic' },
+  { id: 'orbital_station', label: 'Орбита', premium: true, itemId: 'bunker_space' },
+];
 const DICT_NAMES = {
   free: 'Базовый',
   theme1: 'Детектив (Про)',
@@ -97,8 +108,17 @@ const TD_CATEGORIES = [
   { slug: 'friends_dare', name: 'Друзья — действие', premium: false, is18Plus: false, safe: true },
   { slug: '18_truth', name: '18+ — правда', premium: false, is18Plus: true, safe: false },
   { slug: '18_dare', name: '18+ — действие', premium: false, is18Plus: true, safe: false },
-  { slug: 'drunk_truth', name: 'Пьяное — правда (Про)', premium: true, is18Plus: false, safe: false },
-  { slug: 'drunk_dare', name: 'Пьяное — действие (Про)', premium: true, is18Plus: false, safe: false },
+  { slug: 'drunk_truth', name: 'Пьяное — правда (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'drunk_dare', name: 'Пьяное — действие (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'couples_truth', name: 'Пары — правда', premium: false, is18Plus: false, safe: true },
+  { slug: 'couples_dare', name: 'Пары — действие', premium: false, is18Plus: false, safe: true },
+  { slug: 'company_truth', name: 'Компания — правда', premium: false, is18Plus: false, safe: true },
+  { slug: 'company_dare', name: 'Компания — действие', premium: false, is18Plus: false, safe: true },
+  { slug: 'hard_truth', name: 'Жесткие вопросы (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'romance_truth', name: 'Романтика — правда (Про/Pack)', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
+  { slug: 'romance_dare', name: 'Романтика — действие (Про/Pack)', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
+  { slug: 'corporate_truth', name: 'Корпоратив SFW — правда', premium: false, is18Plus: false, safe: true },
+  { slug: 'corporate_dare', name: 'Корпоратив SFW — действие', premium: false, is18Plus: false, safe: true },
 ];
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
@@ -123,19 +143,34 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [spyLocationsModalOpen, setSpyLocationsModalOpen] = useState(false);
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
   const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
+  const [eliasCustomModalOpen, setEliasCustomModalOpen] = useState(false);
+  const [eliasCustomWordsText, setEliasCustomWordsText] = useState('');
+  const [eliasImportText, setEliasImportText] = useState('');
   const [gamesPickerOpen, setGamesPickerOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [quickGuideOpen, setQuickGuideOpen] = useState(false);
+  const [inviteTemplate, setInviteTemplate] = useState('classic');
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
   const availableDictionaries = room?.availableDictionaries || ['free'];
   const roomHasPro = room?.players?.some((p) => p.hasPro) ?? false;
+  const myInventory = getInventory();
+  const hasCategoryPackAccess = (category) => {
+    if (!category?.premium) return true;
+    if (roomHasPro || myInventory?.hasPro) return true;
+    const itemId = category.requiredItem;
+    if (!itemId) return false;
+    return Array.isArray(myInventory?.unlockedItems) && myInventory.unlockedItems.includes(itemId);
+  };
 
   const tdGameSettings = room?.gameSettings || {};
   const tdMode = tdGameSettings.mode ?? 'mixed';
   const tdSafeMode = tdGameSettings.safeMode !== false;
   const tdShow18Plus = Boolean(tdGameSettings.show18Plus);
   const tdRoundsCount = tdGameSettings.roundsCount ?? 5;
+  const tdSkipLimitPerPlayer = tdGameSettings.skipLimitPerPlayer ?? 2;
   const tdCategorySlugs = Array.isArray(tdGameSettings.categorySlugs) && tdGameSettings.categorySlugs.length
     ? tdGameSettings.categorySlugs
     : ['classic_truth', 'classic_dare'];
@@ -151,6 +186,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     setAllSpiesChanceEnabled(!!room?.gameSettings?.allSpiesChanceEnabled);
     setDictionaryIds(room?.gameSettings?.dictionaryIds ?? ['free']);
   }, [room?.gameSettings]);
+
+  useEffect(() => {
+    const local = getCustomDictionaries();
+    setEliasCustomWordsText((local.elias || []).join('\n'));
+  }, []);
 
   useEffect(() => {
     const inv = getInventory();
@@ -172,9 +212,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     safeInviteToken = null;
   }
   const inviteToken = room?.inviteToken || safeInviteToken;
-  const miniAppLink = BOT_USERNAME && inviteToken ? `https://t.me/${BOT_USERNAME}?start=${inviteToken}` : '';
-  const webLink = inviteToken ? `${BASE_URL}?invite=${inviteToken}` : '';
-  const inviteLink = miniAppLink || webLink || '';
+  const { miniAppLink, webLink, inviteLink } = buildInviteLinks({
+    inviteToken,
+    baseUrl: BASE_URL,
+    botUsername: BOT_USERNAME,
+  });
+  const qrUrl = inviteLink ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(inviteLink)}` : '';
 
   const patchLobbyGame = async (updates) => {
     try {
@@ -276,7 +319,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       hostId: String(user?.id),
       timerSeconds: gs.timerSeconds ?? 60,
       scoreLimit: gs.scoreLimit ?? 10,
+      skipPenalty: gs.skipPenalty ?? 1,
       dictionaryIds: gs.dictionaryIds?.length ? gs.dictionaryIds : ['basic', 'animals'],
+      customWords: Array.isArray(gs.eliasCustomWords) ? gs.eliasCustomWords : getCustomDictionaries().elias,
       teams: hasTeams ? teams : undefined,
       team1Ids: !hasTeams && gs.eliasTeam1Ids?.length ? gs.eliasTeam1Ids : undefined,
       team2Ids: !hasTeams && gs.eliasTeam2Ids?.length ? gs.eliasTeam2Ids : undefined,
@@ -306,6 +351,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         hostId: String(user?.id),
         maxRounds: gs.maxRounds ?? 3,
         phaseTimers: gs.phaseTimers,
+        scenarioId: gs.scenarioId || 'shelter_default',
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
@@ -335,6 +381,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         show18Plus: !!gs.show18Plus,
         safeMode: gs.safeMode !== false,
         roundsCount: gs.roundsCount ?? 5,
+        timerSeconds: gs.timerSeconds ?? 60,
+        skipLimitPerPlayer: gs.skipLimitPerPlayer ?? 2,
+        randomStartPlayer: gs.randomStartPlayer !== false,
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
@@ -401,24 +450,30 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const shareInvite = async () => {
-    const lines = [`GameHub — присоединиться к лобби: ${roomName}`, ''];
-    if (miniAppLink) lines.push('Открыть в приложении (Telegram):', miniAppLink, '');
-    if (webLink) lines.push(miniAppLink ? 'Или в браузере:' : 'Ссылка:', webLink);
-    const text = lines.join('\n');
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openTelegramLink) {
-      try {
-        const shareUrl = miniAppLink || webLink;
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent('GameHub — присоединиться к лобби: ' + roomName + (miniAppLink && webLink ? '\n\nВ приложении: ' + miniAppLink + '\nВ браузере: ' + webLink : '\n\n' + shareUrl))}`);
-        showToast({ type: 'info', message: 'Выберите чат для отправки' });
-        return;
-      } catch (_) {}
+    const result = await shareInviteSmart({
+      roomName,
+      miniAppLink,
+      webLink,
+      templateId: inviteTemplate,
+      preferTelegram: true,
+    });
+    if (result.ok) {
+      track('invite_share', { source: 'lobby', mode: result.mode || 'unknown', template: inviteTemplate });
+      showToast({
+        type: result.mode === 'clipboard' ? 'success' : 'info',
+        message: result.mode === 'clipboard' ? 'Ссылка скопирована — вставьте в чат' : 'Выберите чат для отправки',
+      });
+      return;
     }
+    showToast({ type: 'error', message: 'Не удалось поделиться приглашением' });
+  };
+
+  const copyRoomCode = async () => {
     try {
-      await navigator.clipboard.writeText(text);
-      showToast({ type: 'success', message: 'Ссылка скопирована — вставьте в чат' });
+      await navigator.clipboard.writeText(String(room.code || ''));
+      showToast({ type: 'success', message: 'Код комнаты скопирован' });
     } catch (_) {
-      showToast({ type: 'error', message: 'Не удалось скопировать ссылку' });
+      showToast({ type: 'error', message: 'Не удалось скопировать код' });
     }
   };
 
@@ -433,10 +488,24 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const playersList = room.players || [];
   const onlineCount = playersList.filter((p) => p.online !== false).length;
+  const quickGuideText = selectedGame === 'spy'
+    ? 'Шпион: хост запускает игру, игроки обсуждают, затем голосование. Мирные ищут шпиона.'
+    : selectedGame === 'mafia'
+      ? 'Мафия: ночь по ролям, день обсуждение, затем голосование. Держите темп через таймеры.'
+      : selectedGame === 'elias'
+        ? 'Элиас: активная команда объясняет слово, угадывания дают очки, пропуск может штрафовать.'
+        : selectedGame === 'truth_dare'
+          ? 'Правда/Действие: по очереди выполняйте карточку. Для 18+ включается подтверждение возраста.'
+          : selectedGame === 'bunker'
+            ? 'Бункер: раскрытия, обсуждение, голосование и выбывания. Побеждают выжившие к финалу.'
+            : 'Выберите игру в списке и настройте параметры перед стартом.';
 
   return (
-    <div className="gh-page">
-      <BackArrow onClick={handleBack} title={selectedGame ? 'Назад к выбору игры' : 'Выйти'} />
+    <PageLayout
+      title={roomName}
+      onBack={handleBack}
+      right={<span style={{ fontSize: 12, opacity: 0.8 }}>{onlineCount}/{playersList.length}</span>}
+    >
       {editingName && isHost ? (
         <input
           type="text"
@@ -461,9 +530,31 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       <p style={{ fontSize: 14, opacity: 0.88, marginTop: 4, marginBottom: 12 }}>
         Онлайн: <strong>{onlineCount}</strong> / {playersList.length}
       </p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <Button variant="secondary" onClick={copyRoomCode} style={{ flex: 1 }}>
+          Копировать код
+        </Button>
+        <Button variant="secondary" onClick={() => setQrOpen(true)} style={{ flex: 1 }} disabled={!inviteLink}>
+          QR
+        </Button>
+      </div>
       {inviteLink && (
         <div style={{ marginBottom: 16 }}>
           <p>Приглашение:</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {INVITE_TEMPLATES.map((tpl) => (
+              <Chip
+                key={tpl.id}
+                active={inviteTemplate === tpl.id}
+                onClick={() => {
+                  setInviteTemplate(tpl.id);
+                  track('invite_template_selected', { source: 'lobby', template: tpl.id });
+                }}
+              >
+                {tpl.label}
+              </Chip>
+            ))}
+          </div>
           {miniAppLink && (
             <p style={{ marginBottom: 4 }}>
               <a href={miniAppLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
@@ -487,8 +578,32 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </button>
         </div>
       )}
+      {isHost && (
+        <div className="gh-card" style={{ padding: 12, marginBottom: 16 }}>
+          <p style={{ margin: 0, fontWeight: 800, marginBottom: 8, opacity: 0.95 }}>Быстрые действия хоста</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <Chip onClick={shareInvite} active>
+              Поделиться
+            </Chip>
+            <Chip onClick={() => setShopOpen(true)}>
+              Магазин
+            </Chip>
+            <Chip onClick={() => setGamesPickerOpen((v) => !v)} active={gamesPickerOpen}>
+              Выбор игр
+            </Chip>
+            <Chip onClick={() => setQuickGuideOpen(true)}>
+              Гайд
+            </Chip>
+            <Chip onClick={() => setLeaveConfirmOpen(true)}>
+              Выйти
+            </Chip>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
-        {playersList.map((p) => (
+        {playersList.length === 0 ? (
+          <EmptyState title="Игроков пока нет" message="Поделитесь кодом комнаты или ссылкой-приглашением." />
+        ) : playersList.map((p) => (
           <div
             key={p.id}
             className="gh-card"
@@ -519,24 +634,23 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               </div>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {p.name}
-                {p.isHost ? ' (хост)' : ''}
-                {p.online === false ? (
-                  <span style={{ fontSize: 12, marginLeft: 6, opacity: 0.65, fontWeight: 600 }}>(офлайн)</span>
-                ) : null}
+                <span style={{ marginLeft: 6 }}>
+                  {p.isHost ? <Badge tone="info">Хост</Badge> : null}
+                  {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Про</Badge></span> : null}
+                  {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : <span style={{ marginLeft: 4 }}><Badge tone="success">Онлайн</Badge></span>}
+                </span>
               </span>
             </div>
             {isHost && p.id !== String(user?.id) && !p.isHost && (
-              <button
-                type="button"
+              <IconButton
+                icon="×"
+                label="Кикнуть игрока"
                 onClick={async () => {
                   try {
                     await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick: p.id });
                   } catch (_) {}
                 }}
-                style={{ ...btnStyle, width: 'auto', padding: '6px 12px', margin: 0, fontSize: 14, background: '#a44', flexShrink: 0 }}
-              >
-                Кик
-              </button>
+              />
             )}
           </div>
         ))}
@@ -629,9 +743,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       if (!g.available) return;
                       const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, spiesSeeEachOther: false, showLocationsList: false, dictionaryIds: ['free'] } : null;
                       const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default', phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } } : null;
-                      const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
+                      const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, skipPenalty: 1, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
                       const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic_truth', 'classic_dare'] } : null;
-                      const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard') } : null;
+                      const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard'), scenarioId: 'shelter_default' } : null;
                       patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || truthDare || bunker || undefined });
                     }}
                     style={{
@@ -873,6 +987,22 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       );
                     })}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => patchLobbyGame({
+                      gameSettings: {
+                        ...room?.gameSettings,
+                        phaseTimers: { nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
+                      },
+                    })}
+                    style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}
+                    title="Компактная партия около 10 минут"
+                  >
+                    Режим 10 минут
+                  </button>
+                  <p style={{ margin: '0 0 16px', fontSize: 12, opacity: 0.8 }}>
+                    Ускоренный формат: короткие ночь/день/голосование для быстрой партии.
+                  </p>
                 </>
               )}
 
@@ -938,6 +1068,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
               <p style={{ margin: 0, fontSize: 14 }}>Таймер: {(room.gameSettings.timerSeconds || 60) / 60} мин</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>До очков: {room.gameSettings.scoreLimit ?? 10}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Штраф за пропуск: −{room.gameSettings.skipPenalty ?? 1}</p>
               <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.elias} игроков</p>
               {(room.gameSettings.eliasTeams?.length > 0) && (
                 <p style={{ margin: '8px 0 0', fontSize: 13 }}>
@@ -991,6 +1122,19 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   ))}
                 </div>
               )}
+              <p style={{ margin: '0 0 6px', fontSize: 14 }}>Штраф за пропуск</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {[0, 1, 2].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipPenalty: n } })}
+                    style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: (room?.gameSettings?.skipPenalty ?? 1) === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                  >
+                    {n === 0 ? 'Без штрафа' : `−${n} очко`}
+                  </button>
+                ))}
+              </div>
 
               <button
                 type="button"
@@ -1003,6 +1147,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 <div style={{ marginBottom: 16 }}>
                   <button type="button" onClick={() => setEliasDictModalOpen(true)} style={{ ...btnStyle, background: '#555' }}>
                     Выбрать словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals']).length})
+                  </button>
+                  <button type="button" onClick={() => setEliasCustomModalOpen(true)} style={{ ...btnStyle, background: '#444', marginTop: 8 }}>
+                    Пользовательский словарь
                   </button>
                 </div>
               )}
@@ -1112,6 +1259,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 18+: {tdSafeMode ? 'нет (safe)' : tdShow18Plus ? 'да' : 'нет'}
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Раундов: {tdRoundsCount}</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Лимит пропусков: {tdSkipLimitPerPlayer}</p>
               <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.truth_dare} игроков</p>
             </div>
           )}
@@ -1202,10 +1350,52 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 ))}
               </div>
 
+              <p style={{ marginBottom: 8, fontSize: 14 }}>Лимит пропусков на игрока</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {[0, 1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipLimitPerPlayer: n } })}
+                    style={{ ...btnStyle, flex: 1, padding: 10, background: tdSkipLimitPerPlayer === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', fontSize: 14 }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={tdGameSettings.randomStartPlayer !== false}
+                  onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, randomStartPlayer: e.target.checked } })}
+                />
+                <span>Случайный первый игрок</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => patchLobbyGame({
+                  gameSettings: {
+                    ...room?.gameSettings,
+                    roundsCount: 3,
+                    timerSeconds: 35,
+                    skipLimitPerPlayer: 1,
+                    mode: 'mixed',
+                    safeMode: true,
+                    show18Plus: false,
+                    categorySlugs: ['classic_truth', 'classic_dare', 'friends_truth', 'friends_dare'],
+                  },
+                })}
+                style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}
+              >
+                Быстрая партия (3 раунда)
+              </button>
+
               <p style={{ marginBottom: 8, fontSize: 14 }}>Категории</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 {TD_CATEGORIES.map((c) => {
-                  const lockedByPro = c.premium && !roomHasPro;
+                  const lockedByPro = c.premium && !hasCategoryPackAccess(c);
                   const lockedBySafe = tdSafeMode && !c.safe;
                   const lockedBy18 = c.is18Plus && !tdShow18Plus;
                   const locked = lockedByPro || lockedBySafe || lockedBy18;
@@ -1220,6 +1410,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         let next = isActive ? tdCategorySlugs.filter((x) => x !== c.slug) : [...tdCategorySlugs, c.slug];
                         if (next.length === 0) next = ['classic_truth', 'classic_dare'];
                         patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: next } });
+                        track('td_category_toggle', { category: c.slug, enabled: !isActive, source: 'lobby' });
                       }}
                       style={{
                         ...btnStyle,
@@ -1229,7 +1420,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                         opacity: locked ? 0.6 : 1,
                       }}
-                      title={lockedByPro ? 'Нужен Про' : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
+                      title={lockedByPro ? `Нужен Про или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
                     >
                       {c.name}
                     </button>
@@ -1302,6 +1493,35 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   }}
                 >
                   {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Сценарий</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+            {BUNKER_SCENARIOS.map((s) => {
+              const active = (room?.gameSettings?.scenarioId || 'shelter_default') === s.id;
+              const canUse = !s.premium || roomHasPro || (Array.isArray(myInventory?.unlockedItems) && myInventory.unlockedItems.includes(s.itemId));
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    if (!canUse) return;
+                    patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), scenarioId: s.id } });
+                  }}
+                  disabled={startingGame || !canUse}
+                  title={!canUse ? `Нужен Pro или pack ${s.itemId}` : ''}
+                  style={{
+                    ...btnStyle,
+                    width: 'auto',
+                    padding: '8px 14px',
+                    background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
+                    opacity: (!canUse || startingGame) ? 0.6 : 1,
+                  }}
+                >
+                  {s.label} {s.premium ? '🔒' : ''}
                 </button>
               );
             })}
@@ -1493,8 +1713,93 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
+      {eliasCustomModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, padding: 16 }} onClick={() => setEliasCustomModalOpen(false)}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 420, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Пользовательский словарь Элиас</h3>
+            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 10 }}>По одному слову на строку. Используется локально и отправляется при старте партии.</p>
+            <textarea
+              value={eliasCustomWordsText}
+              onChange={(e) => setEliasCustomWordsText(e.target.value)}
+              rows={10}
+              style={{ width: '100%', borderRadius: 8, padding: 10, marginBottom: 10 }}
+              placeholder={'слово 1\nслово 2\nслово 3'}
+            />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <button
+                type="button"
+                style={{ ...btnStyle, background: '#5a4' }}
+                onClick={() => {
+                  const words = eliasCustomWordsText.split('\n').map((x) => x.trim()).filter(Boolean);
+                  const saved = saveCustomEliasWords(words);
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasCustomWords: saved.elias } });
+                }}
+              >
+                Сохранить
+              </button>
+              <button
+                type="button"
+                style={{ ...btnStyle, background: '#444' }}
+                onClick={async () => {
+                  const text = exportCustomDictionariesText();
+                  try {
+                    await navigator.clipboard.writeText(text);
+                  } catch (_) {}
+                }}
+              >
+                Экспорт JSON
+              </button>
+            </div>
+            <textarea
+              value={eliasImportText}
+              onChange={(e) => setEliasImportText(e.target.value)}
+              rows={4}
+              style={{ width: '100%', borderRadius: 8, padding: 10, marginBottom: 10 }}
+              placeholder='Вставьте JSON для импорта'
+            />
+            <button
+              type="button"
+              style={{ ...btnStyle, background: '#555', marginBottom: 10 }}
+              onClick={() => {
+                try {
+                  const parsed = importCustomDictionariesText(eliasImportText);
+                  setEliasCustomWordsText((parsed.elias || []).join('\n'));
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasCustomWords: parsed.elias } });
+                } catch (_) {}
+              }}
+            >
+              Импорт JSON
+            </button>
+            <button type="button" onClick={() => setEliasCustomModalOpen(false)} style={btnStyle}>Готово</button>
+          </div>
+        </div>
+      )}
+
+      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR приглашения" width={360}>
+        {inviteLink ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <img src={qrUrl} alt="QR invite" style={{ width: 220, height: 220, borderRadius: 8, background: '#fff', padding: 8 }} />
+            </div>
+            <p style={{ fontSize: 12, opacity: 0.85, wordBreak: 'break-all', marginTop: 0 }}>{inviteLink}</p>
+            <Button variant="secondary" fullWidth onClick={shareInvite}>
+              Поделиться ссылкой
+            </Button>
+          </>
+        ) : (
+          <EmptyState title="Нет ссылки" message="Сначала создайте или восстановите комнату." />
+        )}
+      </Modal>
+
+      <Modal open={quickGuideOpen} onClose={() => setQuickGuideOpen(false)} title="Быстрый гайд" width={360}>
+        <p style={{ marginTop: 0, marginBottom: 12, lineHeight: 1.45 }}>{quickGuideText}</p>
+        <Button variant="secondary" fullWidth onClick={() => setQuickGuideOpen(false)}>
+          Понял
+        </Button>
+      </Modal>
+
       <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} initialGameFilter={selectedGame || 'all'} />
-    </div>
+    </PageLayout>
   );
 }
 

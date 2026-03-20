@@ -147,13 +147,25 @@ export function toClientState(gs, playerId, players) {
     commissionerCheckedId: gs.commissionerCheckedId || null,
     settings: gs.settings,
   };
+  const dayVotes = gs.dayVotes && typeof gs.dayVotes === 'object' ? gs.dayVotes : {};
+  const voteCounts = {};
+  for (const targetId of Object.values(dayVotes)) {
+    voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+  }
   let roleForPlayer = null;
   if (myRole) roleForPlayer = { role: myRole, roleName: getRoleDisplayName(myRole, theme) };
   if (mafiaIds.includes(playerId)) {
     const mafiaTeammates = mafiaIds.filter((id) => id !== playerId).map((id) => players.find((p) => p.id === id)).filter(Boolean);
-    return { ...publicInfo, myRole: roleForPlayer, mafiaTeammates: mafiaTeammates.map((p) => ({ id: p.id, name: p.name })), isModerator };
+    return {
+      ...publicInfo,
+      myRole: roleForPlayer,
+      mafiaTeammates: mafiaTeammates.map((p) => ({ id: p.id, name: p.name })),
+      isModerator,
+      dayVotes,
+      voteCounts,
+    };
   }
-  return { ...publicInfo, myRole: roleForPlayer, isModerator };
+  return { ...publicInfo, myRole: roleForPlayer, isModerator, dayVotes, voteCounts };
 }
 
 export { ROLE_NAMES, THEMES, CLASSIC_ROLES, EXTENDED_ROLES };

@@ -140,8 +140,17 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const myRole = state.myRole;
   const phase = state.phase;
   const alive = state.alive || [];
+  const aliveNameById = new Map(alive.map((p) => [p.id, p.name]));
   const amAlive = alive.some((p) => p.id === myId);
   const isDead = !amAlive && myRole;
+  const myVoteId = state.dayVotes?.[myId] || voteTarget || null;
+  const actingLabel = phase === 'night_mafia'
+    ? 'Действует: мафия'
+    : phase === 'night_commissioner'
+      ? 'Действует: комиссар'
+      : phase === 'day'
+        ? 'Действуют: все игроки (обсуждение)'
+        : 'Действуют: все живые (голосование)';
   const phaseSecondsLeft = state.phaseStartedAt && state.phaseDurationSec
     ? Math.max(0, Math.ceil((state.phaseStartedAt + state.phaseDurationSec * 1000 - Date.now()) / 1000))
     : null;
@@ -209,6 +218,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     >
       <div className="gh-card" style={{ marginBottom: 12, padding: 12 }}>
         <p style={{ marginBottom: 8, opacity: 0.9 }}>Фаза: {phase === 'night_mafia' ? 'Ночь — мафия' : phase === 'night_commissioner' ? 'Ночь — комиссар' : phase === 'day' ? 'День' : 'Голосование'}</p>
+        <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>{actingLabel}</p>
         {phaseSecondsLeft != null && (
           <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>
             Таймер фазы: {phaseSecondsLeft} сек
@@ -219,6 +229,14 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
         {myRole && (
           <p style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 0 }}>Ваша роль: {myRole.roleName}</p>
         )}
+      </div>
+
+      <div className="gh-card" style={{ marginBottom: 12, padding: 12, background: 'rgba(0,0,0,0.2)' }}>
+        <p style={{ margin: '0 0 6px 0', fontWeight: 700 }}>Подсказка для новичков</p>
+        <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
+          Ночью действуют скрытые роли, днем обсуждение, затем голосование.
+          Мирные ищут мафию, мафия маскируется. Победа мирных — исключить всю мафию.
+        </p>
       </div>
 
       {(state.killedTonight?.length || state.eliminatedToday?.length || state.revealed?.length) > 0 && (
@@ -296,6 +314,26 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
               {actionLoading === 'vote' && voteTarget == null ? '...' : ''}
             </button>
           ))}
+          {myVoteId && (
+            <p style={{ marginTop: 8, marginBottom: 0, fontSize: 13, opacity: 0.9 }}>
+              Ваш голос: {aliveNameById.get(myVoteId) || 'принят'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {phase === 'voting' && (
+        <div className="gh-card" style={{ marginBottom: 16, padding: 12, background: 'rgba(0,0,0,0.2)' }}>
+          <p style={{ margin: '0 0 8px 0', fontWeight: 700 }}>Протокол голосования</p>
+          {alive.length === 0 ? (
+            <p style={{ margin: 0, opacity: 0.8 }}>Нет живых игроков.</p>
+          ) : (
+            alive.map((p) => (
+              <p key={p.id} style={{ margin: '4px 0', fontSize: 13, opacity: 0.92 }}>
+                {p.name}: {state.voteCounts?.[p.id] || 0} голос(ов)
+              </p>
+            ))
+          )}
         </div>
       )}
 

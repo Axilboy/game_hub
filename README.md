@@ -52,3 +52,7 @@ cd bot && node index.js
 ## QA перед деплоем
 
 - Smoke-regression чеклист: [QA_SMOKE_REGRESSION.md](QA_SMOKE_REGRESSION.md)
+- Motion-гайд: [MOTION_GUIDE.md](MOTION_GUIDE.md)
+- Релизный runbook: [RELEASE_RUNBOOK.md](RELEASE_RUNBOOK.md)
+- UX ритуал: [UX_REVIEW_RITUAL.md](UX_REVIEW_RITUAL.md)
+- Топ-20 UX болей: [TOP20_UX_PAINS.md](TOP20_UX_PAINS.md)

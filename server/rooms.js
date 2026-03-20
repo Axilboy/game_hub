@@ -1,5 +1,5 @@
 import { roomManager } from './roomManager.js';
-import { getRandomWord, getWordsByDictionaryIds } from './words.js';
+import { getRandomWord, getSpyRoleHintsForLocation, getWordsByDictionaryIds } from './words.js';
 import { recordPlayer, recordGameSession, recordAdImpression } from './statsManager.js';
 import { allowAction } from './rateLimit.js';
 import {
@@ -10,11 +10,19 @@ import {
   toClientState,
   getMafiaPlayers,
 } from './mafia.js';
-import { getRandomEliasWord } from './eliasWords.js';
-import { getTruthDareCatalog, createTruthDareState, pickTruthDareCard } from './truthDare.js';
-import { createBunkerState, pickNextCrisis } from './bunker.js';
+import { getEliasWords, getRandomEliasWord } from './eliasWords.js';
+import { getTruthDareCatalog, createTruthDareState, pickTruthDareCard, getUnlockedTruthDareCategorySlugs, getTruthDareCardById } from './truthDare.js';
+import { createBunkerState, pickNextCrisis, canUseBunkerScenario, BUNKER_SCENARIOS } from './bunker.js';
 
 export async function roomRoutes(fastify) {
+  function pickEliasWord(gs) {
+    const dictWords = getEliasWords(gs.dictionaryIds);
+    const customWords = Array.isArray(gs.customWords) ? gs.customWords : [];
+    const merged = [...new Set([...dictWords, ...customWords].map((w) => String(w || '').trim()).filter(Boolean))];
+    if (merged.length === 0) return getRandomEliasWord(gs.dictionaryIds);
+    return merged[Math.floor(Math.random() * merged.length)];
+  }
+
   const ERR = {
     tooMany: { error: 'Слишком часто. Подождите немного.' },
     playerIdRequired: { error: 'Нужен playerId' },
@@ -61,7 +69,11 @@ export async function roomRoutes(fastify) {
       return reply.code(404).send({ error: 'Room not found' });
     }
     const inv = inventory && typeof inventory === 'object'
-      ? { dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'], hasPro: Boolean(inventory.hasPro) }
+      ? {
+        dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'],
+        unlockedItems: Array.isArray(inventory.unlockedItems) ? inventory.unlockedItems.map(String) : [],
+        hasPro: Boolean(inventory.hasPro),
+      }
       : null;
     room = roomManager.join(room.id, playerId, playerName || 'Игрок', inv, photo_url || null, avatar_emoji || null);
     recordPlayer(playerId);
@@ -159,6 +171,7 @@ export async function roomRoutes(fastify) {
       timerStartsAt: timerStartsAt || null,
       showLocationsList: Boolean(showLocationsList),
       locationList: Array.isArray(locationPool) ? locationPool : [],
+      roleHints: getSpyRoleHintsForLocation(word),
     };
     if (isSpy) {
       if (spiesSeeEachOther && spyIds.length > 1) {
@@ -505,7 +518,7 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.post('/rooms/elias/start', async (request, reply) => {
-    const { roomId, hostId, timerSeconds = 60, scoreLimit = 10, dictionaryIds, teams: teamsInput, team1Ids, team2Ids } = request.body || {};
+    const { roomId, hostId, timerSeconds = 60, scoreLimit = 10, dictionaryIds, skipPenalty = 1, customWords = [], teams: teamsInput, team1Ids, team2Ids } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
@@ -538,7 +551,12 @@ export async function roomRoutes(fastify) {
       teams = [{ name: 'Команда 1', players: team1, score: 0 }, { name: 'Команда 2', players: team2, score: 0 }];
     }
     const dictIds = Array.isArray(dictionaryIds) && dictionaryIds.length ? dictionaryIds : ['basic'];
-    const currentWord = getRandomEliasWord(dictIds);
+    const normalizedCustomWords = Array.isArray(customWords)
+      ? [...new Set(customWords.map((w) => String(w || '').trim()).filter(Boolean))].slice(0, 400)
+      : [];
+    const currentWord = normalizedCustomWords.length
+      ? normalizedCustomWords[Math.floor(Math.random() * normalizedCustomWords.length)]
+      : getRandomEliasWord(dictIds);
     const roundSeconds = Math.min(120, Math.max(30, Number(timerSeconds) || 60));
     const gs = {
       teams,
@@ -546,15 +564,21 @@ export async function roomRoutes(fastify) {
       currentExplainerIndex: 0,
       currentWord,
       dictionaryIds: dictIds,
+      customWords: normalizedCustomWords,
       roundEndsAt: null,
       timerSeconds: roundSeconds,
       scoreLimit: Math.min(100, Math.max(5, Number(scoreLimit) || 10)),
+      skipPenalty: Math.min(3, Math.max(0, Number(skipPenalty) || 1)),
       winner: null,
       readyIds: [],
       // Prevent accidental double-score/skip for the same word (e.g. multiple teammates click).
       lastGuessedWord: null,
       lastSkippedWord: null,
+      playerStats: {},
     };
+    for (const p of players) {
+      gs.playerStats[p.id] = { guessed: 0, skipped: 0 };
+    }
     recordGameSession();
     roomManager.setGame(roomId, 'elias');
     roomManager.setState(roomId, 'playing', gs);
@@ -576,7 +600,18 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.post('/rooms/truth_dare/start', async (request, reply) => {
-    const { roomId, hostId, mode, categorySlugs, show18Plus = false, safeMode = true, roundsCount } = request.body || {};
+    const {
+      roomId,
+      hostId,
+      mode,
+      categorySlugs,
+      show18Plus = false,
+      safeMode = true,
+      roundsCount,
+      timerSeconds,
+      skipLimitPerPlayer,
+      randomStartPlayer,
+    } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
     if (room.hostId !== hostId) return reply.code(403).send(ERR.hostOnly);
@@ -584,7 +619,16 @@ export async function roomRoutes(fastify) {
     if (!allowAction(`truthdare:start:${roomId}:${hostId}`, 4, 20_000)) {
       return reply.code(429).send(ERR.tooMany);
     }
-    const gs = createTruthDareState(room, { mode, categorySlugs, show18Plus, safeMode, roundsCount });
+    const gs = createTruthDareState(room, {
+      mode,
+      categorySlugs,
+      show18Plus,
+      safeMode,
+      roundsCount,
+      timerSeconds,
+      skipLimitPerPlayer,
+      randomStartPlayer,
+    });
     if (!gs?.currentCard) {
       return reply.code(400).send({ error: 'Не удалось подобрать карточку для старта. Проверьте режим, Safe/18+ и выбранные категории (учитывается Pro у текущего игрока).' });
     }
@@ -615,6 +659,7 @@ export async function roomRoutes(fastify) {
       roundsCount: gs.settings?.roundsCount ?? null,
       mode: gs.settings?.mode ?? null,
       timerSeconds: gs.settings?.timerSeconds ?? null,
+      skipLimitPerPlayer: gs.settings?.skipLimitPerPlayer ?? null,
       safeMode: Boolean(gs.settings?.safeMode),
       show18Plus: Boolean(gs.settings?.show18Plus),
       playerOrder: gs.playerOrder || [],
@@ -634,6 +679,14 @@ export async function roomRoutes(fastify) {
         }
         : null,
       currentPlayerName: gs.currentPlayerId ? getPlayerName(gs.currentPlayerId) : null,
+      skipsUsed: Number(gs.skipCountByPlayerId?.[playerId]) || 0,
+      skipsLeft: Math.max(0, Number(gs.settings?.skipLimitPerPlayer || 0) - (Number(gs.skipCountByPlayerId?.[playerId]) || 0)),
+      playerStats: gs.playerStats || {},
+      turnHistory: (gs.turnHistory || []).slice(-8).map((x) => ({ ...x, playerName: getPlayerName(x.playerId) })),
+      myLikes: gs.likesByPlayerId?.[playerId] || [],
+      myFavorites: gs.favoritesByPlayerId?.[playerId] || [],
+      currentCardLikes: Number(gs.cardLikes?.[gs.currentCard?.id]) || 0,
+      currentCardReports: Number(gs.cardReports?.[gs.currentCard?.id]) || 0,
     };
   });
 
@@ -661,6 +714,13 @@ export async function roomRoutes(fastify) {
     gs.turnResults = gs.turnResults || {};
     if (!gs.turnResults[expectedToken]) {
       gs.turnResults[expectedToken] = { playerId: gs.currentPlayerId, action: 'timeout', at: Date.now() };
+    }
+    if (gs.currentPlayerId) {
+      gs.playerStats = gs.playerStats || {};
+      gs.playerStats[gs.currentPlayerId] = gs.playerStats[gs.currentPlayerId] || { done: 0, skip: 0, timeout: 0 };
+      gs.playerStats[gs.currentPlayerId].timeout = (gs.playerStats[gs.currentPlayerId].timeout || 0) + 1;
+      gs.turnHistory = gs.turnHistory || [];
+      gs.turnHistory.push({ token: expectedToken, playerId: gs.currentPlayerId, action: 'timeout', at: Date.now() });
     }
 
     truthDareAdvanceTurn(roomId, io, { expectedTurnToken: expectedToken });
@@ -700,6 +760,7 @@ export async function roomRoutes(fastify) {
 
     const inv = room.playerInventories || {};
     const nextHasPro = Boolean(inv[nextPlayerId]?.hasPro);
+    const nextUnlockedCategorySlugs = getUnlockedTruthDareCategorySlugs(inv[nextPlayerId]?.unlockedItems || []);
     const include18PlusForPlayer = Boolean(gs.settings?.show18Plus) && Boolean(gs.ageConfirmedByPlayerId?.[nextPlayerId]);
 
     let nextCard = pickTruthDareCard({
@@ -708,6 +769,7 @@ export async function roomRoutes(fastify) {
       include18Plus: include18PlusForPlayer,
       safeMode: Boolean(gs.settings?.safeMode),
       playerHasPro: nextHasPro,
+      unlockedCategorySlugs: nextUnlockedCategorySlugs,
       excludeCardIds: gs.usedCardIds || [],
     });
 
@@ -719,6 +781,7 @@ export async function roomRoutes(fastify) {
         include18Plus: false,
         safeMode: Boolean(gs.settings?.safeMode),
         playerHasPro: nextHasPro,
+        unlockedCategorySlugs: nextUnlockedCategorySlugs,
         excludeCardIds: gs.usedCardIds || [],
       });
     }
@@ -760,6 +823,15 @@ export async function roomRoutes(fastify) {
 
     if (gs.currentPlayerId !== playerId) return reply.code(403).send({ error: 'Это не ваш ход' });
     if (gs.turnToken !== turnToken) return { ok: true, ignored: true, reason: 'stale_turn' };
+    if (action === 'skip') {
+      const used = Number(gs.skipCountByPlayerId?.[playerId]) || 0;
+      const limit = Number(gs.settings?.skipLimitPerPlayer) || 0;
+      if (limit > 0 && used >= limit) {
+        return reply.code(400).send({ error: 'Лимит пропусков исчерпан' });
+      }
+      gs.skipCountByPlayerId = gs.skipCountByPlayerId || {};
+      gs.skipCountByPlayerId[playerId] = used + 1;
+    }
 
     gs.turnResults = gs.turnResults || {};
     if (!gs.turnResults[turnToken]) {
@@ -773,9 +845,90 @@ export async function roomRoutes(fastify) {
 
     // Mark processed so duplicates don't re-advance.
     gs.turnResults[turnToken] = { ...(gs.turnResults[turnToken] || {}), processed: true };
+    gs.playerStats = gs.playerStats || {};
+    gs.playerStats[playerId] = gs.playerStats[playerId] || { done: 0, skip: 0, timeout: 0 };
+    gs.playerStats[playerId][action] = (gs.playerStats[playerId][action] || 0) + 1;
+    gs.turnHistory = gs.turnHistory || [];
+    gs.turnHistory.push({ token: turnToken, playerId, action, at: Date.now() });
 
     truthDareAdvanceTurn(roomId, fastify.io, { expectedTurnToken: turnToken });
     return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/truth_dare/react', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, cardId, like = true, favorite = false } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!cardId) return reply.code(400).send({ error: 'cardId required' });
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
+    if (!allowAction(`truthdare:react:${roomId}:${playerId}`, 20, 12_000)) return reply.code(429).send(ERR.tooMany);
+    const card = getTruthDareCardById(cardId);
+    if (!card) return reply.code(400).send({ error: 'Неизвестная карточка' });
+    const gs = room.gameState;
+    gs.likesByPlayerId = gs.likesByPlayerId || {};
+    gs.favoritesByPlayerId = gs.favoritesByPlayerId || {};
+    gs.cardLikes = gs.cardLikes || {};
+    gs.likesByPlayerId[playerId] = Array.isArray(gs.likesByPlayerId[playerId]) ? gs.likesByPlayerId[playerId] : [];
+    gs.favoritesByPlayerId[playerId] = Array.isArray(gs.favoritesByPlayerId[playerId]) ? gs.favoritesByPlayerId[playerId] : [];
+    if (like && !gs.likesByPlayerId[playerId].includes(cardId)) {
+      gs.likesByPlayerId[playerId].push(cardId);
+      gs.cardLikes[cardId] = (gs.cardLikes[cardId] || 0) + 1;
+    }
+    if (favorite && !gs.favoritesByPlayerId[playerId].includes(cardId)) {
+      gs.favoritesByPlayerId[playerId].push(cardId);
+    }
+    fastify.io.to(roomId).emit('truth_dare_update', {});
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/truth_dare/report', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, cardId, reason = '' } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!cardId) return reply.code(400).send({ error: 'cardId required' });
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
+    if (!allowAction(`truthdare:report:${roomId}:${playerId}`, 8, 30_000)) return reply.code(429).send(ERR.tooMany);
+    const card = getTruthDareCardById(cardId);
+    if (!card) return reply.code(400).send({ error: 'Неизвестная карточка' });
+    const gs = room.gameState;
+    gs.reportedByPlayerAndCard = gs.reportedByPlayerAndCard || {};
+    gs.cardReports = gs.cardReports || {};
+    const key = `${playerId}:${cardId}`;
+    if (gs.reportedByPlayerAndCard[key]) return { ok: true, already: true };
+    gs.reportedByPlayerAndCard[key] = true;
+    gs.cardReports[cardId] = (gs.cardReports[cardId] || 0) + 1;
+    gs.reportLog = gs.reportLog || [];
+    gs.reportLog.push({ cardId, by: playerId, reason: String(reason || '').slice(0, 160), at: Date.now() });
+    fastify.io.to(roomId).emit('truth_dare_update', {});
+    return { ok: true };
+  });
+
+  fastify.get('/rooms/:roomId/truth_dare/moderation', async (request, reply) => {
+    const { roomId } = request.params;
+    const playerId = request.query?.playerId;
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (room.hostId !== playerId) return reply.code(403).send(ERR.hostOnly);
+    const gs = room.gameState;
+    const rows = Object.entries(gs.cardReports || {})
+      .map(([cardId, reports]) => {
+        const card = getTruthDareCardById(cardId);
+        return {
+          cardId,
+          reports: Number(reports) || 0,
+          likes: Number(gs.cardLikes?.[cardId]) || 0,
+          text: card?.text || '—',
+          categorySlug: card?.categorySlug || 'unknown',
+        };
+      })
+      .sort((a, b) => b.reports - a.reports || b.likes - a.likes)
+      .slice(0, 25);
+    return { ok: true, rows };
   });
 
   // -----------------------------
@@ -893,6 +1046,7 @@ export async function roomRoutes(fastify) {
       }
 
       gs.currentCrisis = pickNextCrisis();
+      gs.crisisHistory = [...(gs.crisisHistory || []), gs.currentCrisis ? { id: gs.currentCrisis.id, name: gs.currentCrisis.name, at: Date.now() } : null].filter(Boolean).slice(-20);
       bunkerMarkPhase(gs, 'round_event');
       io.to(roomId).emit('bunker_update', {});
       bunkerScheduleNext(roomId, io, gs.phaseToken, gs.phaseDurationSec * 1000);
@@ -920,6 +1074,7 @@ export async function roomRoutes(fastify) {
       }
 
       gs.currentCrisis = pickNextCrisis();
+      gs.crisisHistory = [...(gs.crisisHistory || []), gs.currentCrisis ? { id: gs.currentCrisis.id, name: gs.currentCrisis.name, at: Date.now() } : null].filter(Boolean).slice(-20);
       bunkerMarkPhase(gs, 'round_event');
       io.to(roomId).emit('bunker_update', {});
       bunkerScheduleNext(roomId, io, gs.phaseToken, gs.phaseDurationSec * 1000);
@@ -945,13 +1100,18 @@ export async function roomRoutes(fastify) {
   }
 
   fastify.post('/rooms/bunker/start', async (request, reply) => {
-    const { roomId, hostId, maxRounds, phaseTimers } = request.body || {};
+    const { roomId, hostId, maxRounds, phaseTimers, scenarioId } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
     if (room.hostId !== hostId) return reply.code(403).send(ERR.hostOnly);
     if (!room.players || room.players.length < 4) return reply.code(400).send({ error: 'Для Бункера нужно минимум 4 игрока' });
+    const inv = room.playerInventories || {};
+    const hostInv = inv[hostId] || {};
+    if (!canUseBunkerScenario({ scenarioId, playerHasPro: Boolean(hostInv.hasPro), unlockedItems: hostInv.unlockedItems || [] })) {
+      return reply.code(403).send({ error: 'Сценарий недоступен без Pro или нужного пака' });
+    }
 
-    const gs = createBunkerState(room, { maxRounds, phaseTimers });
+    const gs = createBunkerState(room, { maxRounds, phaseTimers, scenarioId });
     gs.characters = gs.characters || {};
 
     recordGameSession();
@@ -1023,14 +1183,19 @@ export async function roomRoutes(fastify) {
       phaseEndsAt,
       roundIndex: gs.roundIndex ?? 0,
       maxRounds: gs.maxRounds ?? null,
+      scenario: BUNKER_SCENARIOS.find((s) => s.id === gs.scenarioId) || null,
+      startedAt: gs.phaseStartedAt ?? null,
+      totalPlayers: Array.isArray(gs.playerOrder) ? gs.playerOrder.length : room.players.length,
       alive,
       currentCrisis: gs.currentCrisis || null,
+      crisisHistory: Array.isArray(gs.crisisHistory) ? gs.crisisHistory.slice(-8) : [],
       myCharacter: gs.characters?.[playerId] || null,
       publicCharacters,
       votes: gs.votes || {},
       voteCounts,
       tieCandidates: gs.tieCandidates || null,
       eliminatedLog,
+      myEliminatedAt: (gs.eliminated || []).find((e) => e?.id === playerId)?.at || null,
     };
   });
 
@@ -1070,6 +1235,8 @@ export async function roomRoutes(fastify) {
     const isExplainer = teamIndex === gs.currentTeamIndex;
     const explainerId = team ? team.players[gs.currentExplainerIndex % team.players.length] : null;
     const explainer = room.players.find((p) => p.id === explainerId);
+    const playerStats = gs.playerStats && typeof gs.playerStats === 'object' ? gs.playerStats : {};
+    const mvp = playersToMvp(playerStats, room.players);
     return {
       teams: gs.teams.map((t) => ({ name: t.name, score: t.score, playerIds: t.players })),
       currentTeamIndex: gs.currentTeamIndex,
@@ -1078,10 +1245,15 @@ export async function roomRoutes(fastify) {
       roundEndsAt: gs.roundEndsAt,
       timerSeconds: gs.timerSeconds,
       scoreLimit: gs.scoreLimit,
+      skipPenalty: gs.skipPenalty ?? 1,
       winner: gs.winner,
       myTeamIndex: teamIndex,
       isExplainer,
+      isCurrentExplainer: playerId === explainerId,
+      currentExplainerId: explainerId,
       explainerName: explainer?.name || 'Игрок',
+      playerStats,
+      mvp,
     };
   });
 
@@ -1090,7 +1262,7 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'elias' || !room.gameState) return;
     const gs = room.gameState;
     if (gs.winner) return;
-    gs.currentWord = getRandomEliasWord(gs.dictionaryIds);
+    gs.currentWord = pickEliasWord(gs);
     gs.lastGuessedWord = null;
     gs.lastSkippedWord = null;
     io.to(roomId).emit('elias_update', {});
@@ -1107,7 +1279,7 @@ export async function roomRoutes(fastify) {
       gs.currentTeamIndex = (gs.currentTeamIndex + 1) % gs.teams.length;
     }
     gs.currentExplainerIndex = nextExplainer;
-    gs.currentWord = getRandomEliasWord(gs.dictionaryIds);
+    gs.currentWord = pickEliasWord(gs);
     gs.lastGuessedWord = null;
     gs.lastSkippedWord = null;
     gs.roundEndsAt = Date.now() + gs.timerSeconds * 1000;
@@ -1129,6 +1301,30 @@ export async function roomRoutes(fastify) {
     }
   }
 
+  function playersToMvp(playerStats, roomPlayers) {
+    let bestId = null;
+    let bestScore = -Infinity;
+    for (const [id, st] of Object.entries(playerStats || {})) {
+      const guessed = Number(st?.guessed) || 0;
+      const skipped = Number(st?.skipped) || 0;
+      const score = guessed - skipped;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = id;
+      }
+    }
+    if (!bestId) return null;
+    const p = (roomPlayers || []).find((x) => x.id === bestId);
+    const raw = playerStats?.[bestId] || {};
+    return {
+      id: bestId,
+      name: p?.name || 'Игрок',
+      guessed: Number(raw.guessed) || 0,
+      skipped: Number(raw.skipped) || 0,
+      value: (Number(raw.guessed) || 0) - (Number(raw.skipped) || 0),
+    };
+  }
+
   fastify.post('/rooms/:roomId/elias/guessed', async (request, reply) => {
     const { roomId } = request.params;
     const { playerId } = request.body || {};
@@ -1143,6 +1339,9 @@ export async function roomRoutes(fastify) {
     if (gs.lastGuessedWord === gs.currentWord) return { ok: true, already: true };
     gs.lastGuessedWord = gs.currentWord;
     team.score = (team.score || 0) + 1;
+    const stats = gs.playerStats?.[playerId] || { guessed: 0, skipped: 0 };
+    stats.guessed = (stats.guessed || 0) + 1;
+    if (gs.playerStats) gs.playerStats[playerId] = stats;
     eliasNextWord(roomId, fastify.io);
     eliasCheckWin(roomId, fastify.io);
     return { ok: true, score: team.score };
@@ -1161,8 +1360,13 @@ export async function roomRoutes(fastify) {
     if (!team?.players?.includes(playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
     if (gs.lastSkippedWord === gs.currentWord) return { ok: true, already: true };
     gs.lastSkippedWord = gs.currentWord;
+    const stats = gs.playerStats?.[playerId] || { guessed: 0, skipped: 0 };
+    stats.skipped = (stats.skipped || 0) + 1;
+    if (gs.playerStats) gs.playerStats[playerId] = stats;
+    const penalty = Math.min(3, Math.max(0, Number(gs.skipPenalty) || 0));
+    if (penalty > 0) team.score = Math.max(0, (team.score || 0) - penalty);
     eliasNextWord(roomId, fastify.io);
-    return { ok: true };
+    return { ok: true, score: team.score };
   });
 
   fastify.post('/rooms/:roomId/elias/next-turn', async (request, reply) => {
@@ -1192,8 +1396,12 @@ export async function roomRoutes(fastify) {
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Not in room' });
     const inv = inventory && typeof inventory === 'object'
-      ? { dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'], hasPro: Boolean(inventory.hasPro) }
-      : { dictionaries: ['free'], hasPro: false };
+      ? {
+        dictionaries: Array.isArray(inventory.dictionaries) ? inventory.dictionaries : ['free'],
+        unlockedItems: Array.isArray(inventory.unlockedItems) ? inventory.unlockedItems.map(String) : [],
+        hasPro: Boolean(inventory.hasPro),
+      }
+      : { dictionaries: ['free'], unlockedItems: [], hasPro: false };
     roomManager.setPlayerInventory(roomId, playerId, inv, photo_url, avatar_emoji);
     const updated = roomManager.get(roomId);
     return { room: roomManager.toSafe(updated) };

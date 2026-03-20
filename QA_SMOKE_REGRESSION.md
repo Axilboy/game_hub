@@ -1,66 +1,84 @@
 # QA Smoke Regression Checklist
 
-Quick pre-deploy checklist for core user flows.
+Pre-release checklist for critical flows, realtime stability, and rollback readiness.
 
-## 1) Home / Lobby
+## 1) Core App (Home / Lobby / Invite)
 
 - Open `/` and verify there is no runtime error in console.
-- Create room as host.
-- Join the same room from second client by invite link/code.
-- Verify online/offline statuses update correctly.
-- Verify leaving room returns to `/` without broken state.
+- Create room as host, join from second client by code and invite.
+- Verify invite share works: Telegram share, native share, clipboard fallback.
+- Verify invalid/expired invite shows fallback CTA block (code/create/rematch).
+- Verify online/offline status badges update in lobby.
+- Verify leaving room returns to `/` without stale room state.
 
-## 2) Spy
+## 2) Game Modes
 
-- Start Spy from lobby.
-- Verify role card loads for all players.
-- If timer is enabled, verify countdown updates every second.
-- Start vote as host and verify other players can vote once.
-- End vote and verify result screen appears for everyone.
-- Verify reconnect during round restores current card and vote state.
+### Spy
+- Start game with default settings.
+- Verify role card and location list behavior.
+- Verify vote start/end and idempotent vote submit.
+- Verify reconnect restores vote/card state.
 
-## 3) Mafia
+### Mafia
+- Start with default timers and with "10-minute mode".
+- Verify phase transitions and timer countdown.
+- Verify auto-advance triggers once (no duplicate jumps).
+- Verify vote protocol and revealed roles rendering.
 
-- Start Mafia with default settings.
-- Verify phase transitions and timer updates.
-- Verify moderator can manually advance phase.
-- Wait for timer timeout and verify auto-advance works once (no duplicate jumps).
-- Verify vote submission is idempotent (second click does not break state).
-- Verify reconnect restores current phase/state.
+### Elias
+- Verify active team/explainer indicators.
+- Verify guessed/skip score update and skip penalty.
+- Verify timeout -> next turn flow and scoreboard/MVP updates.
 
-## 4) Elias
+### Truth or Dare
+- Verify categories, mode, and timer state.
+- Verify turn idempotency (`done`/`skip`) and reconnect restore.
+- Verify 18+ confirm per player and safe-mode visibility.
+- Verify card feedback actions (`like` / `favorite` / `report`) and host moderation list refresh.
+- Verify premium category access works both via Pro and via purchased pack items (`td_party`, `td_romance`, `td_18plus`).
 
-- Start Elias with default teams.
-- Verify explaining team sees word, other team does not.
-- Verify guessed/skip actions update score and word.
-- Verify next-turn flow works at timeout.
-- Verify reconnect restores current round and timer.
+### Bunker
+- Verify intro/reveals/discussion/voting/tie-break phases.
+- Verify vote counts, eliminated log, final state.
+- Verify reconnect and phase timer restore.
+- Verify post-match report includes survival status and crisis history list.
+- Run one high-load room with 8-12 players (or bots) and ensure no duplicate phase jumps.
 
-## 5) Truth or Dare
+## 3) Monetization / Store
 
-- Start Truth/Dare from lobby with default categories.
-- Verify current player, timer and card are visible.
-- Verify `done` and `skip` actions advance turn once.
-- Enable 18+ and verify age confirmation flow works per player.
-- Verify reconnect restores current turn and card state.
+- Open paywall from Home and validate value-first copy.
+- Check mock checkout actions (unlock/trial/restore) update local inventory.
+- Verify purchase history is appended and rendered.
+- Verify events: `paywall_open`, `paywall_buy_click`, `store_checkout_mock`, `store_restore`.
 
-## 6) Bunker
+## 4) Analytics / Observability
 
-- Start Bunker with 4+ players.
-- Verify phase progression: intro -> reveals -> discussion -> voting.
-- Verify voting works and tie-break resolves.
-- Verify round event and eliminated log are shown.
-- Verify final screen appears with winner.
-- Verify reconnect restores current phase/timer.
+- Verify funnel counters in Profile are updated after one full game cycle.
+- Verify KPI lines (invite split, store CTR, api errors/timeouts) are visible.
+- Force a timeout/error and verify `api_error` event includes timeout marker.
 
-## 7) Stability / API errors
+## 5) SEO Surface
 
-- Temporarily stop server and verify app shows stable fallback behavior.
-- Trigger invalid actions (e.g. vote outside voting phase) and verify user-friendly error message.
-- Verify no persistent loading spinner loops after recoverable API errors.
+- Verify `/seo`, `/games/spy`, `/games/elias`, `/games/mafia`, `/games/truth_dare`, `/games/bunker`.
+- Verify internal links and back-navigation work.
+- Verify title/description render and no blank content sections.
 
-## 8) Deployment gate
+## 6) A11y / Motion
 
-- Run frontend build (`app`: `npm run build`) before deploy.
-- Confirm no new linter diagnostics in modified files.
-- Perform at least one end-to-end smoke pass for Home + 2 game modes.
+- Keyboard through Home/Lobby controls, modal open/close, focus trap.
+- Verify `aria-live`/alert messages for critical error states.
+- Verify 44px hit targets for icon controls.
+- Verify reduced-motion mode does not break usability.
+
+## 7) Devices / Network
+
+- Check at least 5 contexts: Android WebView, iOS Safari, desktop Chrome, desktop Firefox, low-end Android.
+- Test with stable network, slow 3G simulation, and offline->online recovery.
+- Verify reconnect banner and offline banner behavior.
+
+## 8) Release Gate
+
+- Run frontend build (`app`: `npm run build`) and verify success.
+- Ensure no new linter diagnostics in modified files.
+- Run one 2-player e2e smoke (Home -> Lobby -> Game -> End -> Rematch).
+- Prepare rollback trigger and responsible person before deploy.

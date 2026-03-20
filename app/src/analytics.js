@@ -27,17 +27,33 @@ export function getAnalyticsEvents() {
 export function getFunnelSummary() {
   const events = getAnalyticsEvents();
   const count = (name) => events.filter((e) => e?.event === name).length;
+  const countBy = (name, key, value) => events.filter((e) => e?.event === name && e?.[key] === value).length;
   const created = count('room_create');
   const joined = count('room_join');
   const started = count('game_start');
   const completed = count('match_completed');
+  const inviteShares = count('invite_share');
+  const inviteShareTelegram = countBy('invite_share', 'mode', 'telegram');
+  const inviteShareClipboard = countBy('invite_share', 'mode', 'clipboard');
+  const storeOpens = count('store_open');
+  const storeClicks = count('store_item_click');
+  const apiErrors = count('api_error');
+  const apiTimeouts = events.filter((e) => e?.event === 'api_error' && e?.timeout).length;
   return {
     eventsCount: events.length,
     roomCreate: created,
     roomJoin: joined,
     gameStart: started,
     matchCompleted: completed,
+    inviteShares,
+    inviteShareTelegram,
+    inviteShareClipboard,
+    storeOpens,
+    storeClicks,
+    apiErrors,
+    apiTimeouts,
     startFromCreateRate: created > 0 ? Math.round((started / created) * 100) : 0,
     completionFromStartRate: started > 0 ? Math.round((completed / started) * 100) : 0,
+    storeCtr: storeOpens > 0 ? Math.round((storeClicks / storeOpens) * 100) : 0,
   };
 }

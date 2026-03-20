@@ -5,21 +5,46 @@ import { api } from '../api';
 import { getLevelProgress, getStats } from '../stats';
 import { getInventory } from '../inventory';
 import { getDisplayName, getAvatar } from '../displayName';
-import BackArrow from '../components/BackArrow';
 import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import EmptyState from '../components/ui/EmptyState';
+import Chip from '../components/ui/Chip';
+import Segmented from '../components/ui/Segmented';
 import { getFunnelSummary } from '../analytics';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
+import PageLayout from '../components/layout/PageLayout';
 
 const THEMES = [
   { id: 'dark', label: 'Тёмная (Telegram)' },
   { id: 'light', label: 'Светлая' },
 ];
+const DENSITIES = [
+  { id: 'default', label: 'Обычная' },
+  { id: 'compact', label: 'Компактная' },
+];
+
+const GAME_LABELS = {
+  spy: 'Шпион',
+  mafia: 'Мафия',
+  elias: 'Элиас',
+  truth_dare: 'Правда/Действие',
+  bunker: 'Бункер',
+  unknown: 'Другое',
+};
 
 function applyTheme(id) {
   const v = id === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = v;
   try {
     localStorage.setItem('gh_theme', v);
+  } catch (_) {}
+}
+
+function applyDensity(id) {
+  const v = id === 'compact' ? 'compact' : 'default';
+  document.documentElement.dataset.density = v;
+  try {
+    localStorage.setItem('gh_density', v);
   } catch (_) {}
 }
 
@@ -46,6 +71,13 @@ export default function Profile({ user }) {
       return 'dark';
     }
   });
+  const [density, setDensity] = useState(() => {
+    try {
+      return localStorage.getItem('gh_density') === 'compact' ? 'compact' : 'default';
+    } catch (_) {
+      return 'default';
+    }
+  });
 
   useEffect(() => {
     api
@@ -63,7 +95,41 @@ export default function Profile({ user }) {
   const level = getLevelProgress(local);
   const name = getDisplayName() || user?.first_name || 'Игрок';
   const avatar = getAvatar();
-  const topGame = Object.entries(local.gamesByType || {}).sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || '—';
+  const topGameKey = Object.entries(local.gamesByType || {}).sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || '—';
+  const topGame = GAME_LABELS[topGameKey] || topGameKey;
+  const bestGameRecord = Object.entries(local.gamesByType || {}).sort((a, b) => (b[1] || 0) - (a[1] || 0))[0];
+  const totalMins = Math.round((local.totalTimeSpent || 0) / 60);
+  const currentStreak = local.currentStreak || 0;
+  const bestStreak = local.bestStreak || 0;
+  const weeklyGamesGoal = 12;
+  const weeklyMinutesGoal = 90;
+  const weeklyGamesProgress = Math.min(100, Math.round((gamesPlayed / Math.max(1, weeklyGamesGoal)) * 100));
+  const weeklyMinutesProgress = Math.min(100, Math.round((totalMins / Math.max(1, weeklyMinutesGoal)) * 100));
+  const profileCardText =
+    `GameHub профайл: ${name}\n` +
+    `Уровень: ${level.level}\n` +
+    `Сыграно матчей: ${gamesPlayed}\n` +
+    `Любимая игра: ${topGame}\n` +
+    `Streak: ${currentStreak} (рекорд ${bestStreak})\n` +
+    `Про: ${inv.hasPro ? 'да' : 'нет'}`;
+
+  const exportProfileCard = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Моя карточка GameHub',
+          text: profileCardText,
+        });
+        return;
+      }
+    } catch (_) {}
+    try {
+      await navigator.clipboard.writeText(profileCardText);
+      alert('Карточка профиля скопирована в буфер обмена');
+    } catch (_) {
+      alert(profileCardText);
+    }
+  };
 
   const achievements = [
     { id: 'first', label: 'Первый визит', done: Boolean(local.firstVisitAt) },
@@ -93,8 +159,15 @@ export default function Profile({ user }) {
   ));
 
   return (
-    <div className="gh-page gh-fade-in">
-      <BackArrow onClick={() => navigate(-1)} title="Назад" />
+    <PageLayout
+      title="Профиль"
+      onBack={() => navigate(-1)}
+      stickyBottom={(
+        <Button variant="secondary" fullWidth onClick={() => navigate('/')}>
+          На главную
+        </Button>
+      )}
+    >
       <header className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {avatar ? (
@@ -107,7 +180,7 @@ export default function Profile({ user }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 18 }}>{name}</div>
             <div style={{ fontSize: 14, opacity: 0.85, marginTop: 4 }}>
-              {inv.hasPro ? 'Про активна' : 'Без подписки Про'}
+              {inv.hasPro ? <Badge tone="success">Про активна</Badge> : <Badge>Без Про</Badge>}
             </div>
           </div>
         </div>
@@ -122,8 +195,48 @@ export default function Profile({ user }) {
           <div style={{ width: `${level.progressPercent}%`, height: '100%', background: 'var(--tg-theme-button-color, #3a7bd5)' }} />
         </div>
         <div style={{ fontSize: 14, opacity: 0.9 }}>Сыграно игр (локально): <strong>{gamesPlayed}</strong></div>
-        <div style={{ fontSize: 14, opacity: 0.9, marginTop: 6 }}>Время в приложении: <strong>{Math.round((local.totalTimeSpent || 0) / 60)}</strong> мин</div>
+        <div style={{ fontSize: 14, opacity: 0.9, marginTop: 6 }}>Время в приложении: <strong>{totalMins}</strong> мин</div>
         <div style={{ fontSize: 14, opacity: 0.9, marginTop: 6 }}>Любимая игра: <strong>{topGame}</strong></div>
+        <div style={{ fontSize: 14, opacity: 0.9, marginTop: 6 }}>Streak: <strong>{currentStreak}</strong> дн. · Рекорд: <strong>{bestStreak}</strong> дн.</div>
+      </section>
+
+      <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Цели недели</div>
+        <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 6 }}>
+          Сыграть {weeklyGamesGoal} матчей: <strong>{gamesPlayed}/{weeklyGamesGoal}</strong>
+        </div>
+        <div style={{ width: '100%', height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: 10 }}>
+          <div style={{ width: `${weeklyGamesProgress}%`, height: '100%', background: 'var(--tg-theme-button-color, #3a7bd5)' }} />
+        </div>
+        <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 6 }}>
+          Провести {weeklyMinutesGoal} минут в игре: <strong>{totalMins}/{weeklyMinutesGoal}</strong>
+        </div>
+        <div style={{ width: '100%', height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+          <div style={{ width: `${weeklyMinutesProgress}%`, height: '100%', background: 'var(--tg-theme-button-color, #3a7bd5)' }} />
+        </div>
+      </section>
+
+      <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Рекорды и история</div>
+        <div style={{ fontSize: 14, opacity: 0.92 }}>
+          Лучший режим: <strong>{bestGameRecord ? `${GAME_LABELS[bestGameRecord[0]] || bestGameRecord[0]} (${bestGameRecord[1]})` : '—'}</strong>
+        </div>
+        <div style={{ fontSize: 14, opacity: 0.92, marginTop: 6 }}>
+          Последняя игра: <strong>{GAME_LABELS[local.lastPlayedGame] || local.lastPlayedGame || '—'}</strong>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Object.entries(local.gamesByType || {})
+            .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+            .slice(0, 6)
+            .map(([k, v]) => (
+              <div key={k} style={{ fontSize: 13, opacity: 0.9 }}>
+                {GAME_LABELS[k] || k}: <strong>{v}</strong>
+              </div>
+            ))}
+          {Object.keys(local.gamesByType || {}).length === 0 && (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>История матчей пока пустая.</div>
+          )}
+        </div>
       </section>
 
       <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
@@ -136,7 +249,7 @@ export default function Profile({ user }) {
             <li>Завершённых показов рекламы за сутки: <strong>{pub.adCompletedToday ?? '—'}</strong></li>
           </ul>
         ) : (
-          <div style={{ fontSize: 14, opacity: 0.8 }}>Нет данных</div>
+          <EmptyState title="Нет данных" message="Серверная статистика временно недоступна." />
         )}
       </section>
 
@@ -160,6 +273,18 @@ export default function Profile({ user }) {
             </div>
           ))}
         </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Chip active>Уровень {level.level}</Chip>
+          <Chip active={inv.hasPro}>Про</Chip>
+          <Chip>{topGame === '—' ? 'Без любимой игры' : `Любимая: ${topGame}`}</Chip>
+          <Chip active={currentStreak >= 3}>Серия {currentStreak} дн.</Chip>
+          <Chip active={gamesPlayed >= 50}>50+ матчей</Chip>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Button variant="secondary" fullWidth onClick={exportProfileCard}>
+            Экспорт карточки профиля
+          </Button>
+        </div>
       </section>
 
       <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
@@ -171,6 +296,12 @@ export default function Profile({ user }) {
         <div style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
           Конверсия стартов из созданных: <strong>{funnel.startFromCreateRate}%</strong> ·
           Завершение из стартов: <strong>{funnel.completionFromStartRate}%</strong>
+        </div>
+        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
+          Инвайт-шеры: <strong>{funnel.inviteShares || 0}</strong> (TG: {funnel.inviteShareTelegram || 0}, буфер: {funnel.inviteShareClipboard || 0})
+        </div>
+        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>
+          Магазин CTR: <strong>{funnel.storeCtr || 0}%</strong> · API ошибок: <strong>{funnel.apiErrors || 0}</strong> · timeout: <strong>{funnel.apiTimeouts || 0}</strong>
         </div>
       </section>
 
@@ -189,26 +320,24 @@ export default function Profile({ user }) {
 
       <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Тема интерфейса</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {THEMES.map((t) => (
-            <Button
-              key={t.id}
-              type="button"
-              variant={theme === t.id ? 'primary' : 'secondary'}
-              onClick={() => {
-                setTheme(t.id);
-                applyTheme(t.id);
-              }}
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
+        <Segmented
+          value={theme}
+          onChange={(id) => {
+            setTheme(id);
+            applyTheme(id);
+          }}
+          options={THEMES.map((t) => ({ value: t.id, label: t.label }))}
+        />
+        <div style={{ fontWeight: 700, marginTop: 12, marginBottom: 8 }}>Плотность интерфейса</div>
+        <Segmented
+          value={density}
+          onChange={(id) => {
+            setDensity(id);
+            applyDensity(id);
+          }}
+          options={DENSITIES.map((d) => ({ value: d.id, label: d.label }))}
+        />
       </section>
-
-      <Button variant="secondary" fullWidth onClick={() => navigate('/')}>
-        На главную
-      </Button>
-    </div>
+    </PageLayout>
   );
 }

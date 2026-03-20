@@ -12,6 +12,11 @@ export const socket = {
     sock = io(API_URL, {
       auth: { roomId, player },
       transports: ['websocket', 'polling'],
+      timeout: 8000,
+      reconnection: true,
+      reconnectionAttempts: 12,
+      reconnectionDelay: 700,
+      reconnectionDelayMax: 4000,
     });
     return sock;
   },
@@ -36,5 +41,8 @@ export const socket = {
   },
   emit(ev, data) {
     if (sock) sock.emit(ev, data);
+  },
+  isConnected() {
+    return Boolean(sock?.connected);
   },
 };

@@ -4,20 +4,6 @@ const API_URL = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.V
   ? import.meta.env.VITE_API_URL
   : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
-function withTimeout(ms, signal) {
-  if (!ms || ms <= 0) return signal;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), ms);
-  // If caller already provides a signal, combine it.
-  if (signal) {
-    if (signal.aborted) controller.abort();
-    signal.addEventListener('abort', () => controller.abort(), { once: true });
-  }
-  // Always clear timer.
-  controller.signal.addEventListener('abort', () => clearTimeout(timeoutId), { once: true });
-  return controller.signal;
-}
-
 async function fetchJson(url, options = {}, timeoutMs = 10000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -33,9 +19,12 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
     }
     return await r.json();
   } catch (e) {
-    if (e?.name !== 'AbortError') {
-      track('api_error', { path: url.replace(API_URL, ''), message: String(e?.message || e).slice(0, 160) });
-    }
+    const isAbort = e?.name === 'AbortError';
+    track('api_error', {
+      path: url.replace(API_URL, ''),
+      message: String(e?.message || e).slice(0, 160),
+      timeout: isAbort,
+    });
     throw e;
   } finally {
     clearTimeout(timeoutId);
@@ -44,6 +33,7 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
 
 export function getApiErrorMessage(error, fallback = 'Ошибка запроса') {
   if (!error) return fallback;
+  if (error?.name === 'AbortError') return 'Сервер отвечает слишком долго. Попробуйте ещё раз.';
   const raw = String(error?.message || error || '').trim();
   if (!raw) return fallback;
   try {

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { getInventory } from '../inventory';
+import { addPurchaseHistory, getInventory, purchaseDictionary, restorePurchases, setPro, unlockItem } from '../inventory';
 import { SHOP_GAMES, SHOP_CATEGORIES, SHOP_ITEMS } from '../shopData';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import { track } from '../analytics';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Tooltip from './ui/Tooltip';
 
 const btnStyle = {
   padding: 'var(--gh-space-3, 12px) var(--gh-space-5, 20px)',
@@ -18,13 +21,14 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
   const [shopGameFilter, setShopGameFilter] = useState(initialGameFilter);
   const [shopCategoryFilter, setShopCategoryFilter] = useState('all');
   const [query, setQuery] = useState('');
-  const inv = getInventory();
+  const [inv, setInv] = useState(getInventory);
 
   useEffect(() => {
     if (open) {
       setShopGameFilter(initialGameFilter);
       setShopCategoryFilter('all');
       setQuery('');
+      setInv(getInventory());
       track('store_open', { gameFilter: initialGameFilter });
     }
   }, [open, initialGameFilter]);
@@ -38,6 +42,35 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
       (!query.trim() || `${item.name} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase()))
   );
   const popular = items.slice(0, 4);
+  const purchaseHistory = Array.isArray(inv.purchases) ? [...inv.purchases].reverse().slice(0, 6) : [];
+
+  const buyItem = (item) => {
+    if (item.free) return;
+    if (item.id === 'mafia_extended') {
+      const expiresAt = Date.now() + 30 * 24 * 3600 * 1000;
+      setInv(setPro(expiresAt));
+      track('store_checkout_mock', { itemId: item.id, plan: 'pro_30d' });
+      return;
+    }
+    if (item.id.startsWith('spy_') || item.id.startsWith('elias_')) {
+      setInv(purchaseDictionary(item.id));
+      track('store_checkout_mock', { itemId: item.id, plan: 'dictionary_unlock' });
+      return;
+    }
+    if (item.id.startsWith('td_') || item.id.startsWith('bunker_')) {
+      setInv(unlockItem(item.id));
+      track('store_checkout_mock', { itemId: item.id, plan: 'pack_unlock' });
+      return;
+    }
+    setInv(addPurchaseHistory({ id: item.id, type: 'item' }));
+    track('store_checkout_mock', { itemId: item.id, plan: 'item_unlock' });
+  };
+
+  const restore = () => {
+    const next = restorePurchases();
+    setInv(next);
+    track('store_restore', { hasPro: Boolean(next.hasPro), purchases: next.purchases?.length || 0 });
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={onClose}>
@@ -46,12 +79,10 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
         <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
           Витрина: тематические наборы слов и фичи по играм. С <strong>Про</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
         </p>
-        <input
-          type="text"
+        <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Поиск по витрине..."
-          className="gh-input"
           style={{ marginBottom: 14 }}
         />
         <p style={{ fontSize: 13, marginBottom: 12 }}>Игра</p>
@@ -61,6 +92,12 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
           ))}
         </div>
         <p style={{ fontSize: 13, marginBottom: 12 }}>Категория</p>
+        <Select
+          value={shopCategoryFilter}
+          onChange={(e) => setShopCategoryFilter(e.target.value)}
+          options={SHOP_CATEGORIES.map((c) => ({ value: c.id, label: c.name }))}
+          style={{ marginBottom: 10 }}
+        />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {SHOP_CATEGORIES.map((c) => (
             <button key={c.id} type="button" onClick={() => setShopCategoryFilter(c.id)} style={{ ...btnStyle, width: 'auto', padding: '8px 12px', fontSize: 13, background: shopCategoryFilter === c.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}>{c.name}</button>
@@ -84,7 +121,11 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
             const locked = !item.free && !inv.hasPro;
             return (
               <div key={item.id} style={{ marginBottom: 12, padding: 14, background: locked ? 'rgba(80,60,60,0.2)' : 'rgba(255,255,255,0.06)', borderRadius: 10, position: 'relative' }}>
-                {locked && <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 18 }}>🔒</div>}
+                {locked && (
+                  <Tooltip text="Доступно с Про">
+                    <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 18 }}>🔒</div>
+                  </Tooltip>
+                )}
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{item.emoji}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -93,10 +134,13 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                     {!item.free ? (
                       <button
                         type="button"
-                        onClick={() => track('store_item_click', { itemId: item.id, game: item.game, category: item.category })}
+                        onClick={() => {
+                          track('store_item_click', { itemId: item.id, game: item.game, category: item.category });
+                          buyItem(item);
+                        }}
                         style={{ ...btnStyle, width: 'auto', marginTop: 8, padding: '6px 10px', fontSize: 12, background: '#555' }}
                       >
-                        Хочу это
+                        Купить / открыть
                       </button>
                     ) : null}
                   </div>
@@ -115,6 +159,27 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                 </div>
               ))}
             </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 13, opacity: 0.92 }}>История покупок (локально)</p>
+            {purchaseHistory.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {purchaseHistory.map((p, idx) => (
+                  <div key={`${p.id}-${p.t}-${idx}`} style={{ fontSize: 12, opacity: 0.9 }}>
+                    {new Date(p.t).toLocaleString()} - {p.id}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Покупок пока нет.</p>
+            )}
+            <button
+              type="button"
+              onClick={restore}
+              style={{ ...btnStyle, width: 'auto', marginTop: 8, padding: '6px 10px', fontSize: 12, background: '#444' }}
+            >
+              Восстановить покупки
+            </button>
           </div>
         </div>
         <p style={{ fontSize: 12, opacity: 0.85, marginTop: 12, lineHeight: 1.45 }}>

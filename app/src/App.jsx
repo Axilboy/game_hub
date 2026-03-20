@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import { useTelegram } from './useTelegram';
 import { api } from './api';
 import { socket } from './socket';
-import { recordGameFinish, recordGameStart } from './stats';
+import { addSessionTime, recordGameFinish, recordGameStart, touchVisit } from './stats';
 import { getInventory } from './inventory';
 import { getDisplayName, getAvatar } from './displayName';
 import { showAdIfNeeded } from './ads';
@@ -23,10 +23,11 @@ const SeoLanding = lazy(() => import('./pages/SeoLanding'));
 const SeoGameSpy = lazy(() => import('./pages/SeoGameSpy'));
 const SeoGameElias = lazy(() => import('./pages/SeoGameElias'));
 const SeoGameMafia = lazy(() => import('./pages/SeoGameMafia'));
+const SeoGameTruthDare = lazy(() => import('./pages/SeoGameTruthDare'));
+const SeoGameBunker = lazy(() => import('./pages/SeoGameBunker'));
 const SeoHowToPlay = lazy(() => import('./pages/SeoHowToPlay'));
 const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
-const SeoTruthDareStub = lazy(() => import('./pages/SeoTruthDareStub'));
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -36,14 +37,42 @@ function AppRoutes() {
   const [roomId, setRoomId] = useState(null);
   const [pendingNavigateGame, setPendingNavigateGame] = useState(null);
   const [socketReconnecting, setSocketReconnecting] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    touchVisit();
+    let lastTs = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      addSessionTime(Math.round((now - lastTs) / 1000));
+      lastTs = now;
+    }, 15000);
+    return () => {
+      const now = Date.now();
+      addSessionTime(Math.round((now - lastTs) / 1000));
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const invite = params.get('invite');
     if (invite) {
       sessionStorage.setItem('pendingInvite', invite);
+      track('invite_open', { source: 'url', hasInvite: true });
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -63,6 +92,9 @@ function AppRoutes() {
     setRoom(r);
     setRoomId(r.id);
     sessionStorage.setItem('inviteToken', inviteToken);
+    try {
+      sessionStorage.removeItem('gameHub_rematchRoomId');
+    } catch (_) {}
     track('room_create', { roomId: r.id });
     socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: true });
   };
@@ -76,12 +108,15 @@ function AppRoutes() {
       code: code.trim(),
       playerId: String(user.id),
       playerName: displayName || user.first_name || 'Игрок',
-      inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
+      inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
       photo_url: user.photo_url || null,
       avatar_emoji: avatarEmoji || null,
     });
     setRoom(r);
     setRoomId(r.id);
+    try {
+      sessionStorage.removeItem('gameHub_rematchRoomId');
+    } catch (_) {}
     track('room_join', { roomId: r.id, source: 'code' });
     socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: false });
     return r;
@@ -92,19 +127,28 @@ function AppRoutes() {
     const inv = getInventory();
     const displayName = getDisplayName();
     const avatarEmoji = getAvatar();
-    const { room: r } = await api.post('/rooms/join', {
-      inviteToken: inviteParam,
-      playerId: String(user.id),
-      playerName: displayName || user.first_name || 'Игрок',
-      inventory: { dictionaries: inv.dictionaries, hasPro: inv.hasPro },
-      photo_url: user.photo_url || null,
-      avatar_emoji: avatarEmoji || null,
-    });
-    setRoom(r);
-    setRoomId(r.id);
-    track('room_join', { roomId: r.id, source: 'invite' });
-    socket.connect(r.id, { id: String(user.id), name: user.first_name || 'Игрок', isHost: false });
-    return r;
+    track('invite_join_attempt', { source: 'invite' });
+    try {
+      const { room: r } = await api.post('/rooms/join', {
+        inviteToken: inviteParam,
+        playerId: String(user.id),
+        playerName: displayName || user.first_name || 'Игрок',
+        inventory: { dictionaries: inv.dictionaries, unlockedItems: inv.unlockedItems || [], hasPro: inv.hasPro },
+        photo_url: user.photo_url || null,
+        avatar_emoji: avatarEmoji || null,
+      });
+      setRoom(r);
+      setRoomId(r.id);
+      try {
+        sessionStorage.removeItem('gameHub_rematchRoomId');
+      } catch (_) {}
+      track('room_join', { roomId: r.id, source: 'invite' });
+      socket.connect(r.id, { id: String(user.id), name: user.first_name || 'Игрок', isHost: false });
+      return r;
+    } catch (e) {
+      track('invite_join_failed', { source: 'invite', reason: String(e?.message || 'unknown') });
+      throw e;
+    }
   };
 
   const leaveRoom = useCallback(async () => {
@@ -122,6 +166,7 @@ function AppRoutes() {
     sessionStorage.removeItem('inviteToken');
     try {
       sessionStorage.removeItem('gameHub_lastRoomId');
+      sessionStorage.removeItem('gameHub_rematchRoomId');
     } catch (_) {}
   }, [roomId, user?.id]);
 
@@ -159,6 +204,9 @@ function AppRoutes() {
     const onGameEnded = async () => {
       recordGameFinish(room?.game || pendingNavigateGame || null);
       track('match_completed', { game: room?.game || pendingNavigateGame || 'unknown' });
+      try {
+        if (roomId) sessionStorage.setItem('gameHub_rematchRoomId', roomId);
+      } catch (_) {}
       if (location.pathname === '/spy') return;
       await refreshRoom();
       if (location.pathname !== '/lobby') navigate('/lobby');
@@ -249,13 +297,35 @@ function AppRoutes() {
     return () => { cancelled = true; };
   }, [pendingNavigateGame, room?.state, room?.game, location.pathname, navigate, user?.id]);
 
-  if (!ready) return <div style={{ padding: 20 }}>Загрузка…</div>;
+  if (!ready) return <div className="gh-skeleton" style={{ margin: 20, height: 56 }} aria-label="Загрузка приложения" />;
 
   return (
     <>
-      {roomId && socketReconnecting ? (
+      {!isOnline ? (
         <div
           role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 51,
+            padding: '10px 12px',
+            background: 'rgba(164, 56, 56, 0.92)',
+            color: '#fff',
+            textAlign: 'center',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          Вы офлайн. Проверьте интернет и откройте приложение снова.
+        </div>
+      ) : null}
+      {roomId && socketReconnecting && isOnline ? (
+        <div
+          role="status"
+          aria-live="polite"
           style={{
             position: 'fixed',
             top: 0,
@@ -273,8 +343,8 @@ function AppRoutes() {
           Нет связи с сервером — переподключаемся…
         </div>
       ) : null}
-    <Suspense fallback={<div style={{ padding: 20 }}>Загрузка…</div>}>
-    <Routes>
+      <Suspense fallback={<div className="gh-skeleton" style={{ margin: 20, height: 56 }} aria-label="Загрузка экрана" />}>
+      <Routes>
         <Route
           path="/"
           element={
@@ -305,7 +375,11 @@ function AppRoutes() {
         />
         <Route
           path="/games/truth_dare"
-          element={<SeoTruthDareStub onBack={() => navigate('/seo')} />}
+          element={<SeoGameTruthDare onBack={() => navigate('/seo')} />}
+        />
+        <Route
+          path="/games/bunker"
+          element={<SeoGameBunker onBack={() => navigate('/seo')} />}
         />
         <Route
           path="/how-to-play"
@@ -399,7 +473,7 @@ function AppRoutes() {
         <Route path="/profile" element={<Profile user={user} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Suspense>
+      </Suspense>
     </>
   );
 }

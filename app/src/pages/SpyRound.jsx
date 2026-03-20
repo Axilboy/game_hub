@@ -8,6 +8,7 @@ import GameLayout from '../components/game/GameLayout';
 import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
+import Badge from '../components/ui/Badge';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -150,7 +151,6 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   };
 
   const isHost = room?.players?.some((p) => p.id === myId && p.isHost);
-  const canSpyGuess = isSpy && !votingActive && !voteResult;
 
   const submitGuess = async () => {
     if (!canSpyGuess || guessLoading) return;
@@ -185,6 +185,8 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const allSpiesRound = Boolean(card.allSpiesRound);
   const timeUp = card.timerEnabled && secondsLeft !== null && secondsLeft <= 0;
   const votingActive = votingEndsAt && Date.now() < votingEndsAt;
+  const canSpyGuess = isSpy && !votingActive && !voteResult;
+  const phaseLabel = voteResult ? 'Итог' : votingActive ? 'Голосование' : 'Обсуждение';
 
   if (voteResult) {
     return (
@@ -202,6 +204,9 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         confirmText="Выйти прямо сейчас — вы покинете комнату."
       >
         <div className="gh-card" style={{ padding: 16 }}>
+          <div style={{ marginBottom: 8 }}>
+            <Badge tone={votingActive ? 'warning' : 'info'}>{phaseLabel}</Badge>
+          </div>
           {(voteResult.allSpiesRound || voteResult.isSpy) && (
             <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>
               {voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}
@@ -261,6 +266,9 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
             ? 'Вы ведущий (хост): запускайте голосование и при необходимости оглашайте результат.'
             : 'Голосование запускает хост. Следите за таймером и выберите игрока, когда откроется этап.'}
         </p>
+        <div style={{ margin: '0 auto 10px', width: 'fit-content' }}>
+          <Badge tone={votingActive ? 'warning' : 'info'}>{phaseLabel}</Badge>
+        </div>
         {card.timerEnabled && (
           <div
             className="gh-card"
@@ -307,6 +315,11 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
                 <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
                 <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что видно: слово видно</p>
                 <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что делать: голосуй во время голосования</p>
+                {Array.isArray(card.roleHints) && card.roleHints.length > 0 && (
+                  <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>
+                    Возможные роли: {card.roleHints.join(', ')}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -370,6 +383,9 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
               </button>
             )}
             <p style={{ marginBottom: 8 }}>Кто шпион?</p>
+            {votedForId ? (
+              <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Голос принят. Можно дождаться окончания голосования.</p>
+            ) : null}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {otherPlayers.map((p) => (
                 <button

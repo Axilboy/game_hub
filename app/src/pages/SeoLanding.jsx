@@ -110,6 +110,12 @@ export default function SeoLanding({ navigateToApp, onNavigate }) {
           <li>
             <a href="/games/mafia" onClick={(e) => { e.preventDefault(); nav('/games/mafia'); }} style={{ color: '#7ab' }}>Мафия</a> — классика для компании
           </li>
+          <li>
+            <a href="/games/truth_dare" onClick={(e) => { e.preventDefault(); nav('/games/truth_dare'); }} style={{ color: '#7ab' }}>Правда/Действие</a> — быстрые раунды и категории
+          </li>
+          <li>
+            <a href="/games/bunker" onClick={(e) => { e.preventDefault(); nav('/games/bunker'); }} style={{ color: '#7ab' }}>Бункер</a> — обсуждение и голосование на выживание
+          </li>
         </ul>
       </section>
 

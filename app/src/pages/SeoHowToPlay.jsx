@@ -32,6 +32,19 @@ export default function SeoHowToPlay({ onBack }) {
             <>
               <div>Хост выбирает игру и настройки (если они доступны).</div>
               <div style={{ marginTop: 8 }}>После этого начинается раунд.</div>
+              <div style={{ marginTop: 8 }}>
+                Попробуйте режимы:
+                {' '}
+                <a href="/games/spy">Шпион</a>,
+                {' '}
+                <a href="/games/mafia">Мафия</a>,
+                {' '}
+                <a href="/games/elias">Элиас</a>,
+                {' '}
+                <a href="/games/truth_dare">Правда/Действие</a>,
+                {' '}
+                <a href="/games/bunker">Бункер</a>.
+              </div>
             </>
           ),
         },
