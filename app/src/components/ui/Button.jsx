@@ -11,14 +11,14 @@ export default function Button({
 }) {
   const background =
     variant === 'primary'
-      ? 'var(--tg-theme-button-color, #3a7bd5)'
+      ? 'var(--gh-color-primary, var(--tg-theme-button-color, #3a7bd5))'
       : variant === 'secondary'
-        ? '#444'
+        ? 'var(--gh-color-muted, #555)'
         : variant === 'danger'
-          ? '#a44'
+          ? 'var(--gh-color-danger, #a44)'
           : variant === 'ghost'
             ? 'transparent'
-            : 'var(--tg-theme-button-color, #3a7bd5)';
+            : 'var(--gh-color-primary, var(--tg-theme-button-color, #3a7bd5))';
 
   const color =
     variant === 'ghost'
@@ -26,9 +26,9 @@ export default function Button({
       : 'var(--tg-theme-button-text-color, #fff)';
 
   const mergedStyle = {
-    padding: '12px 20px',
-    fontSize: 16,
-    borderRadius: 8,
+    padding: 'var(--gh-space-3, 12px) var(--gh-space-5, 20px)',
+    fontSize: 'var(--gh-font-size-md, 16px)',
+    borderRadius: 'var(--gh-radius-sm, 8px)',
     border: 'none',
     background,
     color,

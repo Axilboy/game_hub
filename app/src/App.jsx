@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import { useTelegram } from './useTelegram';
 import { api } from './api';
 import { socket } from './socket';
-import { incrementGamesPlayed } from './stats';
+import { recordGameFinish, recordGameStart } from './stats';
 import { getInventory } from './inventory';
 import { getDisplayName, getAvatar } from './displayName';
 import { showAdIfNeeded } from './ads';
@@ -63,6 +63,7 @@ function AppRoutes() {
     setRoom(r);
     setRoomId(r.id);
     sessionStorage.setItem('inviteToken', inviteToken);
+    track('room_create', { roomId: r.id });
     socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: true });
   };
 
@@ -81,6 +82,7 @@ function AppRoutes() {
     });
     setRoom(r);
     setRoomId(r.id);
+    track('room_join', { roomId: r.id, source: 'code' });
     socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: false });
     return r;
   };
@@ -100,6 +102,7 @@ function AppRoutes() {
     });
     setRoom(r);
     setRoomId(r.id);
+    track('room_join', { roomId: r.id, source: 'invite' });
     socket.connect(r.id, { id: String(user.id), name: user.first_name || 'Игрок', isHost: false });
     return r;
   };
@@ -148,11 +151,14 @@ function AppRoutes() {
     const onRoomUpdated = () => refreshRoom();
     const onGameStart = async (data) => {
       if (!data?.game) return;
+      recordGameStart(data.game);
+      track('game_start', { game: data.game });
       setPendingNavigateGame(data.game);
       await refreshRoom();
     };
     const onGameEnded = async () => {
-      incrementGamesPlayed();
+      recordGameFinish(room?.game || pendingNavigateGame || null);
+      track('match_completed', { game: room?.game || pendingNavigateGame || 'unknown' });
       if (location.pathname === '/spy') return;
       await refreshRoom();
       if (location.pathname !== '/lobby') navigate('/lobby');
@@ -177,7 +183,7 @@ function AppRoutes() {
       socket.off('game_start', onGameStart);
       socket.off('game_ended', onGameEnded);
     };
-  }, [roomId, location.pathname, navigate, refreshRoom]);
+  }, [roomId, location.pathname, navigate, refreshRoom, room?.game, pendingNavigateGame]);
 
   useEffect(() => {
     if (!roomId) return;

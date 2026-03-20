@@ -1,5 +1,18 @@
-export const SHOP_GAMES = [{ id: 'all', name: 'Все игры' }, { id: 'spy', name: 'Шпион' }, { id: 'mafia', name: 'Мафия' }, { id: 'elias', name: 'Элиас' }];
-export const SHOP_CATEGORIES = [{ id: 'all', name: 'Всё' }, { id: 'dictionaries', name: 'Словари' }, { id: 'modes', name: 'Режимы' }];
+export const SHOP_GAMES = [
+  { id: 'all', name: 'Все игры' },
+  { id: 'spy', name: 'Шпион' },
+  { id: 'mafia', name: 'Мафия' },
+  { id: 'elias', name: 'Элиас' },
+  { id: 'truth_dare', name: 'Правда/Действие' },
+  { id: 'bunker', name: 'Бункер' },
+];
+export const SHOP_CATEGORIES = [
+  { id: 'all', name: 'Всё' },
+  { id: 'dictionaries', name: 'Словари' },
+  { id: 'modes', name: 'Режимы' },
+  { id: 'packs', name: 'Паки' },
+  { id: 'scenarios', name: 'Сценарии' },
+];
 
 export const SHOP_ITEMS = [
   { game: 'spy', category: 'dictionaries', id: 'spy_free', name: 'Базовый', description: 'Классические локации. Бесплатно.', emoji: '📍', free: true },
@@ -21,4 +34,9 @@ export const SHOP_ITEMS = [
   { game: 'elias', category: 'dictionaries', id: 'elias_movies', name: 'Кино', description: 'Жанры, награды. Про.', emoji: '🎬', free: false },
   { game: 'elias', category: 'dictionaries', id: 'elias_science', name: 'Наука', description: 'Эксперименты, теории. Про.', emoji: '🔬', free: false },
   { game: 'elias', category: 'dictionaries', id: 'elias_sport', name: 'Спорт', description: 'Турниры, команды. Про.', emoji: '⚽', free: false },
+  { game: 'truth_dare', category: 'packs', id: 'td_party', name: 'Party Pack', description: 'Больше драйва для большой компании. Про.', emoji: '🎉', free: false },
+  { game: 'truth_dare', category: 'packs', id: 'td_18plus', name: '18+ Pack', description: 'Дополнительные взрослые категории. Про.', emoji: '🔞', free: false },
+  { game: 'truth_dare', category: 'packs', id: 'td_romance', name: 'Romance Pack', description: 'Мягкий романтический формат. Про.', emoji: '💘', free: false },
+  { game: 'bunker', category: 'scenarios', id: 'bunker_pandemic', name: 'Сценарий: Пандемия', description: 'Расширенный кризисный сценарий. Про.', emoji: '🧪', free: false },
+  { game: 'bunker', category: 'scenarios', id: 'bunker_space', name: 'Сценарий: Орбита', description: 'Выживание в космической изоляции. Про.', emoji: '🛰️', free: false },
 ];

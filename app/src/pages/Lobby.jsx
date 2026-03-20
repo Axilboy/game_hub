@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api';
+import { track } from '../analytics';
 import { getInventory } from '../inventory';
 import { getAvatar } from '../displayName';
 import ShopModal from '../components/ShopModal';
@@ -208,6 +209,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
+      track('lobby_start_game', { game: 'spy' });
       navigate('/spy');
     } catch (e) {
       setStartingGame(false);
@@ -237,6 +239,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
+      track('lobby_start_game', { game: 'mafia' });
       navigate('/mafia');
     } catch (e) {
       setStartingGame(false);
@@ -280,6 +283,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
+      track('lobby_start_game', { game: 'elias' });
       navigate('/elias');
     } catch (e) {
       setStartingGame(false);
@@ -305,6 +309,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
+      track('lobby_start_game', { game: 'bunker' });
       navigate('/bunker');
     } catch (e) {
       setStartingGame(false);
@@ -333,6 +338,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
+      track('lobby_start_game', { game: 'truth_dare' });
       navigate('/truth_dare');
     } catch (e) {
       setStartingGame(false);

@@ -4,9 +4,9 @@ import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 
 const baseBtnStyle = {
-  padding: '12px 20px',
-  fontSize: 16,
-  borderRadius: 8,
+  padding: 'var(--gh-space-3, 12px) var(--gh-space-5, 20px)',
+  fontSize: 'var(--gh-font-size-md, 16px)',
+  borderRadius: 'var(--gh-radius-sm, 8px)',
   border: 'none',
   color: '#fff',
   cursor: 'pointer',

@@ -70,7 +70,7 @@ export default function Modal({ open, onClose, title, titleId, children, width =
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 100,
-        padding: 24,
+        padding: 'var(--gh-space-6, 24px)',
       }}
       onClick={() => onClose?.()}
       role="presentation"
@@ -80,8 +80,8 @@ export default function Modal({ open, onClose, title, titleId, children, width =
         className="gh-card gh-modal-panel"
         style={{
           background: 'var(--tg-theme-bg-color, #1a1a1a)',
-          padding: 24,
-          borderRadius: 12,
+          padding: 'var(--gh-space-6, 24px)',
+          borderRadius: 'var(--gh-radius, 12px)',
           maxWidth: width,
           width: '100%',
           maxHeight: '90vh',

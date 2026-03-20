@@ -10,12 +10,44 @@ html, body, #root {
 }
 
 :root {
+  /* Spacing (8px grid) */
+  --gh-space-1: 4px;
+  --gh-space-2: 8px;
+  --gh-space-3: 12px;
+  --gh-space-4: 16px;
+  --gh-space-5: 20px;
+  --gh-space-6: 24px;
+  --gh-space-8: 32px;
+
+  /* Typography */
+  --gh-font-size-xs: 12px;
+  --gh-font-size-sm: 14px;
+  --gh-font-size-md: 16px;
+  --gh-font-size-lg: 18px;
+  --gh-font-size-xl: 22px;
+  --gh-font-weight-regular: 400;
+  --gh-font-weight-semibold: 600;
+  --gh-font-weight-bold: 700;
+
+  /* Radius */
+  --gh-radius-xs: 6px;
+  --gh-radius-sm: 8px;
+  --gh-radius-md: 10px;
   --gh-surface: rgba(255, 255, 255, 0.06);
   --gh-surface-strong: rgba(255, 255, 255, 0.1);
   --gh-border: rgba(255, 255, 255, 0.12);
   --gh-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
   --gh-radius: 12px;
-  --gh-radius-sm: 8px;
+
+  /* Semantic colors */
+  --gh-color-primary: var(--tg-theme-button-color, #3a7bd5);
+  --gh-color-primary-text: var(--tg-theme-button-text-color, #fff);
+  --gh-color-muted: #555;
+  --gh-color-success: #5a4;
+  --gh-color-danger: #a44;
+  --gh-color-warning: #b07a1b;
+  --gh-color-info: #4577bb;
+  --gh-focus-ring: 0 0 0 3px rgba(58, 123, 213, 0.28);
 }
 
 .gh-page {
@@ -79,15 +111,19 @@ html[data-theme='light'] #root {
 
 /* Утилиты кнопок — меньше inline-стилей на экранах вроде Home */
 .gh-btn {
-  padding: 12px 20px;
-  font-size: 16px;
-  border-radius: 10px;
+  padding: var(--gh-space-3) var(--gh-space-5);
+  font-size: var(--gh-font-size-md);
+  border-radius: var(--gh-radius-md);
   border: none;
-  background: var(--tg-theme-button-color, #3a7bd5);
-  color: var(--tg-theme-button-text-color, #fff);
+  background: var(--gh-color-primary);
+  color: var(--gh-color-primary-text);
   cursor: pointer;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-  font-weight: 600;
+  font-weight: var(--gh-font-weight-semibold);
+}
+.gh-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--gh-focus-ring);
 }
 .gh-btn:disabled {
   opacity: 0.55;
@@ -103,10 +139,10 @@ html[data-theme='light'] #root {
   width: auto;
 }
 .gh-btn--muted {
-  background: #555;
+  background: var(--gh-color-muted);
 }
 .gh-btn--green {
-  background: #5a4;
+  background: var(--gh-color-success);
 }
 .gh-btn--purple {
   background: #55a;
@@ -114,21 +150,29 @@ html[data-theme='light'] #root {
 .gh-btn--charcoal {
   background: #444;
 }
+.gh-btn--danger {
+  background: var(--gh-color-danger);
+}
 .gh-btn--compact {
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: var(--gh-space-2) var(--gh-space-3);
+  font-size: var(--gh-font-size-sm);
 }
 .gh-btn--mb {
-  margin-bottom: 12px;
+  margin-bottom: var(--gh-space-3);
 }
 
 .gh-input {
-  padding: 12px;
-  font-size: 18px;
-  border-radius: 8px;
+  padding: var(--gh-space-3);
+  font-size: var(--gh-font-size-lg);
+  border-radius: var(--gh-radius-sm);
   border: 1px solid var(--gh-border);
   background: transparent;
   color: inherit;
+}
+.gh-input:focus-visible {
+  outline: none;
+  box-shadow: var(--gh-focus-ring);
+  border-color: rgba(58, 123, 213, 0.55);
 }
 .gh-input--grow {
   flex: 1;
