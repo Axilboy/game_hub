@@ -4,7 +4,7 @@ import Button from './ui/Button';
 import { resolveJoinPayload } from '../inviteParse';
 import { getApiErrorMessage } from '../api';
 
-function QrScannerPanel({ active, onDecoded, onError }) {
+function QrScannerPanel({ active, onDecoded, onError, compactTop }) {
   const hostId = useId().replace(/:/g, '');
   const readerId = `join-qr-${hostId}`;
   const onDecodedRef = useRef(onDecoded);
@@ -50,7 +50,7 @@ function QrScannerPanel({ active, onDecoded, onError }) {
   if (!active) return null;
 
   return (
-    <div style={{ marginTop: 12 }}>
+    <div style={compactTop ? { marginTop: 0 } : { marginTop: 12 }}>
       <div
         id={readerId}
         style={{
@@ -73,7 +73,7 @@ function QrScannerPanel({ active, onDecoded, onError }) {
  * @param {boolean} props.open
  * @param {() => void} props.onClose
  * @param {(payload: { kind: 'code' | 'invite'; value: string }) => Promise<void>} props.onJoin
- * @param {boolean} [props.openWithScanner] — сразу открыть камеру (кнопка «Войти по QR» на главной)
+ * @param {boolean} [props.openWithScanner] — только камера + «Отмена» (главная «Войти по QR»)
  */
 export default function JoinRoomModal({ open, onClose, onJoin, title = 'Присоединиться к игре', openWithScanner = false }) {
   const [code, setCode] = useState('');
@@ -92,9 +92,7 @@ export default function JoinRoomModal({ open, onClose, onJoin, title = 'Прис
       setScanErr('');
       return;
     }
-    if (openWithScanner) {
-      setScan(true);
-    } else {
+    if (!openWithScanner) {
       setScan(false);
     }
   }, [open, openWithScanner]);
@@ -105,7 +103,7 @@ export default function JoinRoomModal({ open, onClose, onJoin, title = 'Прис
       setScanErr('');
       const payload = resolveJoinPayload(text);
       if (!payload) {
-        setScanErr('Не удалось разобрать QR. Попробуйте ввести код вручную.');
+        setScanErr('Не удалось разобрать QR. Попробуйте ещё раз или введите код на главной.');
         return;
       }
       joinInFlightRef.current = true;
@@ -139,6 +137,32 @@ export default function JoinRoomModal({ open, onClose, onJoin, title = 'Прис
       setBusy(false);
     }
   };
+
+  if (openWithScanner) {
+    return (
+      <Modal open={open} onClose={onClose} title={title} width={400}>
+        <QrScannerPanel
+          compactTop
+          active={open && !busy}
+          onDecoded={handleDecoded}
+          onError={(msg) => setScanErr(msg)}
+        />
+        {scanErr ? (
+          <p role="status" style={{ color: '#f88', fontSize: 13, marginTop: 8 }}>
+            {scanErr}
+          </p>
+        ) : null}
+        {err ? (
+          <p role="alert" style={{ color: '#f88', margin: '8px 0 0', fontSize: 14 }}>
+            {err}
+          </p>
+        ) : null}
+        <Button type="button" variant="secondary" fullWidth disabled={busy} onClick={onClose} style={{ marginTop: 14 }}>
+          Отмена
+        </Button>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={title} width={400}>

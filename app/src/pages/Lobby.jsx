@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import useSeo from '../hooks/useSeo';
 import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
-import { showAdIfNeeded } from '../ads';
 import { getInventory } from '../inventory';
 import { getAvatar, getProfilePhoto } from '../displayName';
 import { exportCustomDictionariesText, getCustomDictionaries, importCustomDictionariesText, saveCustomEliasWords } from '../customDictionaries';
@@ -351,17 +350,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   }, [isHost, selectedGame, room?.players]);
 
-  /** Реклама перед входом в игру — у хоста (остальные получают межстраничную рекламу в App при уходе с лобби). */
-  const showAdBeforeGameEnter = async () => {
-    const uid = user?.id != null ? String(user.id) : '';
-    const { adSdkShown } = await showAdIfNeeded();
-    if (adSdkShown && uid) {
-      try {
-        await api.post('/stats/ad-shown', { playerId: uid });
-      } catch (_) {}
-    }
-  };
-
   const startSpy = async () => {
     if (!isHost) return;
     const count = room?.players?.length ?? 0;
@@ -390,7 +378,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
       track('lobby_start_game', { game: 'spy' });
-      await showAdBeforeGameEnter();
       navigate('/spy');
     } catch (e) {
       setStartingGame(false);
@@ -421,7 +408,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
       track('lobby_start_game', { game: 'mafia' });
-      await showAdBeforeGameEnter();
       navigate('/mafia');
     } catch (e) {
       setStartingGame(false);
@@ -472,7 +458,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
       track('lobby_start_game', { game: 'elias' });
-      await showAdBeforeGameEnter();
       navigate('/elias');
     } catch (e) {
       setStartingGame(false);
@@ -500,7 +485,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
       track('lobby_start_game', { game: 'bunker' });
-      await showAdBeforeGameEnter();
       navigate('/bunker');
     } catch (e) {
       setStartingGame(false);
@@ -538,7 +522,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
       track('lobby_start_game', { game: 'truth_dare' });
-      await showAdBeforeGameEnter();
       navigate('/truth_dare');
     } catch (e) {
       setStartingGame(false);
