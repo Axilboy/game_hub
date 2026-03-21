@@ -5,6 +5,8 @@ import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import GameplayScreen from '../components/game/GameplayScreen';
+import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 import Button from '../components/ui/Button';
@@ -34,6 +36,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
   const [tick, setTick] = useState(0);
   const requestSeqRef = useRef(0);
   const [moderationRows, setModerationRows] = useState([]);
+  const [matchResult, setMatchResult] = useState(null);
   const isHost = room?.hostId === myId;
 
   const refreshState = ({ silent = false } = {}) => {
@@ -54,17 +57,29 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
   };
 
   useEffect(() => {
+    if (room?.lastGameResult?.game === 'truth_dare') {
+      setMatchResult(room.lastGameResult);
+    }
+  }, [room?.lastGameResult]);
+
+  useEffect(() => {
     refreshState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, myId]);
 
   useEffect(() => {
     const onUpdate = () => refreshState({ silent: true });
+    const onGameEnded = (payload) => {
+      if (payload && payload.game === 'truth_dare') {
+        setMatchResult(payload);
+      }
+      refreshState({ silent: true });
+    };
     socket.on('truth_dare_update', onUpdate);
-    socket.on('game_ended', onUpdate);
+    socket.on('game_ended', onGameEnded);
     return () => {
       socket.off('truth_dare_update', onUpdate);
-      socket.off('game_ended', onUpdate);
+      socket.off('game_ended', onGameEnded);
     };
   }, [roomId, myId]);
 
@@ -162,18 +177,49 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
     }
   };
 
+  if (matchResult?.winnerName) {
+    const ranking = Array.isArray(matchResult.ranking) ? matchResult.ranking : [];
+    return (
+      <PostMatchScreen
+        theme="truth_dare"
+        top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
+        center={false}
+        padding={24}
+        primaryLabel="В лобби"
+        onPrimary={leaveToLobby}
+      >
+        <div className="gpl__panel" style={{ textAlign: 'left' }}>
+          <p style={{ margin: '0 0 8px', fontSize: 14, opacity: 0.88 }}>Правда или действие</p>
+          <h2 style={{ margin: '0 0 12px', fontSize: 22, lineHeight: 1.25 }}>Победитель: {matchResult.winnerName}</h2>
+          <p style={{ margin: '0 0 12px', fontSize: 14, opacity: 0.9, lineHeight: 1.45 }}>
+            Игра окончена: первым набрано нужное число успешных ходов (правда или действие).
+          </p>
+          {ranking.length > 0 && (
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14, lineHeight: 1.5 }}>
+              {ranking.map((row) => (
+                <li key={row.id}>
+                  <strong>{row.name}</strong> — выполнено: {row.done} (правда {row.truth} / действие {row.dare})
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </PostMatchScreen>
+    );
+  }
+
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
+      <GameplayScreen theme="truth_dare" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Правда или действие">
         <Loader label="Загрузка Правды/Действия..." minHeight="50vh" />
-      </div>
+      </GameplayScreen>
     );
   }
   if (!state) {
     return (
-      <div style={{ padding: 24 }}>
+      <GameplayScreen theme="truth_dare" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Правда или действие">
         <ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={leaveToLobby} />
-      </div>
+      </GameplayScreen>
     );
   }
 
@@ -187,21 +233,24 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
 
   return (
     <>
+      <GameplayScreen theme="truth_dare" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Правда или действие">
       <GameLayout
-        top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
+        top={null}
         center={false}
-        padding={24}
+        padding={0}
+        minHeight="auto"
         bottom={
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Button variant="ghost" fullWidth onClick={leaveToLobby} style={{ background: '#444' }}>
+            <button type="button" className="gameplay__btn gameplay__btn--secondary" onClick={leaveToLobby}>
               В лобби
-            </Button>
+            </button>
           </div>
         }
       >
-        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+        <div className="gpl__panel">
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
-            Раунд: {state.roundIndex + 1}/{state.roundsCount || '?'}
+            Ход #{state.roundIndex + 1} · до победы нужно{' '}
+            <strong>{state.pointsToWin ?? state.roundsCount ?? '?'}</strong> успешных карточек
           </p>
           <p style={{ margin: '8px 0 0', opacity: 0.9, fontSize: 14 }}>
             Ход игрока: <strong>{state.currentPlayerName || '—'}</strong>
@@ -259,7 +308,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
         </div>
 
         {state.isMyTurn && (
-          <div className="gh-card" style={{ padding: 16, marginTop: 12 }}>
+          <div className="gpl__panel" style={{ marginTop: 12 }}>
             <p style={{ margin: '0 0 10px', opacity: 0.9, fontSize: 14 }}>
               Ваш ход — отметь, что ты выполнил(а): <strong>правду</strong> или <strong>действие</strong> с карточки.
             </p>
@@ -302,7 +351,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
           </div>
         )}
 
-        <div className="gh-card" style={{ padding: 16, marginTop: 12 }}>
+        <div className="gpl__panel" style={{ marginTop: 12 }}>
           <p style={{ margin: '0 0 8px', opacity: 0.9, fontSize: 14 }}>Ваши действия</p>
           <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
             Выполнено: <strong>{myStats.done || 0}</strong> (правда {myStats.truth ?? 0} / действие {myStats.dare ?? 0}) · Пропуски:{' '}
@@ -323,7 +372,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
           )}
         </div>
         {isHost && (
-          <div className="gh-card" style={{ padding: 16, marginTop: 12 }}>
+          <div className="gpl__panel" style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Модерация карточек</p>
               <Button variant="secondary" onClick={loadModeration} style={{ background: '#444', padding: '8px 10px' }}>
@@ -344,6 +393,7 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
           </div>
         )}
       </GameLayout>
+      </GameplayScreen>
 
       {ageGateOpen && (
         <Modal

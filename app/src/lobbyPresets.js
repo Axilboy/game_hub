@@ -86,6 +86,10 @@ export function getDefaultGameSettings(gameId) {
         safeMode: true,
         roundsCount: 5,
         categorySlugs: ['classic', 'friends'],
+        truthDareTeams: [
+          { name: 'Команда 1', playerIds: [] },
+          { name: 'Команда 2', playerIds: [] },
+        ],
       };
     case 'bunker':
       return {

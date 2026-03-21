@@ -2,6 +2,7 @@ import { useState } from 'react';
 import GameLayout from './GameLayout';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
+import '../landing/gamePromoLanding.css';
 
 const baseBtnStyle = {
   padding: 'var(--gh-space-3, 12px) var(--gh-space-5, 20px)',
@@ -14,6 +15,7 @@ const baseBtnStyle = {
 };
 
 export default function PostMatchScreen({
+  theme, // 'spy' | 'mafia' | 'elias' | 'truth_dare' | 'bunker' — фон как на промо-лендинге
   top,
   children,
   center = true,
@@ -38,35 +40,45 @@ export default function PostMatchScreen({
     onSecondary?.();
   };
 
+  const primaryStyle = theme
+    ? { ...baseBtnStyle, background: 'var(--gpl-accent)', color: 'var(--gpl-accent-text)' }
+    : { ...baseBtnStyle, background: primaryBg };
+  const secondaryStyle = theme
+    ? { ...baseBtnStyle, background: 'rgba(0,0,0,0.32)', color: 'var(--gpl-hero-text)', border: '1px solid rgba(255,255,255,0.14)' }
+    : { ...baseBtnStyle, background: secondaryBg, opacity: 1 };
+
+  const layout = (
+    <GameLayout
+      top={top}
+      center={center}
+      padding={padding}
+      minHeight={theme ? '100%' : '100vh'}
+      bottom={
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button type="button" onClick={onPrimary} style={primaryStyle}>
+            {primaryLabel}
+          </button>
+          {secondaryLabel && onSecondary ? (
+            <button type="button" onClick={handleSecondary} style={secondaryStyle}>
+              {secondaryLabel}
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      {children}
+    </GameLayout>
+  );
+
   return (
     <>
-      <GameLayout
-        top={top}
-        center={center}
-        padding={padding}
-        bottom={
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button
-              type="button"
-              onClick={onPrimary}
-              style={{ ...baseBtnStyle, background: primaryBg }}
-            >
-              {primaryLabel}
-            </button>
-            {secondaryLabel && onSecondary ? (
-              <button
-                type="button"
-                onClick={handleSecondary}
-                style={{ ...baseBtnStyle, background: secondaryBg, opacity: 1 }}
-              >
-                {secondaryLabel}
-              </button>
-            ) : null}
-          </div>
-        }
-      >
-        {children}
-      </GameLayout>
+      {theme ? (
+        <div className={`gameplay gpl--${theme}`}>
+          <div className="gameplay__inner gameplay__inner--post">{layout}</div>
+        </div>
+      ) : (
+        layout
+      )}
 
       {confirmSecondary && onSecondary ? (
         <Modal

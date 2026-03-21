@@ -99,6 +99,7 @@ export const roomManager = {
     const room = rooms.get(roomId);
     if (!room) return null;
     room.game = game;
+    if (game) room.lastGameResult = null;
     return room;
   },
 
@@ -122,9 +123,12 @@ export const roomManager = {
     return room;
   },
 
-  endGame(roomId) {
+  endGame(roomId, opts = {}) {
     const room = rooms.get(roomId);
     if (!room) return null;
+    if (opts.lastGameResult) {
+      room.lastGameResult = { ...opts.lastGameResult, at: Date.now() };
+    }
     room.game = null;
     room.state = 'lobby';
     room.gameState = null;

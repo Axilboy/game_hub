@@ -318,7 +318,7 @@ function AppRoutes() {
       try {
         if (roomId) sessionStorage.setItem('gameHub_rematchRoomId', roomId);
       } catch (_) {}
-      if (location.pathname === '/spy') return;
+      if (location.pathname === '/spy' || location.pathname === '/truth_dare') return;
       await refreshRoom();
       if (location.pathname !== '/lobby') navigate('/lobby');
     };

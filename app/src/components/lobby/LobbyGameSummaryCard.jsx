@@ -46,7 +46,8 @@ export default function LobbyGameSummaryCard({
   if (!selectedGame || !gs) return null;
 
   if (selectedGame === 'spy') {
-    const dicts = (gs.dictionaryIds || ['free']).map((d) => dictNames[d] || d).join(', ');
+    const spyIds = Array.isArray(gs.dictionaryIds) ? gs.dictionaryIds : ['free'];
+    const dicts = spyIds.length ? spyIds.map((d) => dictNames[d] || d).join(', ') : '— (не выбрано)';
     return (
       <div className="lobby-summary-card">
         <Row icon="🕵️" label="Шпионов" value={String(gs.spyCount ?? 1)} />
@@ -87,7 +88,8 @@ export default function LobbyGameSummaryCard({
             )
             .join(' · ')
         : null;
-    const dicts = (gs.dictionaryIds || ['basic', 'animals', 'memes']).map((d) => eliasDictNames[d] || d).join(', ');
+    const eliasIds = Array.isArray(gs.dictionaryIds) ? gs.dictionaryIds : ['basic', 'animals', 'memes'];
+    const dicts = eliasIds.length ? eliasIds.map((d) => eliasDictNames[d] || d).join(', ') : '— (не выбрано)';
     return (
       <div className="lobby-summary-card">
         <Row icon="⏱️" label="Таймер раунда" value={`${gs.timerSeconds ?? 60} сек`} />
@@ -103,17 +105,28 @@ export default function LobbyGameSummaryCard({
   if (selectedGame === 'truth_dare') {
     const safe = gs.safeMode !== false;
     const show18 = Boolean(gs.show18Plus);
-    const slugs = Array.isArray(gs.categorySlugs) && gs.categorySlugs.length ? gs.categorySlugs : ['classic', 'friends'];
-    const cats = slugs.map((s) => TD_CAT_SHORT[s] || s).join(', ');
+    const slugs = Array.isArray(gs.categorySlugs) ? gs.categorySlugs : ['classic', 'friends'];
+    const cats = slugs.length ? slugs.map((s) => TD_CAT_SHORT[s] || s).join(', ') : '— (не выбрано)';
+    const tdTeams = gs.truthDareTeams;
+    const tdTeamsLine =
+      Array.isArray(tdTeams) && tdTeams.length > 0
+        ? tdTeams
+            .map(
+              (t) =>
+                `${t.name}: ${(t.playerIds || []).map((id) => room?.players?.find((p) => p.id === id)?.name).filter(Boolean).join(', ') || '—'}`,
+            )
+            .join(' · ')
+        : null;
     return (
       <div className="lobby-summary-card">
         <Row icon="🎲" label="Формат" value="Правда или действие" />
         <Row icon="🛡️" label="Safe" value={safe ? 'да' : 'нет'} />
         <Row icon="🔞" label="18+ категории" value={safe ? 'нет (safe)' : show18 ? 'да' : 'нет'} />
-        <Row icon="🔢" label="Раундов" value={String(gs.roundsCount ?? 5)} />
+        <Row icon="🔢" label="Очков до победы" value={String(gs.roundsCount ?? 5)} />
         <Row icon="⏭️" label="Пропусков" value={String(gs.skipLimitPerPlayer ?? 2)} />
         <Row icon="📇" label="Категории" value={cats} />
-        <Row icon="👥" label="Мин. игроков" value={String(MIN_PLAYERS.truth_dare)} />
+        {tdTeamsLine ? <Row icon="👥" label="Команды" value={tdTeamsLine} /> : null}
+        <Row icon="🎯" label="Мин. игроков" value={String(MIN_PLAYERS.truth_dare)} />
       </div>
     );
   }

@@ -36,7 +36,9 @@ const LEGACY_CATEGORY_SLUG_MAP = {
 };
 
 function migrateCategorySlugs(slugs) {
-  const raw = Array.isArray(slugs) && slugs.length ? slugs.map(String) : DEFAULT_SETTINGS.categorySlugs;
+  /** Явный пустой список — «всё выключено», чтобы потом выбрать только нужное */
+  if (Array.isArray(slugs) && slugs.length === 0) return [];
+  const raw = Array.isArray(slugs) && slugs.length ? slugs.map(String) : [...DEFAULT_SETTINGS.categorySlugs];
   const out = [];
   const seen = new Set();
   for (const s of raw) {
@@ -45,7 +47,7 @@ function migrateCategorySlugs(slugs) {
     seen.add(m);
     out.push(m);
   }
-  return out.length ? out : [...DEFAULT_SETTINGS.categorySlugs];
+  return out;
 }
 
 export const TRUTH_DARE_CATEGORIES = [

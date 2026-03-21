@@ -333,3 +333,129 @@ html[data-theme='light'] .gpl .gpl__panel {
   text-align: center;
   color: var(--gpl-panel-muted);
 }
+
+/* ——— Оболочка геймплея (как у промо-лендингов: градиент + панели .gpl__panel) ——— */
+.gameplay {
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: linear-gradient(165deg, var(--gpl-bg1) 0%, var(--gpl-bg2) 48%, var(--gpl-bg3) 100%);
+  color: var(--gpl-hero-text);
+}
+
+.gameplay__inner {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 16px 28px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gameplay__inner--post {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.gameplay__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0 14px;
+}
+
+.gameplay__title {
+  flex: 1;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--gpl-hero-text);
+}
+
+.gameplay__phase-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: var(--gpl-radius-pill);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--gpl-pill-bg);
+  border: 1px solid var(--gpl-pill-border);
+  color: var(--gpl-hero-text);
+}
+
+.gameplay .gpl__panel {
+  margin-bottom: 16px;
+}
+
+.gameplay .gpl__panel:last-child {
+  margin-bottom: 0;
+}
+
+html[data-theme='light'] .gameplay .gpl__panel {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.08);
+}
+
+.gameplay.gpl--truth_dare .gpl__panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gameplay__btn {
+  padding: 12px 20px;
+  font-size: 16px;
+  border-radius: var(--gpl-radius-btn);
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.gameplay__btn--primary {
+  background: var(--gpl-accent);
+  color: var(--gpl-accent-text);
+}
+
+.gameplay__btn--secondary {
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--gpl-hero-text);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.gameplay.gpl--truth_dare .gameplay__btn--secondary,
+.gameplay.gpl--spy .gameplay__btn--secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #eee;
+}
+
+.gameplay__btn--danger {
+  background: #8a3333;
+  color: #fff;
+}
+
+.gameplay__btn--muted {
+  background: color-mix(in srgb, var(--gpl-panel-text) 10%, transparent);
+  color: var(--gpl-panel-text);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.gameplay.gpl--truth_dare .gameplay__btn--muted {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.gameplay__muted {
+  color: var(--gpl-panel-muted);
+  font-size: 13px;
+}
+
+.gameplay__accent {
+  color: var(--gpl-accent);
+}

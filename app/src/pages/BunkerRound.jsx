@@ -5,6 +5,7 @@ import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import GameplayScreen from '../components/game/GameplayScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 import Button from '../components/ui/Button';
@@ -127,17 +128,17 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
 
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
+      <GameplayScreen theme="bunker" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Бункер">
         <Loader label="Загрузка Бункера..." minHeight="50vh" />
-      </div>
+      </GameplayScreen>
     );
   }
 
   if (!state) {
     return (
-      <div style={{ padding: 24 }}>
+      <GameplayScreen theme="bunker" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Бункер">
         <ErrorState title="Нет данных" message="Состояние Бункера не загружено." actionLabel="В лобби" onAction={leaveToLobby} />
-      </div>
+      </GameplayScreen>
     );
   }
 
@@ -151,6 +152,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
     const crisesSeen = Array.isArray(state.crisisHistory) ? state.crisisHistory.length : 0;
     return (
       <PostMatchScreen
+        theme="bunker"
         top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
         center={false}
         padding={24}
@@ -160,7 +162,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
         onSecondary={exitToHome}
         secondaryBg="#333"
       >
-        <div className="gh-card" style={{ padding: 16 }}>
+        <div className="gpl__panel">
           <p style={{ fontSize: 22, margin: 0, marginBottom: 12, fontWeight: 800 }}>
             Бункер завершён
           </p>
@@ -189,19 +191,21 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
   const playerNameById = (id) => (state.alive || []).find((p) => p.id === id)?.name || id;
 
   return (
+    <GameplayScreen theme="bunker" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Бункер">
     <GameLayout
-      top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
+      top={null}
       center={false}
-      padding={24}
+      padding={0}
+      minHeight="auto"
       bottom={
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Button variant="ghost" fullWidth onClick={leaveToLobby} style={{ background: '#444' }}>
+          <button type="button" className="gameplay__btn gameplay__btn--secondary" onClick={leaveToLobby}>
             В лобби
-          </Button>
+          </button>
         </div>
       }
     >
-      <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+      <div className="gpl__panel">
         <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
           Фаза: <strong>{phaseTitle(state.phase)}</strong>
         </p>
@@ -225,11 +229,11 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       </div>
 
       {(state.eliminatedLog || []).length ? (
-        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+        <div className="gpl__panel">
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Журнал исключений</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
             {(state.eliminatedLog || []).map((e) => (
-              <div key={`${e.id}-${e.at || ''}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)' }}>
+              <div key={`${e.id}-${e.at || ''}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, transparent)' }}>
                 <div style={{ fontWeight: 700, marginBottom: 2 }}>{e.name}</div>
                 <div style={{ fontSize: 12, opacity: 0.85 }}>{eliminationReason(e.by)}</div>
               </div>
@@ -238,7 +242,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
         </div>
       ) : null}
 
-      <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+      <div className="gpl__panel">
         <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
           Ваша персона:
         </p>
@@ -255,7 +259,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       </div>
 
       {state.phase === 'round_event' && (
-        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+        <div className="gpl__panel">
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Событие раунда</p>
           <p style={{ margin: '10px 0 0', fontSize: 18, fontWeight: 800 }}>{state.currentCrisis?.name || '—'}</p>
           <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>{state.currentCrisis?.description || ''}</p>
@@ -267,7 +271,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Раскрытия</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
             {Object.entries(state.publicCharacters).map(([pid, ch]) => (
-              <div key={pid} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)' }}>
+              <div key={pid} style={{ padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, transparent)' }}>
                 <div style={{ fontWeight: 800, marginBottom: 6, opacity: 0.95 }}>
                   {playerNameById(pid)} {pid === myId ? '(вы)' : ''}
                 </div>
@@ -287,7 +291,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       )}
 
       {state.phase === 'voting' && (
-        <div className="gh-card" style={{ padding: 16 }}>
+        <div className="gpl__panel">
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14, marginBottom: 10 }}>Кого исключить?</p>
           {!myAlive ? (
             <p style={{ margin: 0, opacity: 0.85 }}>Вы уже выбыли.</p>
@@ -306,7 +310,8 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
                     fullWidth
                     disabled={actionLoading === 'vote'}
                     onClick={() => vote(p.id)}
-                    style={{ background: '#444', borderRadius: 10 }}
+                    className="gameplay__btn gameplay__btn--secondary"
+                    style={{ borderRadius: 10 }}
                   >
                     {p.name}
                   </Button>
@@ -334,7 +339,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       )}
 
       {state.phase === 'tie_break' && (
-        <div className="gh-card" style={{ padding: 16 }}>
+        <div className="gpl__panel">
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Тай-брейк идёт...</p>
           {(state.tieCandidates || []).length ? (
             <div style={{ marginTop: 10 }}>
@@ -353,6 +358,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
         </div>
       )}
     </GameLayout>
+    </GameplayScreen>
   );
 }
 

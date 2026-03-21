@@ -1,0 +1,32 @@
+/**
+ * Экран «Шпион» — акценты поверх общей оболочки .gameplay.gpl--spy (gamePromoLanding.css).
+ */
+.gameplay.gpl--spy .spy-round__word {
+  font-size: clamp(22px, 5vw, 30px);
+  font-weight: 800;
+  margin: 0;
+  color: var(--gpl-accent, #f5d547);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.12);
+}
+
+.gameplay.gpl--spy .spy-round__hint-block {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--gpl-panel-text) 6%, transparent);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.gameplay.gpl--spy .spy-round__hint-block p {
+  color: var(--gpl-panel-text);
+}
+
+.gameplay.gpl--spy .spy-round__sub {
+  font-size: 13px;
+  opacity: 0.88;
+  margin-top: 10px;
+  margin-bottom: 0;
+  color: var(--gpl-panel-muted);
+}

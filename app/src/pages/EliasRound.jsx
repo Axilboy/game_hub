@@ -5,6 +5,7 @@ import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
 import GameLayout from '../components/game/GameLayout';
+import GameplayScreen from '../components/game/GameplayScreen';
 import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
@@ -15,16 +16,6 @@ function formatTime(ms) {
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
-
-const btnStyle = {
-  padding: '12px 20px',
-  fontSize: 16,
-  borderRadius: 8,
-  border: 'none',
-  color: '#fff',
-  cursor: 'pointer',
-  width: '100%',
-};
 
 export default function EliasRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
@@ -121,8 +112,20 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     } catch (_) {}
   };
 
-  if (loading) return <div style={{ padding: 24 }}><Loader label="Загрузка Элиаса..." minHeight="50vh" /></div>;
-  if (!state) return <div style={{ padding: 24 }}><ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} /></div>;
+  if (loading) {
+    return (
+      <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
+        <Loader label="Загрузка Элиаса..." minHeight="50vh" />
+      </GameplayScreen>
+    );
+  }
+  if (!state) {
+    return (
+      <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
+        <ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} />
+      </GameplayScreen>
+    );
+  }
 
   const awaitingStart = Boolean(state.awaitingExplainerStart);
   const timerStarted = state.roundEndsAt != null && !awaitingStart;
@@ -153,6 +156,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     const winTeam = teams[winner];
     return (
       <PostMatchScreen
+        theme="elias"
         top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
         center={true}
         padding={24}
@@ -162,6 +166,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         onSecondary={onLeave}
         secondaryBg="#333"
       >
+        <div className="gpl__panel" style={{ textAlign: 'center' }}>
         <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
         <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t, i) => `${t.name} ${t.score}`).join(' — ')}</p>
         {state?.mvp && (
@@ -169,27 +174,56 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
             MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
           </p>
         )}
+        </div>
       </PostMatchScreen>
     );
   }
 
   return (
+    <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
     <GameLayout
-      top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
+      top={null}
       center={false}
-      padding={24}
+      padding={0}
+      minHeight="auto"
       textAlign="center"
       bottom={
-        <button type="button" onClick={() => navigate('/lobby')} style={{ ...btnStyle, background: '#333' }}>В лобби</button>
+        <button type="button" onClick={() => navigate('/lobby')} className="gameplay__btn gameplay__btn--secondary">
+          В лобби
+        </button>
       }
     >
-      <div className="gh-card" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8, padding: 12 }}>
+      <div className="gpl__panel" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         {(state.teams || []).map((t, i) => (
-          <div key={i} style={{ padding: 12, background: state.currentTeamIndex === i ? 'rgba(100,150,255,0.2)' : 'rgba(0,0,0,0.2)', borderRadius: 8, flex: 1, minWidth: 120 }}>
+          <div
+            key={i}
+            style={{
+              padding: 12,
+              background:
+                state.currentTeamIndex === i
+                  ? 'color-mix(in srgb, var(--gpl-accent) 18%, transparent)'
+                  : 'rgba(0,0,0,0.06)',
+              borderRadius: 12,
+              flex: 1,
+              minWidth: 120,
+              border:
+                state.currentTeamIndex === i ? '1px solid color-mix(in srgb, var(--gpl-accent) 40%, transparent)' : '1px solid rgba(0,0,0,0.08)',
+            }}
+          >
             <p style={{ margin: 0, fontWeight: 'bold' }}>
               {t.name}{state.currentTeamIndex === i ? ' ' : ''}
               {state.currentTeamIndex === i && (
-                <span style={{ marginLeft: 8, fontSize: 12, padding: '4px 8px', borderRadius: 999, background: 'rgba(100,150,255,0.22)', border: '1px solid rgba(100,150,255,0.35)', opacity: 0.95 }}>
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 12,
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                    background: 'color-mix(in srgb, var(--gpl-accent) 22%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--gpl-accent) 45%, transparent)',
+                    opacity: 0.95,
+                  }}
+                >
                   Объясняет
                 </span>
               )}
@@ -199,7 +233,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         ))}
       </div>
 
-      <div className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
+      <div className="gpl__panel">
         <p style={{ marginBottom: 8, opacity: 0.9 }}>Объясняет: {state.explainerName}</p>
         {explainingTeamName && (
           <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>
@@ -222,7 +256,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         )}
       </div>
 
-      <div className="gh-card" style={{ marginBottom: 16, padding: 12, background: 'rgba(0,0,0,0.2)' }}>
+      <div className="gpl__panel" style={{ background: 'color-mix(in srgb, var(--gpl-panel-text) 6%, var(--gpl-panel))' }}>
         <p style={{ margin: '0 0 8px 0', fontWeight: 700 }}>Scoreboard раунда</p>
         <p style={{ margin: '0 0 6px 0', fontSize: 13, opacity: 0.9 }}>
           Ваш вклад: угадано {myStats.guessed || 0} · пропусков {myStats.skipped || 0}
@@ -243,7 +277,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       </div>
 
       {state.isExplainer ? (
-        <div className="gh-card" style={{ padding: 16 }}>
+        <div className="gpl__panel">
           <p style={{ margin: 0, fontSize: 14, opacity: 0.85, fontWeight: 800, marginBottom: 10 }}>
             Команда объясняет
           </p>
@@ -253,7 +287,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
           {awaitingStart ? (
             <>
               {state.isCurrentExplainer ? (
-                <button type="button" onClick={beginRound} style={{ ...btnStyle, background: 'var(--tg-theme-button-color, #3a7bd5)', marginBottom: 12 }}>
+                <button type="button" onClick={beginRound} className="gameplay__btn gameplay__btn--primary" style={{ marginBottom: 12 }}>
                   Начать
                 </button>
               ) : (
@@ -265,10 +299,14 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
             </>
           ) : (
             <>
-              <p style={{ fontSize: 28, fontWeight: 'bold', marginBottom: 24, wordBreak: 'break-word' }}>{state.word}</p>
+              <p style={{ fontSize: 28, fontWeight: 'bold', marginBottom: 24, wordBreak: 'break-word', color: 'var(--gpl-accent)' }}>{state.word}</p>
               <div style={{ display: 'flex', gap: 12 }}>
-                <button type="button" onClick={guessed} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>Угадали</button>
-                <button type="button" onClick={skip} style={{ ...btnStyle, flex: 1, background: '#444' }}>Пропустить</button>
+                <button type="button" onClick={guessed} className="gameplay__btn gameplay__btn--primary" style={{ flex: 1 }}>
+                  Угадали
+                </button>
+                <button type="button" onClick={skip} className="gameplay__btn gameplay__btn--secondary" style={{ flex: 1 }}>
+                  Пропустить
+                </button>
               </div>
             </>
           )}
@@ -281,7 +319,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
               Скоро начнётся объяснение — ждите, пока <strong>{state.explainerName}</strong> нажмёт «Начать».
             </p>
           )}
-          <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
+          <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, transparent)' }}>
             <p style={{ margin: 0, fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Слово видит только команда объясняющего</p>
             <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Объясняющий не произносит слово вслух</p>
             <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Нажимайте действия только во время своего этапа</p>
@@ -296,11 +334,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
       {timeUp && (
         state.isCurrentExplainer ? (
-          <button type="button" onClick={nextTurn} style={{ ...btnStyle, marginTop: 16, background: '#85a' }}>
+          <button type="button" onClick={nextTurn} className="gameplay__btn gameplay__btn--primary" style={{ marginTop: 16 }}>
             Следующий ход
           </button>
         ) : (
-          <div className="gh-card" style={{ marginTop: 16, padding: 12, background: 'rgba(0,0,0,0.2)' }}>
+          <div className="gpl__panel" style={{ marginTop: 16, background: 'color-mix(in srgb, var(--gpl-panel-text) 6%, var(--gpl-panel))' }}>
             <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
               Таймер вышел. Смену хода запускает текущий объясняющий: <strong>{state.explainerName}</strong>
             </p>
@@ -308,5 +346,6 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         )
       )}
     </GameLayout>
+    </GameplayScreen>
   );
 }

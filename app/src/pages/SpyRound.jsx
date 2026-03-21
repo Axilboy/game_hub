@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, getApiErrorMessage } from '../api';
+import { api } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
@@ -9,22 +9,14 @@ import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 import Badge from '../components/ui/Badge';
+import GameplayScreen from '../components/game/GameplayScreen';
+import './spyRound.css';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
-
-/** Одинаковый стиль «слова» у шпиона и мирных — белый текст, чтобы не было видно разницы издалека */
-const wordLineStyle = {
-  fontSize: 28,
-  fontWeight: 800,
-  margin: 0,
-  color: '#fff',
-  letterSpacing: 0.02,
-  lineHeight: 1.2,
-};
 
 export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const navigate = useNavigate();
@@ -40,10 +32,6 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [voteTick, setVoteTick] = useState(0);
   const [voteRequestLock, setVoteRequestLock] = useState(false);
   const [startVoteLock, setStartVoteLock] = useState(false);
-  const [guessText, setGuessText] = useState('');
-  const [guessResult, setGuessResult] = useState(null);
-  const [guessLoading, setGuessLoading] = useState(false);
-  const [showTextGuess, setShowTextGuess] = useState(false);
   const [guessPollLock, setGuessPollLock] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
   const requestSeqRef = useRef(0);
@@ -171,27 +159,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     } catch (_) {}
   };
 
-  const isHost = room?.players?.some((p) => p.id === myId && p.isHost);
-
-  const submitGuess = async () => {
-    if (guessLoading) return;
-    if (!card || card.role !== 'spy' || voteResult || card.guessPollActive) return;
-    if (votingEndsAt && Date.now() < votingEndsAt) return;
-    const val = guessText.trim();
-    if (!val) return;
-    setGuessLoading(true);
-    setGuessResult(null);
-    try {
-      const r = await api.post(`/rooms/${roomId}/spy/guess-location`, { playerId: myId, guess: val });
-      if (!r?.correct) {
-        setGuessResult('Неверно. Продолжайте играть и собирать подсказки.');
-      }
-    } catch (e) {
-      setGuessResult(getApiErrorMessage(e, 'Не удалось отправить попытку'));
-    } finally {
-      setGuessLoading(false);
-    }
-  };
+  const isHost = String(room?.hostId) === myId;
 
   const startGuessPoll = async () => {
     if (guessPollLock) return;
@@ -231,15 +199,26 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     navigate('/');
   };
 
-  if (loading) return <div style={{ padding: 24 }}><Loader label="Загрузка раунда..." minHeight="60vh" /></div>;
-  if (!card) return <div style={{ padding: 24 }}><ErrorState title="Нет карты" message="Данные раунда пока недоступны." actionLabel="В лобби" onAction={goLobby} /></div>;
+  if (loading) {
+    return (
+      <GameplayScreen theme="spy" user={user} onBack={goLobby} backTitle="В лобби" title="Шпион">
+        <Loader label="Загрузка раунда..." minHeight="60vh" />
+      </GameplayScreen>
+    );
+  }
+  if (!card) {
+    return (
+      <GameplayScreen theme="spy" user={user} onBack={goLobby} backTitle="В лобби" title="Шпион">
+        <ErrorState title="Нет карты" message="Данные раунда пока недоступны." actionLabel="В лобби" onAction={goLobby} />
+      </GameplayScreen>
+    );
+  }
 
   const isSpy = card.role === 'spy';
   const allSpiesRound = Boolean(card.allSpiesRound);
   const timeUp = card.timerEnabled && secondsLeft !== null && secondsLeft <= 0;
   const votingActive = votingEndsAt && Date.now() < votingEndsAt;
   const guessPollActive = Boolean(card.guessPollActive);
-  const canSpyGuess = isSpy && !votingActive && !voteResult && !guessPollActive;
   const phaseLabel = voteResult ? 'Итог' : votingActive ? 'Голосование' : guessPollActive ? 'Проверка слова' : 'Обсуждение';
   const wordDisplay = isSpy ? (card.wordMask || '• • •') : card.word;
   const canStartGuessPoll = isSpy && !allSpiesRound && !votingActive && !voteResult && !guessPollActive;
@@ -248,6 +227,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   if (voteResult) {
     return (
       <PostMatchScreen
+        theme="spy"
         top={<BackArrow onClick={goLobby} title="В лобби" />}
         center={false}
         padding={24}
@@ -260,7 +240,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         confirmTitle="Вы уверены?"
         confirmText="Выйти прямо сейчас — вы покинете комнату."
       >
-        <div className="gh-card" style={{ padding: 16 }}>
+        <div className="gpl__panel">
           <div style={{ marginBottom: 8 }}>
             <Badge tone={votingActive ? 'warning' : 'info'}>{phaseLabel}</Badge>
           </div>
@@ -293,10 +273,12 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   }
 
   return (
+    <GameplayScreen theme="spy" user={user} onBack={() => setExitConfirm(true)} backTitle="Выйти" title="Шпион">
     <GameLayout
-      top={<BackArrow onClick={() => setExitConfirm(true)} title="Выйти" />}
+      top={null}
       center={false}
-      padding={24}
+      padding={0}
+      minHeight="auto"
       bottom={
         !exitConfirm ? (
           <div style={{ paddingTop: 24 }}>
@@ -328,18 +310,16 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         </div>
         {card.timerEnabled && (
           <div
-            className="gh-card"
+            className="gpl__panel"
             style={{
               position: 'absolute',
               top: 56,
               left: '50%',
               transform: 'translateX(-50%)',
               padding: '10px 14px',
-              borderRadius: 12,
               width: 'fit-content',
-              background: timeUp ? 'rgba(255,100,0,0.18)' : 'rgba(0,0,0,0.25)',
-              border: `1px solid ${timeUp ? 'rgba(255,120,0,0.5)' : 'rgba(255,255,255,0.12)'}`,
               boxShadow: '0 14px 40px rgba(0,0,0,0.35)',
+              zIndex: 2,
             }}
           >
             <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 800, marginBottom: 4 }}>
@@ -350,26 +330,26 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
             </div>
           </div>
         )}
-        <div className="gh-card" style={{ padding: 16 }}>
-          {allSpiesRound && <p style={{ fontSize: 14, opacity: 0.85, marginBottom: 12, color: '#fff' }}>В этом раунде все — шпионы</p>}
-          <p style={{ ...wordLineStyle }}>
+        <div className="gpl__panel">
+          {allSpiesRound && <p className="spy-round__sub" style={{ marginBottom: 12 }}>В этом раунде все — шпионы</p>}
+          <p className="spy-round__word">
             {wordDisplay}
           </p>
-          <p style={{ fontSize: 13, opacity: 0.88, marginTop: 10, marginBottom: 0, color: '#fff' }}>
+          <p className="spy-round__sub">
             {isSpy
               ? 'Слово не показываем — догадывайтесь по подсказкам. Не подсматривайте чужие экраны.'
               : 'Ваше слово на этот раунд. Не показывайте экран другим.'}
           </p>
           {isSpy && card.otherSpyNames?.length > 0 && (
-            <p style={{ fontSize: 13, opacity: 0.88, marginTop: 8, color: '#fff' }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
+            <p className="spy-round__sub" style={{ marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
           )}
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
-            <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95, color: '#fff' }}>Подсказки</p>
-            <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35, color: '#fff' }}>
+          <div className="spy-round__hint-block">
+            <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
+            <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35 }}>
               Обсуждайте вслух. В голосовании выберите подозреваемого. Шпион называет слово вслух — остальные решают, верно ли.
             </p>
             {!isSpy && Array.isArray(card.roleHints) && card.roleHints.length > 0 && (
-              <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35, color: '#fff' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35 }}>
                 Возможные роли: {card.roleHints.join(', ')}
               </p>
             )}
@@ -385,7 +365,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         </div>
 
         {guessPollActive && (
-          <div className="gh-card" style={{ marginTop: 12, padding: 14 }}>
+          <div className="gpl__panel" style={{ marginTop: 12 }}>
             <p style={{ marginTop: 0, marginBottom: 8, fontSize: 14, fontWeight: 700 }}>Проверка устной догадки</p>
             <p style={{ margin: '0 0 10px', fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
               Шпион назвал слово вслух. Выберите, совпало ли оно с вашим словом.
@@ -446,35 +426,6 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
           </button>
         )}
 
-        {canSpyGuess && showTextGuess && (
-          <div className="gh-card" style={{ marginTop: 12, padding: 12 }}>
-            <p style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>Попытка текстом (по желанию)</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                value={guessText}
-                onChange={(e) => setGuessText(e.target.value)}
-                placeholder="Введите локацию"
-                style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #555', background: 'transparent', color: '#fff' }}
-              />
-              <button
-                type="button"
-                onClick={submitGuess}
-                disabled={guessLoading || !guessText.trim()}
-                style={{ ...btnStyle, width: 'auto', background: '#8a5', opacity: guessLoading ? 0.7 : 1 }}
-              >
-                {guessLoading ? '...' : 'Проверить'}
-              </button>
-            </div>
-            {guessResult ? <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9 }}>{guessResult}</p> : null}
-          </div>
-        )}
-        {canSpyGuess && !showTextGuess && (
-          <button type="button" onClick={() => setShowTextGuess(true)} style={{ ...btnStyle, marginTop: 8, background: '#333', fontSize: 14 }}>
-            Ввести догадку текстом
-          </button>
-        )}
-
         {!votingActive && !voteResult && (
           <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
@@ -483,12 +434,13 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
               disabled={!isHost || startVoteLock || guessPollActive}
               style={{
                 ...btnStyle,
-                background: isHost ? '#6a5' : '#444',
+                background: isHost ? 'var(--gpl-accent, #f5d547)' : 'rgba(255,255,255,0.14)',
+                color: isHost ? 'var(--gpl-accent-text, #1a1300)' : 'rgba(248,251,255,0.85)',
                 opacity: !isHost || startVoteLock ? 0.75 : 1,
-                cursor: isHost ? 'pointer' : 'default',
+                cursor: isHost ? 'pointer' : 'not-allowed',
               }}
             >
-              {isHost ? (startVoteLock ? '…' : 'Голосовать') : 'Голосовать (запускает хост)'}
+              {isHost ? (startVoteLock ? '…' : 'Начать голосование') : 'Только хост может начать голосование'}
             </button>
             {!isHost && (
               <p style={{ margin: 0, fontSize: 12, opacity: 0.8, textAlign: 'center' }}>
@@ -499,7 +451,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         )}
 
         {votingActive && (
-          <div className="gh-card" style={{ marginTop: 24, textAlign: 'left', padding: 16 }}>
+          <div className="gpl__panel" style={{ marginTop: 24, textAlign: 'left' }}>
             <p style={{ marginBottom: 8 }}>Голосование: {formatTime(voteSecondsLeft)}</p>
             {isHost && (
               <button type="button" onClick={endVoteEarly} style={{ ...btnStyle, marginBottom: 12, background: '#85a' }}>
@@ -531,6 +483,7 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         )}
       </div>
     </GameLayout>
+    </GameplayScreen>
   );
 }
 

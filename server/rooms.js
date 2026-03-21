@@ -135,8 +135,14 @@ export async function roomRoutes(fastify) {
     if (players.length < minPlayers) return reply.code(400).send({ error: `Need at least ${minPlayers} players for ${spyCount} spy/spies` });
     const safeRoom = roomManager.toSafe(room);
     const allowedDicts = new Set(safeRoom.availableDictionaries || ['free']);
-    const ids = Array.isArray(dictionaryIds) ? dictionaryIds.filter((d) => allowedDicts.has(d)) : ['free'];
-    const pickedIds = ids.length ? ids : ['free'];
+    if (Array.isArray(dictionaryIds) && dictionaryIds.length === 0) {
+      return reply.code(400).send({ error: 'Выберите хотя бы один набор локаций в настройках' });
+    }
+    const ids = Array.isArray(dictionaryIds) ? dictionaryIds.filter((d) => allowedDicts.has(d)) : null;
+    const pickedIds = ids && ids.length ? ids : (dictionaryIds === undefined ? ['free'] : []);
+    if (!pickedIds.length) {
+      return reply.code(400).send({ error: 'Нет доступных выбранных наборов — снимите блокировки или выберите другие локации' });
+    }
     const word = getRandomWord(pickedIds);
     const locationPool = getWordsByDictionaryIds(pickedIds).slice(0, 160);
     let spyIds;
@@ -731,7 +737,10 @@ export async function roomRoutes(fastify) {
       }
       teams = [{ name: 'Команда 1', players: team1, score: 0 }, { name: 'Команда 2', players: team2, score: 0 }];
     }
-    const dictIds = Array.isArray(dictionaryIds) && dictionaryIds.length ? dictionaryIds : ['basic'];
+    if (!Array.isArray(dictionaryIds) || dictionaryIds.length === 0) {
+      return reply.code(400).send({ error: 'Выберите хотя бы один словарь в настройках' });
+    }
+    const dictIds = dictionaryIds;
     const normalizedCustomWords = Array.isArray(customWords)
       ? [...new Set(customWords.map((w) => String(w || '').trim()).filter(Boolean))].slice(0, 400)
       : [];
@@ -833,10 +842,12 @@ export async function roomRoutes(fastify) {
     if (!room.players?.some((p) => p.id === playerId)) return reply.code(403).send(ERR.notInRoom);
     const gs = room.gameState;
     const getPlayerName = (id) => room.players.find((p) => p.id === id)?.name || id;
+    const pointsToWin = Math.min(50, Math.max(1, Number(gs.settings?.roundsCount) || 5));
     return {
       phase: gs.phase,
       roundIndex: gs.roundIndex,
       roundsCount: gs.settings?.roundsCount ?? null,
+      pointsToWin,
       mode: gs.settings?.mode ?? null,
       timerSeconds: gs.settings?.timerSeconds ?? null,
       skipLimitPerPlayer: gs.settings?.skipLimitPerPlayer ?? null,
@@ -884,6 +895,34 @@ export async function roomRoutes(fastify) {
     return { ok: true };
   });
 
+  function truthDareFinishWithWinner(roomId, io, winnerPlayerId) {
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'truth_dare' || !room.gameState) return;
+    const gs = room.gameState;
+    if (gs.turnTimeoutId) clearTimeout(gs.turnTimeoutId);
+    gs.turnTimeoutId = null;
+    const getName = (id) => room.players.find((p) => p.id === id)?.name || id;
+    const playerStats = { ...(gs.playerStats || {}) };
+    const ranking = Object.keys(playerStats)
+      .map((id) => ({
+        id,
+        name: getName(id),
+        done: playerStats[id]?.done || 0,
+        truth: playerStats[id]?.truth || 0,
+        dare: playerStats[id]?.dare || 0,
+      }))
+      .sort((a, b) => b.done - a.done);
+    const payload = {
+      game: 'truth_dare',
+      winnerPlayerId,
+      winnerName: getName(winnerPlayerId),
+      playerStats,
+      ranking,
+    };
+    roomManager.endGame(roomId, { lastGameResult: payload });
+    io.to(roomId).emit('game_ended', payload);
+  }
+
   function truthDareOnTurnTimeout(roomId, expectedToken) {
     const io = fastify.io;
     const room = roomManager.get(roomId);
@@ -915,14 +954,7 @@ export async function roomRoutes(fastify) {
     if (gs.turnTimeoutId) clearTimeout(gs.turnTimeoutId);
     gs.turnTimeoutId = null;
 
-    const roundsCount = gs.settings?.roundsCount ?? 1;
     const nextRoundIndex = (gs.roundIndex ?? 0) + 1;
-
-    if (nextRoundIndex >= roundsCount) {
-      roomManager.endGame(roomId);
-      io.to(roomId).emit('game_ended');
-      return;
-    }
 
     const playerOrder = gs.playerOrder || [];
     if (!playerOrder.length) {
@@ -1047,6 +1079,12 @@ export async function roomRoutes(fastify) {
       choice: action === 'done' ? choice : undefined,
       at: Date.now(),
     });
+
+    const pointsToWin = Math.min(50, Math.max(1, Number(gs.settings?.roundsCount) || 5));
+    if (action === 'done' && (gs.playerStats[playerId].done || 0) >= pointsToWin) {
+      truthDareFinishWithWinner(roomId, fastify.io, playerId);
+      return { ok: true };
+    }
 
     truthDareAdvanceTurn(roomId, fastify.io, { expectedTurnToken: turnToken });
     return { ok: true };

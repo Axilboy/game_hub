@@ -21,6 +21,12 @@ import {
   bunkerPhaseTimersFromSpeed,
   getDefaultGameSettings,
 } from '../lobbyPresets';
+import {
+  buildAutoPartyTeams,
+  playersIdsKey,
+  shufflePartyTeams,
+  teamsEqual,
+} from '../lobbyTeamUtils';
 import LobbyGameSummaryCard from '../components/lobby/LobbyGameSummaryCard';
 import LobbySettingsSheet from '../components/lobby/LobbySettingsSheet';
 import './lobbyPage.css';
@@ -119,7 +125,7 @@ const OFFLINE_KICK_MS = 30_000;
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const isHost = room.players?.some((p) => p.id === String(user?.id) && p.isHost);
+  const isHost = String(room?.hostId) === String(user?.id);
   const [gameSettingsSheetOpen, setGameSettingsSheetOpen] = useState(false);
   const [gameSettingsTab, setGameSettingsTab] = useState('presets');
   const [startingGame, setStartingGame] = useState(false);
@@ -142,6 +148,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   /** Выбранный в списке участников игрок (меню: хост / кик / друзья) */
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
+  /** Элиас / П/Д: последний ключ состава — авто только при смене игроков (ручная расстановка не затирается) */
+  const prevEliasRosterRef = useRef('');
+  const prevTruthDareRosterRef = useRef('');
   /** playerId → Date.now() при первом обнаружении offline (сброс при online) */
   const [offlineSince, setOfflineSince] = useState(() => ({}));
   /** Тик раз в секунду — обратный отсчёт на карточке офлайн-игрока */
@@ -166,7 +175,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const tdShow18Plus = Boolean(tdGameSettings.show18Plus);
   const tdRoundsCount = tdGameSettings.roundsCount ?? 5;
   const tdSkipLimitPerPlayer = tdGameSettings.skipLimitPerPlayer ?? 2;
-  const tdCategorySlugs = Array.isArray(tdGameSettings.categorySlugs) && tdGameSettings.categorySlugs.length
+  const tdCategorySlugs = Array.isArray(tdGameSettings.categorySlugs)
     ? tdGameSettings.categorySlugs
     : ['classic', 'friends'];
 
@@ -196,6 +205,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         return [
           { id: 'main', label: 'Основное' },
           { id: 'cats', label: 'Категории' },
+          { id: 'teams', label: 'Команды' },
         ];
       case 'bunker':
         return [
@@ -229,7 +239,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     setSpyCount(gs.spyCount ?? 1);
     setAllSpiesChanceEnabled(!!gs.allSpiesChanceEnabled);
     const d = gs.dictionaryIds;
-    setDictionaryIds(Array.isArray(d) && d.length ? [...d] : ['free']);
+    setDictionaryIds(Array.isArray(d) ? [...d] : ['free']);
   }, [
     room?.gameSettings?.timerEnabled,
     room?.gameSettings?.timerSeconds,
@@ -300,12 +310,49 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     } catch (_) {}
   };
 
+  /** Смена игры в лобби — сброс кэша состава, чтобы при возврате к Элиас/П/Д снова применилось авто */
+  useEffect(() => {
+    prevEliasRosterRef.current = '';
+    prevTruthDareRosterRef.current = '';
+  }, [selectedGame]);
+
+  /**
+   * Автокоманды (как в типичных party-приложениях): при изменении набора игроков — пересчёт;
+   * при том же наборе id ручная расстановка хоста не перезаписывается.
+   */
+  useEffect(() => {
+    if (!isHost || !room?.players?.length) return;
+    if (selectedGame !== 'elias' && selectedGame !== 'truth_dare') return;
+    const players = room.players;
+    const n = players.length;
+    if (n <= 1) return;
+
+    const settingsKey = selectedGame === 'elias' ? 'eliasTeams' : 'truthDareTeams';
+    const rosterRef = selectedGame === 'elias' ? prevEliasRosterRef : prevTruthDareRosterRef;
+    const idsKey = playersIdsKey(players);
+    const rosterChanged = rosterRef.current !== idsKey;
+    rosterRef.current = idsKey;
+
+    if (!rosterChanged) return;
+
+    const gs = room.gameSettings || {};
+    const cur = gs[settingsKey];
+    const auto = buildAutoPartyTeams(players);
+    if (auto && !teamsEqual(cur, auto)) {
+      patchLobbyGame({ gameSettings: { ...gs, [settingsKey]: auto } });
+    }
+  }, [isHost, selectedGame, room?.players]);
+
   const startSpy = async () => {
     if (!isHost) return;
     const count = room?.players?.length ?? 0;
     const minSpy = minSpyPlayers(spyCount);
     if (count < minSpy) {
       setMinPlayersWarning(`Для игры в Шпион с ${spyCount} шпион${spyCount === 1 ? 'ом' : 'ами'} нужно минимум ${minSpy} игроков. Сейчас в лобби: ${count}.`);
+      return;
+    }
+    if (!dictionaryIds?.length) {
+      setMinPlayersWarning('Выберите хотя бы один набор локаций в настройках (можно сначала выключить все наборы, затем включить только нужные).');
       return;
     }
     setStartingGame(true);
@@ -369,6 +416,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       return;
     }
     const gs = room?.gameSettings || {};
+    if (!Array.isArray(gs.dictionaryIds) || gs.dictionaryIds.length === 0) {
+      setMinPlayersWarning('Выберите хотя бы один словарь в настройках (можно сначала выключить все, затем включить только нужные).');
+      return;
+    }
     const teams = gs.eliasTeams;
     const hasTeams = Array.isArray(teams) && teams.length >= 2;
     if (hasTeams) {
@@ -444,11 +495,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     setStartingGame(true);
     try {
       const gs = room?.gameSettings || {};
+      if (!Array.isArray(gs.categorySlugs) || gs.categorySlugs.length === 0) {
+        setStartingGame(false);
+        setMinPlayersWarning('Выберите хотя бы одну категорию карточек в настройках (можно сначала выключить все категории, затем включить только нужные).');
+        return;
+      }
       await api.post('/rooms/truth_dare/start', {
         roomId,
         hostId: String(user?.id),
         mode: gs.mode || 'mixed',
-        categorySlugs: Array.isArray(gs.categorySlugs) && gs.categorySlugs.length ? gs.categorySlugs : ['classic', 'friends'],
+        categorySlugs: gs.categorySlugs,
         show18Plus: !!gs.show18Plus,
         safeMode: gs.safeMode !== false,
         roundsCount: gs.roundsCount ?? 5,
@@ -1046,7 +1102,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         {selectedGame === 'spy' && gameSettingsTab === 'locations' && (
           <div>
             <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
-              Выберите наборы локаций — изменения сохраняются сразу. Нужен хотя бы один набор.
+              Выберите наборы локаций — изменения сохраняются сразу. Можно выключить все наборы, затем включить только интересные; перед стартом нужен хотя бы один.
             </p>
             <div className="lobby-settings-pick-grid">
               {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).map((id) => {
@@ -1060,10 +1116,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     return;
                   }
                   const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
-                  if (next.length === 0) {
-                    showToast({ type: 'error', message: 'Нужен хотя бы один набор локаций.' });
-                    return;
-                  }
                   setDictionaryIds(next);
                   patchLobbyGame({
                     gameSettings: {
@@ -1335,7 +1387,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         {selectedGame === 'elias' && gameSettingsTab === 'dicts' && (
           <div>
             <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
-              Наборы слов для объяснения — нажмите, чтобы включить или выключить. Нужен хотя бы один словарь.
+              Наборы слов — нажмите, чтобы включить или выключить. Можно выключить всё и выбрать только нужное; перед стартом нужен хотя бы один словарь.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {(room?.availableEliasDictionaries || ['basic', 'animals']).map((id) => {
@@ -1344,10 +1396,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 const selected = cur.includes(id);
                 const toggle = () => {
                   const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
-                  if (next.length === 0) {
-                    showToast({ type: 'error', message: 'Нужен хотя бы один словарь для Элиас.' });
-                    return;
-                  }
                   patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: next } });
                 };
                 return (
@@ -1397,8 +1445,32 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         {selectedGame === 'elias' && gameSettingsTab === 'teams' && (
           <div>
             <p style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 10 }}>
-              Назначьте игроков в команды до старта. Нечётное число: один может быть «Не играет».
+              <strong>Авто</strong> при входе/выходе игроков: 2 человека — по одному в команде; 3 — две команды (2+1); с 4 человек — две команды, чередование по списку лобби (1-й, 3-й… / 2-й, 4-й…). Хост может переназначить вручную. «Случайно» — перемешать и снова разбить по тем же правилам.
             </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const pl = room?.players || [];
+                  const teams = buildAutoPartyTeams(pl);
+                  if (teams) patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: teams } });
+                }}
+                style={{ ...btnStyleToggleMid, width: '100%', padding: '10px 14px', fontSize: 14 }}
+              >
+                Авто по списку лобби
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const pl = room?.players || [];
+                  const teams = shufflePartyTeams(pl);
+                  if (teams) patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: teams } });
+                }}
+                style={{ ...btnStyleToggleMid, width: '100%', padding: '10px 14px', fontSize: 14 }}
+              >
+                Случайно распределить
+              </button>
+            </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -1482,7 +1554,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       ...room?.gameSettings,
                       safeMode: nextSafeMode,
                       show18Plus: nextShow18Plus,
-                      categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
+                      categorySlugs: nextCats,
                     },
                   });
                 }}
@@ -1507,14 +1579,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     gameSettings: {
                       ...room?.gameSettings,
                       show18Plus: nextShow18Plus,
-                      categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
+                      categorySlugs: nextCats,
                     },
                   });
                 }}
               />
               <span>Показывать 18+ (нужно 18+ подтверждение)</span>
             </label>
-            <p style={{ marginBottom: 8, fontSize: 14 }}>Раундов</p>
+            <p style={{ marginBottom: 8, fontSize: 14 }}>Очков до победы (успешных «правда/действие»)</p>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {[3, 5, 7, 10].map((n) => (
                 <button
@@ -1564,14 +1636,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 },
               })}
             >
-              Быстрая партия (3 раунда)
+              Быстрая партия (3 очка до победы)
             </Button>
           </div>
         )}
         {selectedGame === 'truth_dare' && gameSettingsTab === 'cats' && (
           <div>
             <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
-              Выберите категории карточек — нажмите на блок. Нужна хотя бы одна категория.
+              Выберите категории — нажмите на блок. Можно выключить все и включить только нужные; перед стартом нужна хотя бы одна.
             </p>
             <div className="lobby-settings-pick-grid">
               {TD_CATEGORIES.map((c) => {
@@ -1586,10 +1658,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 const handleClick = () => {
                   if (locked) return;
                   const next = selected ? cur.filter((x) => x !== c.slug) : [...cur, c.slug];
-                  if (next.length === 0) {
-                    showToast({ type: 'error', message: 'Нужна хотя бы одна категория карточек.' });
-                    return;
-                  }
                   track('td_category_toggle', { category: c.slug, enabled: !selected, source: 'lobby_sheet' });
                   patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: next } });
                 };
@@ -1611,6 +1679,107 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     <div className="lobby-settings-pick-card__emoji">{c.emoji || '📇'}</div>
                     <div className="lobby-settings-pick-card__name">{c.name}</div>
                     <div className="lobby-settings-pick-card__desc">{c.description}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {selectedGame === 'truth_dare' && gameSettingsTab === 'teams' && (
+          <div>
+            <p style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 10 }}>
+              Те же правила, что и в Элиас: <strong>авто</strong> при смене состава — 2×1, затем 2+1, с 4 человек — две команды по чередованию в списке. Хост правит кнопками ниже; «Случайно» — новый случайный порядок и снова авто-разбивка.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const pl = room?.players || [];
+                  const teams = buildAutoPartyTeams(pl);
+                  if (teams) patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: teams } });
+                }}
+                style={{ ...btnStyleToggleMid, width: '100%', padding: '10px 14px', fontSize: 14 }}
+              >
+                Авто по списку лобби
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const pl = room?.players || [];
+                  const teams = shufflePartyTeams(pl);
+                  if (teams) patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: teams } });
+                }}
+                style={{ ...btnStyleToggleMid, width: '100%', padding: '10px 14px', fontSize: 14 }}
+              >
+                Случайно распределить
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const teams = room?.gameSettings?.truthDareTeams ?? [
+                    { name: 'Команда 1', playerIds: [] },
+                    { name: 'Команда 2', playerIds: [] },
+                  ];
+                  patchLobbyGame({
+                    gameSettings: {
+                      ...room?.gameSettings,
+                      truthDareTeams: [...teams, { name: `Команда ${teams.length + 1}`, playerIds: [] }],
+                    },
+                  });
+                }}
+                style={{ ...btnStyleToggleMid, width: 'auto', padding: '6px 12px', fontSize: 13 }}
+              >
+                + Добавить команду
+              </button>
+              {(room?.gameSettings?.truthDareTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }]).length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const teams = room?.gameSettings?.truthDareTeams;
+                    if (teams?.length > 2) patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: teams.slice(0, -1) } });
+                  }}
+                  style={{ ...btnStyleWarn, width: 'auto', padding: '6px 12px', fontSize: 13 }}
+                >
+                  − Убрать команду
+                </button>
+              )}
+            </div>
+            <div>
+              {(room?.players || []).map((p) => {
+                const teams = room?.gameSettings?.truthDareTeams ?? [
+                  { name: 'Команда 1', playerIds: [] },
+                  { name: 'Команда 2', playerIds: [] },
+                ];
+                const playerTeamIndex = teams.findIndex((t) => (t.playerIds || []).includes(p.id));
+                const setTeam = (teamIndex) => {
+                  const next = teams.map((t, i) => ({
+                    ...t,
+                    playerIds: (t.playerIds || []).filter((id) => id !== p.id).concat(teamIndex === i ? [p.id] : []),
+                  }));
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: next } });
+                };
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{ minWidth: 72 }}>{p.name}</span>
+                    {teams.map((t, i) => (
+                      <button
+                        key={t.name + i}
+                        type="button"
+                        onClick={() => setTeam(i)}
+                        style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setTeam(-1)}
+                      style={{ ...(playerTeamIndex === -1 ? btnStyleToggleMid : btnStyleToggleInk), width: 'auto', padding: '6px 8px', fontSize: 11 }}
+                    >
+                      Не играет
+                    </button>
                   </div>
                 );
               })}
@@ -1911,6 +2080,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <p style={{ fontSize: 12, opacity: 0.85, wordBreak: 'break-all', marginTop: 0 }}>{inviteLink}</p>
             <Button variant="secondary" fullWidth onClick={shareInvite}>
               Поделиться ссылкой
+            </Button>
+            <Button variant="ghost" fullWidth onClick={() => setQrOpen(false)} style={{ marginTop: 10 }}>
+              Закрыть
             </Button>
           </>
         ) : (
