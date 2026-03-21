@@ -5,6 +5,7 @@ import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import { track } from '../analytics';
 import Select from './ui/Select';
 import Tooltip from './ui/Tooltip';
+import './shopModal.css';
 
 const btnStyle = {
   padding: 'var(--gh-space-3, 12px) var(--gh-space-5, 20px)',
@@ -71,21 +72,8 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={onClose}>
-      <div
-        style={{
-          background: 'var(--tg-theme-bg-color, #1a1a1a)',
-          padding: 20,
-          borderRadius: 12,
-          maxWidth: 380,
-          width: '100%',
-          height: 'min(90vh, 760px)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="shop-modal-overlay" onClick={onClose}>
+      <div className="shop-modal__panel" onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин и словари</h3>
         <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
           Витрина: тематические наборы слов и фичи по играм. С <strong>Премиум</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
@@ -114,7 +102,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                 {popular.map((item) => (
                   <div key={`popular-${item.id}`} style={{ padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.05)', fontSize: 12 }}>
                     <div style={{ fontWeight: 700 }}>{item.emoji} {item.name}</div>
-                    <div style={{ marginTop: 4, opacity: 0.85 }}>{item.free ? 'Free' : 'Pro'}</div>
+                    <div style={{ marginTop: 4, opacity: 0.85 }}>{item.free ? 'Бесплатно' : 'Премиум'}</div>
                   </div>
                 ))}
               </div>
@@ -162,13 +150,13 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
             );
           })}
           <div style={{ marginTop: 14 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 13, opacity: 0.92 }}>Матрица ценности Pro</p>
+            <p style={{ margin: '0 0 8px', fontSize: 13, opacity: 0.92 }}>Матрица ценности Премиум</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {PRO_VALUE_MATRIX.map((row) => (
                 <div key={row.game} style={{ padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.04)' }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>{row.title}</div>
-                  <div style={{ fontSize: 12, opacity: 0.85 }}>Free: {row.free.join(', ')}</div>
-                  <div style={{ fontSize: 12, opacity: 0.92, marginTop: 4 }}>Pro: {row.pro.join(', ')}</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>Бесплатно: {row.free.join(', ')}</div>
+                  <div style={{ fontSize: 12, opacity: 0.92, marginTop: 4 }}>Премиум: {row.pro.join(', ')}</div>
                 </div>
               ))}
             </div>

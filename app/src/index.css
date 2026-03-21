@@ -114,6 +114,15 @@ html[data-density='compact'] {
   align-items: center;
 }
 
+.gh-topbar__side--end {
+  justify-content: flex-end;
+}
+
+/* Без центрального заголовка: назад слева, действия справа */
+.gh-topbar--no-title {
+  grid-template-columns: minmax(44px, auto) 1fr;
+}
+
 .gh-icon-btn {
   width: 44px;
   height: 44px;

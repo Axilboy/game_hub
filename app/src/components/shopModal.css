@@ -1,0 +1,56 @@
+/**
+ * Магазин: на широких экранах / Telegram Desktop окно не должно казаться «увеличенным»
+ * и обрезаться по высоте — ниже высота и чуть плотнее типографика.
+ */
+.shop-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 16px max(12px, env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  min-height: 100dvh;
+}
+
+.shop-modal__panel {
+  background: var(--tg-theme-bg-color, #1a1a1a);
+  padding: 20px;
+  border-radius: 12px;
+  max-width: min(380px, calc(100vw - 32px));
+  width: 100%;
+  max-height: min(90dvh, 720px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+@media (min-width: 600px) {
+  .shop-modal-overlay {
+    padding: 24px;
+  }
+
+  .shop-modal__panel {
+    /* На ПК / широком WebView — компактнее по высоте, чтобы всё помещалось без zoom out */
+    max-height: min(78vh, 520px);
+    max-width: min(400px, calc(100vw - 48px));
+    padding: 16px 18px;
+    font-size: 14px;
+  }
+
+  .shop-modal__panel h3 {
+    font-size: 1.05rem;
+    margin-bottom: 12px;
+  }
+}
+
+@media (min-width: 900px) {
+  .shop-modal__panel {
+    max-height: min(72vh, 480px);
+  }
+}

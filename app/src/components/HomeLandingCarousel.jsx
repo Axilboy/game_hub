@@ -284,7 +284,6 @@ export default function HomeLandingCarousel() {
 
   return (
     <section className="gh-home-carousel-wrap" aria-label="GameHub и игры">
-      <p className="gh-home-carousel__label">Листайте — GameHub или страница игры</p>
       <div className="gh-home-carousel__frame">
         <div className="gh-home-carousel__strip">
           <button

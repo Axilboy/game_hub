@@ -7,9 +7,10 @@ export default function PageLayout({
   children,
   stickyBottom,
 }) {
+  const hasTitle = Boolean(title);
   return (
     <div className="gh-shell">
-      <header className="gh-topbar">
+      <header className={`gh-topbar${hasTitle ? '' : ' gh-topbar--no-title'}`}>
         <div className="gh-topbar__side">
           {onBack ? (
             <button type="button" className="gh-icon-btn" onClick={onBack} aria-label="Назад">
@@ -17,8 +18,8 @@ export default function PageLayout({
             </button>
           ) : null}
         </div>
-        <div className="gh-topbar__title">{title || ''}</div>
-        <div className="gh-topbar__side" style={{ justifyContent: 'flex-end' }}>
+        {hasTitle ? <div className="gh-topbar__title">{title}</div> : null}
+        <div className="gh-topbar__side gh-topbar__side--end">
           {right || null}
         </div>
       </header>

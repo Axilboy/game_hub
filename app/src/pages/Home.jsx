@@ -298,7 +298,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   };
 
   return (
-    <PageLayout title="GameHub" onBack={() => window.history.back()} right={<AppHeaderRight user={user} />}>
+    <PageLayout onBack={() => window.history.back()} right={<AppHeaderRight user={user} />}>
       <HomeLandingCarousel />
 
       {showAvatarPicker && (
@@ -588,19 +588,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           {adLoading ? 'Загрузка…' : 'Показать рекламу'}
         </Button>
       </section>
-
-      <details className="gh-card" style={{ marginTop: 12, padding: 12 }}>
-        <summary style={{ cursor: 'pointer', fontSize: 13, opacity: 0.85 }}>Дополнительные страницы</summary>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/spy')}>Шпион</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/elias')}>Элиас</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/mafia')}>Мафия</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/truth_dare')}>Правда/действие</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/bunker')}>Бункер</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/privacy')}>Приватность</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/rules')}>Правила</button>
-        </div>
-      </details>
 
       <Modal
         open={showThanks}

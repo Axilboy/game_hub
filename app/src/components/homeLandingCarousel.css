@@ -10,14 +10,6 @@
   overflow: visible;
 }
 
-.gh-home-carousel__label {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.75;
-  letter-spacing: 0.02em;
-}
-
 .gh-home-carousel__frame {
   width: 100%;
   min-width: 0;
@@ -258,4 +250,25 @@
   font-size: 16px;
   opacity: 0.85;
   margin-top: 6px;
+}
+
+/* Светлая тема: без «тяжёлой» полосы тени — карусель визуально сливается с фоном страницы */
+html[data-theme='light'] .gh-home-carousel__slide:not(.gh-home-carousel__slide--hub) {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 8px 28px rgba(0, 0, 0, 0.05);
+}
+
+html[data-theme='light'] .gh-home-carousel__slide--hub {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+html[data-theme='light'] .gh-home-carousel__arrow {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  background: color-mix(in srgb, var(--tg-theme-bg-color, #fff) 92%, transparent);
+}
+
+html[data-theme='light'] .gh-home-carousel__emoji {
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.12));
 }
