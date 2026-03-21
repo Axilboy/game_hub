@@ -12,6 +12,18 @@ import Badge from '../components/ui/Badge';
 import GameplayScreen from '../components/game/GameplayScreen';
 import './spyRound.css';
 
+function mapSpyLastGameToVoteResult(lr) {
+  if (!lr || lr.game !== 'spy') return null;
+  return {
+    guessMode: Boolean(lr.guessMode),
+    isSpy: lr.isSpy,
+    allSpiesRound: Boolean(lr.allSpiesRound),
+    votedOutName: lr.votedOutName || 'Игрок',
+    guessedLocation: lr.guessedLocation ?? null,
+    actualLocation: lr.actualLocation ?? null,
+  };
+}
+
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -34,8 +46,8 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [startVoteLock, setStartVoteLock] = useState(false);
   const [guessPollLock, setGuessPollLock] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
-  const [wordPeekVisible, setWordPeekVisible] = useState(true);
-  const [rolePeekVisible, setRolePeekVisible] = useState(true);
+  const [wordPeekVisible, setWordPeekVisible] = useState(false);
+  const [rolePeekVisible, setRolePeekVisible] = useState(false);
   const requestSeqRef = useRef(0);
 
   const myId = user?.id != null ? String(user.id) : '';
@@ -65,6 +77,12 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     if (!myId) return;
     fetchCard();
   }, [roomId, myId]);
+
+  /** Новый раунд / старт таймера — снова прячем секрет */
+  useEffect(() => {
+    setWordPeekVisible(false);
+    setRolePeekVisible(false);
+  }, [timerStartsAt]);
 
   useEffect(() => {
     if (!myId || !card) return;
@@ -130,6 +148,13 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     socket.onConnect(resync);
     return () => socket.offConnect(resync);
   }, [roomId, myId]);
+
+  /** Новый матч Шпиона: сбросить локальный итог голосования */
+  useEffect(() => {
+    if (room?.state === 'playing' && room?.game === 'spy' && !room.lastGameResult) {
+      setVoteResult(null);
+    }
+  }, [room?.state, room?.game, room?.lastGameResult]);
 
   const startVote = async () => {
     if (startVoteLock) return;
@@ -201,6 +226,57 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     navigate('/');
   };
 
+  /** Итог с сервера важнее локального состояния сокета (реванш без «залипшего» экрана) */
+  const displayVoteResult = mapSpyLastGameToVoteResult(room?.lastGameResult) ?? voteResult;
+
+  if (displayVoteResult) {
+    return (
+      <PostMatchScreen
+        theme="spy"
+        top={<BackArrow onClick={goLobby} title="В лобби" />}
+        center={false}
+        padding={24}
+        primaryLabel="Ок"
+        onPrimary={goLobby}
+        secondaryLabel="Выйти"
+        onSecondary={exitToHome}
+        secondaryBg="#333"
+        confirmSecondary={true}
+        confirmTitle="Вы уверены?"
+        confirmText="Выйти прямо сейчас — вы покинете комнату."
+      >
+        <div className="gpl__panel">
+          <div style={{ marginBottom: 8 }}>
+            <Badge tone="info">Итог</Badge>
+          </div>
+          {(displayVoteResult.allSpiesRound || displayVoteResult.isSpy) && (
+            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>
+              {displayVoteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}
+            </p>
+          )}
+          <p style={{ fontSize: 22, marginBottom: 12 }}>
+            {displayVoteResult.guessMode
+              ? 'Шпион угадал локацию!'
+              : displayVoteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
+          </p>
+          {displayVoteResult.guessMode ? (
+            <>
+              <p style={{ fontSize: 18, marginBottom: 8 }}>Шпион: {displayVoteResult.votedOutName}</p>
+              <p style={{ opacity: 0.9, marginBottom: 0 }}>
+                Локация: {displayVoteResult.actualLocation || displayVoteResult.guessedLocation || 'скрыто'}
+              </p>
+            </>
+          ) : displayVoteResult.isSpy && (
+            <p style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Им был: {displayVoteResult.votedOutName}</p>
+          )}
+          {!displayVoteResult.guessMode ? (
+            <p style={{ opacity: 0.9 }}>Голосовали за: {displayVoteResult.votedOutName}</p>
+          ) : null}
+        </div>
+      </PostMatchScreen>
+    );
+  }
+
   if (loading) {
     return (
       <GameplayScreen theme="spy" user={user} onBack={goLobby} backTitle="В лобби" title="Шпион">
@@ -225,54 +301,6 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const wordDisplay = isSpy ? (card.wordMask || '• • •') : card.word;
   const canStartGuessPoll = isSpy && !allSpiesRound && !votingActive && !voteResult && !guessPollActive;
   const canVoteGuessPoll = guessPollActive && !isSpy && !card.guessPollMyVote;
-
-  if (voteResult) {
-    return (
-      <PostMatchScreen
-        theme="spy"
-        top={<BackArrow onClick={goLobby} title="В лобби" />}
-        center={false}
-        padding={24}
-        primaryLabel="Ок"
-        onPrimary={goLobby}
-        secondaryLabel="Выйти"
-        onSecondary={exitToHome}
-        secondaryBg="#333"
-        confirmSecondary={true}
-        confirmTitle="Вы уверены?"
-        confirmText="Выйти прямо сейчас — вы покинете комнату."
-      >
-        <div className="gpl__panel">
-          <div style={{ marginBottom: 8 }}>
-            <Badge tone={votingActive ? 'warning' : 'info'}>{phaseLabel}</Badge>
-          </div>
-          {(voteResult.allSpiesRound || voteResult.isSpy) && (
-            <p style={{ fontSize: 18, marginBottom: 8, color: '#8af' }}>
-              {voteResult.allSpiesRound ? 'Раунд «Все шпионы»' : ''}
-            </p>
-          )}
-          <p style={{ fontSize: 22, marginBottom: 12 }}>
-            {voteResult.guessMode
-              ? 'Шпион угадал локацию!'
-              : voteResult.isSpy ? 'Шпион найден!' : 'Ошибка — это не шпион.'}
-          </p>
-          {voteResult.guessMode ? (
-            <>
-              <p style={{ fontSize: 18, marginBottom: 8 }}>Шпион: {voteResult.votedOutName}</p>
-              <p style={{ opacity: 0.9, marginBottom: 0 }}>
-                Локация: {voteResult.actualLocation || voteResult.guessedLocation || 'скрыто'}
-              </p>
-            </>
-          ) : voteResult.isSpy && (
-            <p style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Им был: {voteResult.votedOutName}</p>
-          )}
-          {!voteResult.guessMode ? (
-            <p style={{ opacity: 0.9 }}>Голосовали за: {voteResult.votedOutName}</p>
-          ) : null}
-        </div>
-      </PostMatchScreen>
-    );
-  }
 
   return (
     <GameplayScreen theme="spy" user={user} onBack={() => setExitConfirm(true)} backTitle="Выйти" title="Шпион">
@@ -337,24 +365,27 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
 
           <button
             type="button"
-            className="gameplay__peek-block"
+            className="spy-round__peek-card"
             onClick={() => setWordPeekVisible((v) => !v)}
-            aria-label={wordPeekVisible ? 'Скрыть' : 'Показать слово'}
+            aria-label={wordPeekVisible ? 'Скрыть слово' : 'Показать слово'}
           >
-            <span className="gameplay__peek-block__label">
+            <span className="spy-round__peek-label">
               {isSpy ? 'Ваша подсказка' : 'Локация'}
             </span>
             {wordPeekVisible ? (
-              <span className="gameplay__peek-block__word">{wordDisplay}</span>
+              <span className="spy-round__peek-word">{wordDisplay}</span>
             ) : (
-              <span className="gameplay__peek-block__hidden">Скрыто — нажмите, чтобы показать</span>
+              <span className="spy-round__peek-hidden">
+                Нажмите, чтобы показать
+                <span className="spy-round__peek-hint">держите секрет в тайне от других</span>
+              </span>
             )}
           </button>
 
           <p className="spy-round__sub" style={{ marginTop: 0 }}>
             {isSpy
-              ? 'Догадывайтесь по обсуждению. Не подсматривайте чужие экраны. Нажмите на блок выше, чтобы скрыть экран.'
-              : 'Ваше слово на этот раунд. Не показывайте экран другим. Нажмите на блок — можно временно скрыть.'}
+              ? 'Сначала карточка скрыта. Нажмите, чтобы посмотреть подсказку. Не подсматривайте чужие экраны. Повторное нажатие — снова скрыть.'
+              : 'Слово скрыто по умолчанию. Нажмите на карточку, чтобы увидеть локацию. Не показывайте экран другим. Нажмите снова — скрыть.'}
           </p>
           {isSpy && card.otherSpyNames?.length > 0 && (
             <p className="spy-round__sub" style={{ marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
@@ -382,18 +413,18 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
           {!isSpy && card.showRoleBlock && card.myCivilianRole && (
             <button
               type="button"
-              className="gameplay__peek-block"
-              style={{ marginTop: 14 }}
+              className="spy-round__peek-card spy-round__peek-card--role"
               onClick={() => setRolePeekVisible((v) => !v)}
               aria-label={rolePeekVisible ? 'Скрыть роль' : 'Показать роль'}
             >
-              <span className="gameplay__peek-block__label">Ваша роль</span>
+              <span className="spy-round__peek-label">Ваша роль</span>
               {rolePeekVisible ? (
-                <span className="gameplay__peek-block__word" style={{ fontSize: 'clamp(20px,4.5vw,28px)' }}>
-                  {card.myCivilianRole}
-                </span>
+                <span className="spy-round__peek-word spy-round__peek-word--role">{card.myCivilianRole}</span>
               ) : (
-                <span className="gameplay__peek-block__hidden">Роль скрыта — нажмите, чтобы показать</span>
+                <span className="spy-round__peek-hidden">
+                  Нажмите, чтобы показать роль
+                  <span className="spy-round__peek-hint">как и локацию — только для вас</span>
+                </span>
               )}
             </button>
           )}

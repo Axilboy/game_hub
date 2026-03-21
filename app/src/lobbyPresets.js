@@ -70,8 +70,9 @@ export function getDefaultGameSettings(gameId) {
         revealRoleOnDeath: true,
         mafiaCanSkipKill: false,
         hostSelection: 'random',
+        mafiaRolesMode: 'player_vote',
         theme: 'default',
-        phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 },
+        phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45, roleSetup: 120 },
       };
     case 'elias': {
       const [e1, e2] = generateTwoTeamNames();
@@ -88,17 +89,16 @@ export function getDefaultGameSettings(gameId) {
       };
     }
     case 'truth_dare': {
-      const [t1, t2] = generateTwoTeamNames();
       return {
         mode: 'mixed',
         show18Plus: false,
         safeMode: true,
         roundsCount: 5,
         categorySlugs: ['classic', 'friends'],
-        truthDareTeams: [
-          { name: t1, playerIds: [] },
-          { name: t2, playerIds: [] },
-        ],
+        /** Порядок id игроков в лобби (ведущий перетаскивает карточки) */
+        truthDareTurnOrder: [],
+        /** host — по очереди; random — каждый ход случайный игрок */
+        truthDareOrderMode: 'host',
       };
     }
     case 'bunker':

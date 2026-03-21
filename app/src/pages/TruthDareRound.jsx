@@ -249,6 +249,11 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
           <p style={{ margin: '8px 0 0', opacity: 0.9, fontSize: 14 }}>
             Ход игрока: <strong>{state.currentPlayerName || '—'}</strong>
           </p>
+          <p style={{ margin: '8px 0 0', opacity: 0.82, fontSize: 13 }}>
+            {state.turnOrderMode === 'random'
+              ? 'Очередь: случайный выбор каждого хода (без команд, каждый сам за себя).'
+              : 'Очередь: по порядку из лобби (настроил ведущий). Команд нет.'}
+          </p>
           {timeLeft != null && (
             <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>
               Таймер: {formatTime(timeLeft)}

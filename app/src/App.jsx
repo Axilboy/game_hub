@@ -33,6 +33,14 @@ const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
 const FriendsPage = lazy(() => import('./pages/Friends'));
 
+/** Игра идёт или только что закончилась — держим маршрут /spy, /elias и т.д., чтобы экран победы не схлопывался */
+function allowGameRoundRoute(room, gameId) {
+  if (!room || !gameId) return false;
+  if (room.state === 'playing' && room.game === gameId) return true;
+  if (room.state === 'lobby' && room.lastGameResult?.game === gameId) return true;
+  return false;
+}
+
 function AppRoutes() {
   const { showToast } = useToast();
   const { user, ready } = useTelegram();
@@ -321,7 +329,11 @@ function AppRoutes() {
       try {
         if (roomId) sessionStorage.setItem('gameHub_rematchRoomId', roomId);
       } catch (_) {}
-      if (location.pathname === '/spy' || location.pathname === '/truth_dare') return;
+      if (
+        ['/spy', '/truth_dare', '/elias', '/mafia', '/bunker'].includes(location.pathname)
+      ) {
+        return;
+      }
       await refreshRoom();
       if (location.pathname !== '/lobby') navigate('/lobby');
     };
@@ -587,7 +599,7 @@ function AppRoutes() {
         <Route
           path="/spy"
           element={
-            roomId && room?.state === 'playing' && room?.game === 'spy' ? (
+            roomId && allowGameRoundRoute(room, 'spy') ? (
               <SpyRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} onGoLobby={onGoLobbyAfterSpy} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
@@ -599,7 +611,7 @@ function AppRoutes() {
         <Route
           path="/mafia"
           element={
-            roomId && room?.state === 'playing' && room?.game === 'mafia' ? (
+            roomId && allowGameRoundRoute(room, 'mafia') ? (
               <MafiaRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
@@ -611,7 +623,7 @@ function AppRoutes() {
         <Route
           path="/elias"
           element={
-            roomId && room?.state === 'playing' && room?.game === 'elias' ? (
+            roomId && allowGameRoundRoute(room, 'elias') ? (
               <EliasRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
@@ -623,7 +635,7 @@ function AppRoutes() {
         <Route
           path="/truth_dare"
           element={
-            roomId && room?.state === 'playing' && room?.game === 'truth_dare' ? (
+            roomId && allowGameRoundRoute(room, 'truth_dare') ? (
               <TruthDareRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
@@ -635,7 +647,7 @@ function AppRoutes() {
         <Route
           path="/bunker"
           element={
-            roomId && room?.state === 'playing' && room?.game === 'bunker' ? (
+            roomId && allowGameRoundRoute(room, 'bunker') ? (
               <BunkerRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />

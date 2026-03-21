@@ -126,6 +126,41 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
     }
   };
 
+  const lrBunker = room?.lastGameResult?.game === 'bunker' ? room.lastGameResult : null;
+
+  if (lrBunker && !state) {
+    const winner = lrBunker.winnerName || '—';
+    const crisesSeen = Array.isArray(lrBunker.crisisHistory) ? lrBunker.crisisHistory.length : 0;
+    return (
+      <PostMatchScreen
+        theme="bunker"
+        top={<BackArrow onClick={leaveToLobby} title="В лобби" />}
+        center={false}
+        padding={24}
+        primaryLabel="В лобби"
+        onPrimary={leaveToLobby}
+        secondaryLabel="Выйти"
+        onSecondary={exitToHome}
+        secondaryBg="#333"
+      >
+        <div className="gpl__panel">
+          <p style={{ fontSize: 22, margin: 0, marginBottom: 12, fontWeight: 800 }}>Бункер завершён</p>
+          <p style={{ margin: 0, fontSize: 16, opacity: 0.92 }}>
+            Победитель: <strong>{winner}</strong>
+          </p>
+          <p style={{ margin: '10px 0 0', fontSize: 13, opacity: 0.86 }}>
+            Раундов сыграно: {lrBunker.roundIndex ?? 0} · Катастроф пережито: {crisesSeen}
+          </p>
+          {Array.isArray(lrBunker.crisisHistory) && lrBunker.crisisHistory.length > 0 && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.8, lineHeight: 1.45 }}>
+              Кризисы: {lrBunker.crisisHistory.map((c) => c.name).join(' · ')}
+            </p>
+          )}
+        </div>
+      </PostMatchScreen>
+    );
+  }
+
   if (loading) {
     return (
       <GameplayScreen theme="bunker" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Бункер">

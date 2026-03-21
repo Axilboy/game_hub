@@ -63,14 +63,21 @@ export default function LobbyGameSummaryCard({
 
   if (selectedGame === 'mafia') {
     const pt = gs.phaseTimers || {};
+    const rolesLine =
+      gs.mafiaRolesMode === 'moderator'
+        ? 'ведущий назначает'
+        : gs.mafiaRolesMode === 'player_vote'
+          ? 'голосование'
+          : 'случайно';
     return (
       <div className="lobby-summary-card">
         <Row icon="🎭" label="Режим" value={gs.extended ? 'Расширенный' : 'Классика'} />
         <Row icon="🎤" label="Ведущий" value={gs.hostSelection === 'choose' ? 'выбор' : 'случайно'} />
+        <Row icon="🗳️" label="Мафия" value={rolesLine} />
         <Row
           icon="⏱️"
           label="Фазы (с)"
-          value={`ночь ${pt.nightMafia ?? 45}, день ${pt.day ?? 90}, голос ${pt.voting ?? 45}`}
+          value={`подг. ${pt.roleSetup ?? 120}, ночь ${pt.nightMafia ?? 45}, день ${pt.day ?? 90}, голос ${pt.voting ?? 45}`}
         />
         <Row icon="👥" label="Мин. игроков" value={String(MIN_PLAYERS.mafia)} />
       </div>
@@ -107,25 +114,26 @@ export default function LobbyGameSummaryCard({
     const show18 = Boolean(gs.show18Plus);
     const slugs = Array.isArray(gs.categorySlugs) ? gs.categorySlugs : ['classic', 'friends'];
     const cats = slugs.length ? slugs.map((s) => TD_CAT_SHORT[s] || s).join(', ') : '— (не выбрано)';
-    const tdTeams = gs.truthDareTeams;
-    const tdTeamsLine =
-      Array.isArray(tdTeams) && tdTeams.length > 0
-        ? tdTeams
-            .map(
-              (t) =>
-                `${t.name}: ${(t.playerIds || []).map((id) => room?.players?.find((p) => p.id === id)?.name).filter(Boolean).join(', ') || '—'}`,
-            )
-            .join(' · ')
-        : null;
+    const orderMode = gs.truthDareOrderMode === 'random' ? 'random' : 'host';
+    const orderLine =
+      orderMode === 'random'
+        ? 'Случайно каждый ход'
+        : (() => {
+            const ids = Array.isArray(gs.truthDareTurnOrder) ? gs.truthDareTurnOrder : [];
+            const names = ids
+              .map((id) => room?.players?.find((p) => String(p.id) === String(id))?.name)
+              .filter(Boolean);
+            return names.length ? names.join(' → ') : 'По списку лобби (ведущий настроит)';
+          })();
     return (
       <div className="lobby-summary-card">
-        <Row icon="🎲" label="Формат" value="Правда или действие" />
+        <Row icon="🎲" label="Формат" value="Правда или действие (без команд)" />
         <Row icon="🛡️" label="Safe" value={safe ? 'да' : 'нет'} />
         <Row icon="🔞" label="18+ категории" value={safe ? 'нет (safe)' : show18 ? 'да' : 'нет'} />
         <Row icon="🔢" label="Очков до победы" value={String(gs.roundsCount ?? 5)} />
         <Row icon="⏭️" label="Пропусков" value={String(gs.skipLimitPerPlayer ?? 2)} />
         <Row icon="📇" label="Категории" value={cats} />
-        {tdTeamsLine ? <Row icon="👥" label="Команды" value={tdTeamsLine} /> : null}
+        <Row icon="📋" label="Очередь" value={orderLine} />
         <Row icon="🎯" label="Мин. игроков" value={String(MIN_PLAYERS.truth_dare)} />
       </div>
     );

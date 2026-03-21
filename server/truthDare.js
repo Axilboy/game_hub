@@ -10,7 +10,9 @@ const DEFAULT_SETTINGS = {
   roundsCount: 5,
   timerSeconds: 60,
   skipLimitPerPlayer: 2,
-  randomStartPlayer: true,
+  randomStartPlayer: true, // legacy API, для порядка ходов см. truthDareOrderMode
+  /** host — по очереди из лобби; random — каждый ход случайный игрок */
+  truthDareOrderMode: 'host',
   categorySlugs: ['classic', 'friends'],
 };
 
@@ -186,8 +188,40 @@ export function normalizeTruthDareSettings(input) {
   const timerSeconds = Math.min(300, Math.max(10, Number(v.timerSeconds) || DEFAULT_SETTINGS.timerSeconds));
   const skipLimitPerPlayer = Math.min(10, Math.max(0, Number(v.skipLimitPerPlayer) || DEFAULT_SETTINGS.skipLimitPerPlayer));
   const randomStartPlayer = v.randomStartPlayer !== false;
+  const truthDareOrderMode = v.truthDareOrderMode === 'random' ? 'random' : 'host';
   const categorySlugs = migrateCategorySlugs(v.categorySlugs);
-  return { mode, show18Plus, safeMode, roundsCount, timerSeconds, skipLimitPerPlayer, randomStartPlayer, categorySlugs };
+  return {
+    mode,
+    show18Plus,
+    safeMode,
+    roundsCount,
+    timerSeconds,
+    skipLimitPerPlayer,
+    randomStartPlayer,
+    truthDareOrderMode,
+    categorySlugs,
+  };
+}
+
+/**
+ * Порядок игроков для П/Д: из лобби (truthDareTurnOrder) + новые в конец.
+ * Режим хода — из настроек (host | random).
+ */
+export function buildTruthDarePlayerOrder(room, gameSettings) {
+  const gs = gameSettings && typeof gameSettings === 'object' ? gameSettings : {};
+  const s = normalizeTruthDareSettings(gs);
+  const playerIds = (room?.players || []).map((p) => p.id);
+  let order = Array.isArray(gs.truthDareTurnOrder)
+    ? gs.truthDareTurnOrder.filter((id) => playerIds.some((pid) => String(pid) === String(id)))
+    : [];
+  const seen = new Set(order.map(String));
+  for (const id of playerIds) {
+    if (!seen.has(String(id))) {
+      order.push(id);
+      seen.add(String(id));
+    }
+  }
+  return { playerOrder: order, orderMode: s.truthDareOrderMode };
 }
 
 export function getTruthDareCatalog({ playerHasPro = false } = {}) {
@@ -289,15 +323,22 @@ export function pickTruthDareDecoupled({
   };
 }
 
-export function createTruthDareState(room, settings) {
+export function createTruthDareState(room, settings, options = {}) {
   const gs = {};
   const s = normalizeTruthDareSettings(settings);
 
-  const playerOrder = (room.players || []).map((p) => p.id);
+  let playerOrder = Array.isArray(options.playerOrder) && options.playerOrder.length
+    ? [...options.playerOrder]
+    : (room.players || []).map((p) => p.id);
+  const orderMode = options.orderMode ?? s.truthDareOrderMode ?? 'host';
+
   const roomInventories = room.playerInventories || {};
-  const currentPlayerIndex = s.randomStartPlayer && playerOrder.length
-    ? Math.floor(Math.random() * playerOrder.length)
-    : 0;
+  let currentPlayerIndex = 0;
+  if (orderMode === 'random' && playerOrder.length > 0) {
+    currentPlayerIndex = Math.floor(Math.random() * playerOrder.length);
+  } else {
+    currentPlayerIndex = 0;
+  }
   const firstPlayerId = playerOrder[currentPlayerIndex] || null;
   const firstHasPro = firstPlayerId ? Boolean(roomInventories[firstPlayerId]?.hasPro) : false;
   const firstUnlockedCategorySlugs = firstPlayerId
@@ -321,7 +362,7 @@ export function createTruthDareState(room, settings) {
   });
 
   gs.phase = 'round';
-  gs.settings = s;
+  gs.settings = { ...s, truthDareOrderMode: orderMode };
   gs.playerOrder = playerOrder;
   gs.ageConfirmedByPlayerId = ageConfirmedByPlayerId;
   gs.currentPlayerIndex = currentPlayerIndex;

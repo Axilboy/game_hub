@@ -208,6 +208,22 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   useEffect(() => refreshState(), [refreshState]);
   useEffect(() => {
+    const lr = room?.lastGameResult;
+    if (lr?.game === 'elias') {
+      if (lr.winnerTeamIndex != null) setWinnerTeamIndex(lr.winnerTeamIndex);
+      if (Array.isArray(lr.teams)) setEndedTeams(lr.teams);
+    }
+  }, [room?.lastGameResult]);
+
+  /** После нового старта матча в лобби сбрасываем локальный итог, иначе снова покажется победа */
+  useEffect(() => {
+    if (!state) return;
+    if (state.winner != null) return;
+    if (room?.lastGameResult?.game === 'elias') return;
+    setWinnerTeamIndex(null);
+    setEndedTeams(null);
+  }, [state?.winner, room?.lastGameResult]);
+  useEffect(() => {
     if (!myId || !state) return;
     api.post(`/rooms/${roomId}/ready`, { playerId: myId, game: 'elias' }).catch(() => {});
   }, [roomId, myId, state]);
@@ -346,6 +362,48 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     timerEnded();
   }, [state, timeLeft, timerEnded]);
 
+  const lr = room?.lastGameResult?.game === 'elias' ? room.lastGameResult : null;
+  const winnerResolved =
+    state?.winner != null
+      ? state.winner
+      : winnerTeamIndex != null
+        ? winnerTeamIndex
+        : lr?.winnerTeamIndex != null
+          ? lr.winnerTeamIndex
+          : null;
+  const teamsResolved = endedTeams || state?.teams || lr?.teams || [];
+  const mvpResolved = state?.mvp || lr?.mvp;
+
+  if (winnerResolved != null && teamsResolved.length > 0) {
+    const winTeam = teamsResolved[winnerResolved];
+    return (
+      <>
+        <PostMatchScreen
+          theme="elias"
+          top={<BackArrow onClick={requestExitGame} title="Назад" />}
+          center={true}
+          padding={24}
+          primaryLabel="В лобби"
+          onPrimary={() => navigate('/lobby')}
+          secondaryLabel="Выйти"
+          onSecondary={onLeave}
+          secondaryBg="#333"
+        >
+          <div className="gpl__panel" style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
+            <p style={{ marginBottom: 16 }}>Счёт: {teamsResolved.map((t) => `${t.name} ${t.score}`).join(' — ')}</p>
+            {mvpResolved && (
+              <p style={{ marginBottom: 0, opacity: 0.9 }}>
+                MVP: {mvpResolved.name} (угадано {mvpResolved.guessed}, пропусков {mvpResolved.skipped})
+              </p>
+            )}
+          </div>
+        </PostMatchScreen>
+        {exitModal}
+      </>
+    );
+  }
+
   if (loading) {
     return (
       <>
@@ -370,7 +428,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const awaitingStart = Boolean(state.awaitingExplainerStart);
   const phase = state.roundPhase || null;
   const teams = endedTeams || state.teams || [];
-  const winner = state.winner != null ? state.winner : winnerTeamIndex;
+  const winner = state.winner != null ? state.winner : winnerTeamIndex; // во время матча победитель только здесь; экран итога — выше
   const explainingTeamIndex = state.currentTeamIndex ?? 0;
   const explainingTeamName = teams[explainingTeamIndex]?.name || 'Команда';
   const myTeamIndex = typeof state.myTeamIndex === 'number' ? state.myTeamIndex : -1;
@@ -426,36 +484,6 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       return next;
     });
   };
-
-  if (winner != null) {
-    const winTeam = teams[winner];
-    return (
-      <>
-        <PostMatchScreen
-          theme="elias"
-          top={<BackArrow onClick={requestExitGame} title="Назад" />}
-          center={true}
-          padding={24}
-          primaryLabel="В лобби"
-          onPrimary={() => navigate('/lobby')}
-          secondaryLabel="Выйти"
-          onSecondary={onLeave}
-          secondaryBg="#333"
-        >
-          <div className="gpl__panel" style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
-            <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t) => `${t.name} ${t.score}`).join(' — ')}</p>
-            {state?.mvp && (
-              <p style={{ marginBottom: 0, opacity: 0.9 }}>
-                MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
-              </p>
-            )}
-          </div>
-        </PostMatchScreen>
-        {exitModal}
-      </>
-    );
-  }
 
   return (
     <>

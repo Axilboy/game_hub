@@ -155,12 +155,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [friendIds, setFriendIds] = useState(() => new Set());
   /** id игроков, которым уже отправлена заявка */
   const [outgoingPending, setOutgoingPending] = useState(() => new Set());
-  /** Переименование команды: { scope: 'elias'|'truth_dare', teamIndex, name } */
+  /** Переименование команды Элиаса: { scope: 'elias', teamIndex, name } */
   const [teamRename, setTeamRename] = useState(null);
   /** Смена команды игрока: { targetId, targetName } */
   const [teamAssignOpen, setTeamAssignOpen] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
-  /** Элиас / П/Д: последний ключ состава — авто только при смене игроков (ручная расстановка не затирается) */
+  /** Элиас: состав команд; П/Д — очередь `truthDareTurnOrder` (см. roomManager) */
   /** playerId → Date.now() при первом обнаружении offline (сброс при online) */
   const [offlineSince, setOfflineSince] = useState(() => ({}));
   /** Тик раз в секунду — обратный отсчёт на карточке офлайн-игрока */
@@ -215,7 +215,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         return [
           { id: 'main', label: 'Основное' },
           { id: 'cats', label: 'Категории' },
-          { id: 'teams', label: 'Команды' },
+          { id: 'order', label: 'Очередь' },
         ];
       case 'bunker':
         return [
@@ -412,7 +412,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         extended: gs.extended ?? false,
         revealRoleOnDeath: gs.revealRoleOnDeath ?? true,
         mafiaCanSkipKill: gs.mafiaCanSkipKill ?? false,
-        phaseTimers: gs.phaseTimers || { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 },
+        mafiaRolesMode: gs.mafiaRolesMode === 'moderator' ? 'moderator' : gs.mafiaRolesMode === 'player_vote' ? 'player_vote' : undefined,
+        phaseTimers: gs.phaseTimers || {
+          nightMafia: 45,
+          nightCommissioner: 25,
+          day: 90,
+          voting: 45,
+          roleSetup: 120,
+        },
         ...opts,
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
@@ -534,6 +541,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         timerSeconds: gs.timerSeconds ?? 60,
         skipLimitPerPlayer: gs.skipLimitPerPlayer ?? 2,
         randomStartPlayer: gs.randomStartPlayer !== false,
+        truthDareOrderMode: gs.truthDareOrderMode,
+        truthDareTurnOrder: gs.truthDareTurnOrder,
       });
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
@@ -721,16 +730,26 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const playerMenuIsSelf = Boolean(pp && pp.id === String(user?.id));
   const playerMenuCanHostActions = Boolean(isHost && pp && !playerMenuIsSelf && !pp.isHost);
 
-  const partyTeams =
-    selectedGame === 'elias'
-      ? room?.gameSettings?.eliasTeams
-      : selectedGame === 'truth_dare'
-        ? room?.gameSettings?.truthDareTeams
-        : null;
+  const partyTeams = selectedGame === 'elias' ? room?.gameSettings?.eliasTeams : null;
   const showPartyTeamsLayout =
-    (selectedGame === 'elias' || selectedGame === 'truth_dare') &&
-    Array.isArray(partyTeams) &&
-    partyTeams.length >= 2;
+    selectedGame === 'elias' && Array.isArray(partyTeams) && partyTeams.length >= 2;
+
+  /** Порядок ходов П/Д: id из настроек + новые игроки в конце */
+  const truthDareResolvedOrder = useMemo(() => {
+    const players = room?.players || [];
+    const ids = players.map((p) => String(p.id));
+    const gs = room?.gameSettings;
+    let order = Array.isArray(gs?.truthDareTurnOrder) ? gs.truthDareTurnOrder.map(String) : [];
+    order = order.filter((id) => ids.includes(id));
+    const seen = new Set(order);
+    for (const id of ids) {
+      if (!seen.has(id)) {
+        order.push(id);
+        seen.add(id);
+      }
+    }
+    return order;
+  }, [room?.gameSettings?.truthDareTurnOrder, room?.players]);
   const eliasLobbyWins = room?.gameSettings?.eliasLobbyWins;
   const myIdStr = user?.id != null ? String(user.id) : '';
 
@@ -954,7 +973,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         onClick={() =>
                           canRename &&
                           setTeamRename({
-                            scope: selectedGame === 'truth_dare' ? 'truth_dare' : 'elias',
+                            scope: 'elias',
                             teamIndex: ti,
                             name: team.name || `Команда ${ti + 1}`,
                           })
@@ -1444,15 +1463,49 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <input type="checkbox" checked={!!room?.gameSettings?.mafiaCanSkipKill} onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mafiaCanSkipKill: e.target.checked } })} />
               <span>Мафия может не убивать ночью</span>
             </label>
+            <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>Как появляется мафия</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mafiaRolesMode: 'moderator' } })}
+                style={{
+                  ...(room?.gameSettings?.mafiaRolesMode === 'moderator' ? btnStyle : btnStyleToggleOff),
+                  flex: 1,
+                  padding: 10,
+                  minWidth: 140,
+                }}
+              >
+                Ведущий назначает
+              </button>
+              <button
+                type="button"
+                onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mafiaRolesMode: 'player_vote' } })}
+                style={{
+                  ...(room?.gameSettings?.mafiaRolesMode !== 'moderator' ? btnStyle : btnStyleToggleOff),
+                  flex: 1,
+                  padding: 10,
+                  minWidth: 140,
+                }}
+              >
+                Все голосуют
+              </button>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 12, opacity: 0.82, lineHeight: 1.35 }}>
+              Ведущий на своём телефоне выбирает Дона, мафию и комиссара (в расширенной — ещё роли). Или каждый игрок с телефона отдаёт два голоса — кого считать «мафией»; по итогам сервер назначает роли.
+            </p>
             <p style={{ margin: '0 0 6px', fontSize: 14 }}>Скорость фаз</p>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {[
-                { id: 'fast', label: 'Быстро', val: { nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
-                { id: 'std', label: 'Стандарт', val: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
-                { id: 'long', label: 'Дольше', val: { nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
+                { id: 'fast', label: 'Быстро', val: { roleSetup: 90, nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
+                { id: 'std', label: 'Стандарт', val: { roleSetup: 120, nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
+                { id: 'long', label: 'Дольше', val: { roleSetup: 150, nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
               ].map((p) => {
                 const cur = room?.gameSettings?.phaseTimers || {};
-                const active = cur.nightMafia === p.val.nightMafia && cur.day === p.val.day && cur.voting === p.val.voting;
+                const active =
+                  cur.nightMafia === p.val.nightMafia &&
+                  cur.day === p.val.day &&
+                  cur.voting === p.val.voting &&
+                  (cur.roleSetup ?? 120) === (p.val.roleSetup ?? 120);
                 return (
                   <button
                     key={p.id}
@@ -1470,7 +1523,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               onClick={() => patchLobbyGame({
                 gameSettings: {
                   ...room?.gameSettings,
-                  phaseTimers: { nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
+                  phaseTimers: { roleSetup: 60, nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
                 },
               })}
               style={{ ...btnStyle, marginBottom: 12, width: '100%' }}
@@ -1762,13 +1815,28 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 </button>
               ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>Кто ходит и когда</p>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
               <input
-                type="checkbox"
-                checked={tdGameSettings.randomStartPlayer !== false}
-                onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, randomStartPlayer: e.target.checked } })}
+                type="radio"
+                name="tdOrderMode"
+                checked={(tdGameSettings.truthDareOrderMode || 'host') !== 'random'}
+                onChange={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareOrderMode: 'host' } })}
               />
-              <span>Случайный первый игрок</span>
+              <span style={{ fontSize: 14, lineHeight: 1.45 }}>
+                <strong>По очереди</strong> — порядок задаёт ведущий на вкладке «Очередь» (перетаскивание карточек).
+              </span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="tdOrderMode"
+                checked={(tdGameSettings.truthDareOrderMode || 'host') === 'random'}
+                onChange={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareOrderMode: 'random' } })}
+              />
+              <span style={{ fontSize: 14, lineHeight: 1.45 }}>
+                <strong>Случайно</strong> — каждый ход выбирается случайный игрок (кроме текущего, если в комнате больше одного).
+              </span>
             </label>
             <Button
               variant="secondary"
@@ -1783,6 +1851,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   safeMode: true,
                   show18Plus: false,
                   categorySlugs: ['classic', 'friends'],
+                  truthDareOrderMode: 'host',
                 },
               })}
             >
@@ -1835,67 +1904,85 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             </div>
           </div>
         )}
-        {selectedGame === 'truth_dare' && gameSettingsTab === 'teams' && (
+        {selectedGame === 'truth_dare' && gameSettingsTab === 'order' && (
           <div>
-            <p style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 10 }}>
-              Как в Элиас: <strong>авто при входе</strong> в команды, смена через карточку игрока → «Сменить команду». Ниже — пересобрать состав вручную («Авто по списку», «Случайно»).
+            <p style={{ fontSize: 13, opacity: 0.9, marginTop: 0, marginBottom: 12, lineHeight: 1.45 }}>
+              В Правда или действие <strong>нет команд</strong> — каждый играет за себя. Здесь задаётся <strong>очередь ходов</strong> для режима «По очереди» на вкладке «Основное».
+              Перетащите карточки, чтобы изменить порядок (только ведущий; остальные только смотрят).
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  const pl = room?.players || [];
-                  const teams = buildAutoPartyTeams(pl);
-                  if (teams) patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: teams } });
-                }}
-                style={{ ...btnStyleToggleMid, width: '100%', padding: '10px 14px', fontSize: 14 }}
-              >
-                Авто по списку лобби
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const pl = room?.players || [];
-                  const teams = shufflePartyTeams(pl);
-                  if (teams) patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: teams } });
-                }}
-                style={{ ...btnStyleToggleMid, width: '100%', padding: '10px 14px', fontSize: 14 }}
-              >
-                Случайно распределить
-              </button>
+            {(tdGameSettings.truthDareOrderMode || 'host') === 'random' ? (
+              <p style={{ fontSize: 13, opacity: 0.88, marginBottom: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.2)' }}>
+                Сейчас включён режим <strong>«Случайно»</strong> — порядок ниже не влияет на игру; каждый ход выбирается случайный игрок.
+              </p>
+            ) : null}
+            <div className="lobby-td-order-list">
+              {truthDareResolvedOrder.map((pid, index) => {
+                const pl = playersList.find((p) => String(p.id) === String(pid));
+                const label = pl?.name || pid;
+                const canDrag = isHost && (tdGameSettings.truthDareOrderMode || 'host') !== 'random';
+                return (
+                  <div
+                    key={String(pid)}
+                    className={`lobby-td-order-row gh-card${canDrag ? ' lobby-td-order-row--draggable' : ''}`}
+                    draggable={canDrag}
+                    onDragStart={(e) => {
+                      if (!canDrag) return;
+                      e.dataTransfer.setData('text/plain', String(pid));
+                      e.dataTransfer.effectAllowed = 'move';
+                      try {
+                        e.currentTarget.classList.add('lobby-td-order-row--dragging');
+                      } catch (_) {}
+                    }}
+                    onDragEnd={(e) => {
+                      try {
+                        e.currentTarget.classList.remove('lobby-td-order-row--dragging');
+                      } catch (_) {}
+                    }}
+                    onDragOver={(e) => {
+                      if (!canDrag) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      if (!canDrag) return;
+                      e.preventDefault();
+                      const dragId = e.dataTransfer.getData('text/plain');
+                      if (!dragId || String(dragId) === String(pid)) return;
+                      const order = [...truthDareResolvedOrder];
+                      const from = order.findIndex((x) => String(x) === String(dragId));
+                      if (from < 0) return;
+                      const [item] = order.splice(from, 1);
+                      let to = index;
+                      if (from < to) to -= 1;
+                      to = Math.max(0, Math.min(to, order.length));
+                      order.splice(to, 0, item);
+                      patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTurnOrder: order } });
+                    }}
+                  >
+                    <span className="lobby-td-order-row__n">{index + 1}</span>
+                    <span className="lobby-td-order-row__name">{label}</span>
+                    {canDrag ? <span className="lobby-td-order-row__hint" aria-hidden>⋮⋮</span> : null}
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            {isHost ? (
               <button
                 type="button"
                 onClick={() => {
-                  const teams = room?.gameSettings?.truthDareTeams ?? [
-                    { name: 'Команда 1', playerIds: [] },
-                    { name: 'Команда 2', playerIds: [] },
-                  ];
+                  const pl = room?.players || [];
                   patchLobbyGame({
                     gameSettings: {
                       ...room?.gameSettings,
-                      truthDareTeams: [...teams, { name: generateOneTeamName(), playerIds: [] }],
+                      truthDareTurnOrder: pl.map((p) => p.id),
                     },
                   });
                 }}
-                style={{ ...btnStyleToggleMid, width: 'auto', padding: '6px 12px', fontSize: 13 }}
+                style={{ ...btnStyleToggleMid, width: '100%', marginTop: 12, padding: '10px 14px', fontSize: 14 }}
               >
-                + Добавить команду
+                Сбросить порядок как в списке участников
               </button>
-              {(room?.gameSettings?.truthDareTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }]).length > 2 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const teams = room?.gameSettings?.truthDareTeams;
-                    if (teams?.length > 2) patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: teams.slice(0, -1) } });
-                  }}
-                  style={{ ...btnStyleWarn, width: 'auto', padding: '6px 12px', fontSize: 13 }}
-                >
-                  − Убрать команду
-                </button>
-              )}
-            </div>
+            ) : null}
           </div>
         )}
 

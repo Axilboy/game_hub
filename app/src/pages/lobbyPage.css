@@ -432,3 +432,63 @@
   background: var(--gh-surface, rgba(255, 255, 255, 0.06));
   color: inherit;
 }
+
+/* Правда или действие — порядок ходов (drag-and-drop для ведущего) */
+.lobby-td-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lobby-td-order-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.1));
+  user-select: none;
+}
+
+.lobby-td-order-row--draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.lobby-td-order-row--draggable:active {
+  cursor: grabbing;
+}
+
+.lobby-td-order-row--dragging {
+  opacity: 0.55;
+}
+
+.lobby-td-order-row__n {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 28%, transparent);
+}
+
+.lobby-td-order-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-td-order-row__hint {
+  flex-shrink: 0;
+  font-size: 14px;
+  opacity: 0.35;
+  letter-spacing: -2px;
+}

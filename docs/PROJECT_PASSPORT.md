@@ -100,18 +100,27 @@ GAME_HUB/
 
 ### `syncPartyTeams(room)` (`roomManager.js`)
 
-- Вызывается в лобби для выбранной игры **elias** или **truth_dare**.
-- Заполняет `gameSettings.eliasTeams` / `truthDareTeams` (поле `playerIds` у каждой команды).
-- Для Элиаса подстраивает длину `eliasLobbyWins` под число команд.
+- Только **Элиас**: заполняет `gameSettings.eliasTeams` (`playerIds`), подстраивает `eliasLobbyWins`.
+
+### `syncTruthDareTurnOrder(room)` (`roomManager.js`)
+
+- Только **Правда или действие** в лобби: поддерживает `gameSettings.truthDareTurnOrder` (id игроков) — убирает вышедших, новых добавляет в конец. Команд в П/Д нет.
 
 ### `maybeSyncPartyTeamsAfterLobbyPatch(room)`
 
-- Полная пересинхронизация с составом `room.players` **только если** команды пустые или множество id в командах не совпадает с игроками в комнате (чтобы не затирать ручные перестановки при мелких PATCH).
+- **Элиас:** пересинхронизация команд с `room.players` при рассинхроне (как раньше).
+- **П/Д:** вызывает `syncTruthDareTurnOrder`.
 
 ### Ручная смена команды
 
-**`POST /rooms/:roomId/lobby/assign-team`** — тело: `actorId`, `targetPlayerId`, `teamIndex`.  
-Хост может менять любому; не-хост — только себе (`actorId === targetPlayerId`).
+**`POST /rooms/:roomId/lobby/assign-team`** — только **Элиас**; тело: `actorId`, `targetPlayerId`, `teamIndex`.  
+Хост — любому; не-хост — только себе (`actorId === targetPlayerId`).
+
+### Правда или действие — очередь ходов
+
+- В лобби: `truthDareOrderMode`: `host` (по списку `truthDareTurnOrder`, ведущий переставляет в UI) или `random` (каждый ход случайный игрок, кроме текущего при 2+ игроках).
+- Старт матча: `buildTruthDarePlayerOrder` + `createTruthDareState(..., { playerOrder, orderMode })`.
+- **`GET .../truth_dare/state`:** поле `turnOrderMode`: `host` | `random`.
 
 ---
 
@@ -234,6 +243,8 @@ GAME_HUB/
 
 | Дата | Что сделано |
 |------|-------------|
+| 2026-03-17 | **Правда или действие:** убраны команды; очередь ходов — `truthDareTurnOrder` + режим `truthDareOrderMode` (`host` / `random`); лобби вкладка «Очередь» с drag-and-drop для ведущего; `assign-team` только для Элиаса; `syncTruthDareTurnOrder` в `roomManager`. |
+| 2026-03-17 | **Конец матча:** при `endGame` комната переходила в лобби → маршрут `/spy`, `/elias` и др. сбрасывался на `/lobby` и экран победы исчезал. Исправление: `lastGameResult` на сервере (шпион, элиас, мафия, бункер; П/Д уже было), `allowGameRoundRoute` в `App.jsx`, `game_ended` не редиректит с игровых путей; клиенты читают итог из `room.lastGameResult`. |
 | 2026-03-17 | **Элиас:** `useSwipeGesturesEnabled` — свайп только при `maxTouchPoints` или `(pointer: coarse)`; на ПК только кнопки (нет ложных срабатываний мышью). |
 | 2026-03-17 | **Элиас (ПК/Chrome):** цепочка flex для `.gameplay__inner` + `GameLayout` (`elias-round__layout`), центрирование колонки с картой, `transform` свайпа через inline вместо CSS-переменных; правки `eliasRound.css`. |
 | 2026-03-17 | Друзья: **заявки** (request/accept/reject), заметка при принятии, отображение «Имя (заметка)»; имя для Telegram через `resolvePublicDisplayName` в heartbeat и заявках; `FriendsIncomingModal`. |

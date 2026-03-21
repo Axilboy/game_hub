@@ -2,14 +2,34 @@ import { customAlphabet } from 'nanoid';
 import { SPY_PREMIUM_IDS } from './words.js';
 import { assignPlayerIdsToTeams } from './partyTeamAssign.js';
 
+function syncTruthDareTurnOrder(room) {
+  if (!room || room.state !== 'lobby') return;
+  if (room.selectedGame !== 'truth_dare') return;
+  const gs = room.gameSettings || {};
+  const playerIds = room.players.map((p) => String(p.id));
+  let order = Array.isArray(gs.truthDareTurnOrder) ? gs.truthDareTurnOrder.map(String) : [];
+  order = order.filter((id) => playerIds.includes(id));
+  const seen = new Set(order);
+  for (const id of playerIds) {
+    if (!seen.has(id)) {
+      order.push(id);
+      seen.add(id);
+    }
+  }
+  const prev = JSON.stringify(gs.truthDareTurnOrder || []);
+  const next = JSON.stringify(order);
+  if (prev !== next) {
+    room.gameSettings = { ...gs, truthDareTurnOrder: order };
+  }
+}
+
+/** Только Элиас: автокоманды по составу лобби */
 function syncPartyTeams(room) {
   if (!room || room.state !== 'lobby') return;
-  const sg = room.selectedGame;
-  if (sg !== 'elias' && sg !== 'truth_dare') return;
+  if (room.selectedGame !== 'elias') return;
   const gs = room.gameSettings;
   if (!gs) return;
-  const key = sg === 'elias' ? 'eliasTeams' : 'truthDareTeams';
-  const teams = gs[key];
+  const teams = gs.eliasTeams;
   if (!Array.isArray(teams) || teams.length < 2) return;
   const playerIds = room.players.map((p) => p.id);
   const assigned = assignPlayerIdsToTeams(playerIds, teams.length);
@@ -17,23 +37,24 @@ function syncPartyTeams(room) {
   teams.forEach((t, i) => {
     t.playerIds = assigned[i] || [];
   });
-  if (sg === 'elias') {
-    let wins = Array.isArray(gs.eliasLobbyWins) ? [...gs.eliasLobbyWins] : [];
-    while (wins.length < teams.length) wins.push(0);
-    if (wins.length > teams.length) wins = wins.slice(0, teams.length);
-    gs.eliasLobbyWins = wins;
-  }
+  let wins = Array.isArray(gs.eliasLobbyWins) ? [...gs.eliasLobbyWins] : [];
+  while (wins.length < teams.length) wins.push(0);
+  if (wins.length > teams.length) wins = wins.slice(0, teams.length);
+  gs.eliasLobbyWins = wins;
 }
 
-/** После смены настроек лобби — только если команды пустые или состав не совпадает с игроками в комнате */
+/** После PATCH лобби: Элиас — синхрон команд; П/Д — порядок ходов */
 function maybeSyncPartyTeamsAfterLobbyPatch(room) {
   if (!room || room.state !== 'lobby') return;
   const sg = room.selectedGame;
-  if (sg !== 'elias' && sg !== 'truth_dare') return;
+  if (sg === 'truth_dare') {
+    syncTruthDareTurnOrder(room);
+    return;
+  }
+  if (sg !== 'elias') return;
   const gs = room.gameSettings;
   if (!gs) return;
-  const key = sg === 'elias' ? 'eliasTeams' : 'truthDareTeams';
-  const teams = gs[key];
+  const teams = gs.eliasTeams;
   if (!Array.isArray(teams) || teams.length < 2) return;
   const playerIds = room.players.map((p) => p.id);
   const pidSet = new Set(playerIds.map(String));
@@ -146,6 +167,7 @@ export const roomManager = {
     if (!room.playerInventories) room.playerInventories = {};
     room.playerInventories[pid] = inventory || { dictionaries: ['free'], hasPro: false };
     syncPartyTeams(room);
+    syncTruthDareTurnOrder(room);
     return room;
   },
 
@@ -241,6 +263,7 @@ export const roomManager = {
       return null;
     }
     syncPartyTeams(room);
+    syncTruthDareTurnOrder(room);
     room.players.forEach((p) => { p.isHost = false; });
     if (wasHost) {
       const idx = Math.floor(Math.random() * room.players.length);

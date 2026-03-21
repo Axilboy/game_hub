@@ -9,11 +9,14 @@ import {
   checkWin,
   toClientState,
   getMafiaPlayers,
+  assignRolesFromModeratorPicks,
+  assignRolesFromPlayerVotes,
 } from './mafia.js';
 import { getEliasWords, getRandomEliasWord } from './eliasWords.js';
 import {
   getTruthDareCatalog,
   createTruthDareState,
+  buildTruthDarePlayerOrder,
   pickTruthDareDecoupled,
   getUnlockedTruthDareCategorySlugs,
   getTruthDareCardById,
@@ -319,7 +322,16 @@ export async function roomRoutes(fastify) {
     const spyId = spyIds[0];
     const spyPlayer = spyId ? room.players.find((p) => p.id === spyId) : null;
     if (correct > wrong) {
-      roomManager.endGame(roomId);
+      roomManager.endGame(roomId, {
+        lastGameResult: {
+          game: 'spy',
+          guessMode: true,
+          isSpy: true,
+          votedOutName: spyPlayer?.name || 'Шпион',
+          guessedLocation: gs.word,
+          actualLocation: gs.word,
+        },
+      });
       io.to(roomId).emit('game_guess_result', {
         guessedById: spyId,
         guessedByName: spyPlayer?.name || 'Шпион',
@@ -349,7 +361,15 @@ export async function roomRoutes(fastify) {
     const votedOut = r.players.find((p) => p.id === votedOutId);
     const isSpy = r.gameState.spyIds && r.gameState.spyIds.includes(votedOutId);
     const allSpiesRound = Boolean(r.gameState.allSpiesRound);
-    roomManager.endGame(roomId);
+    roomManager.endGame(roomId, {
+      lastGameResult: {
+        game: 'spy',
+        guessMode: false,
+        isSpy,
+        allSpiesRound,
+        votedOutName: votedOut?.name || 'Игрок',
+      },
+    });
     io.to(roomId).emit('game_vote_end', { votedOutId, votedOutName: votedOut?.name || 'Игрок', isSpy, allSpiesRound });
     io.to(roomId).emit('game_ended');
   }
@@ -422,6 +442,7 @@ export async function roomRoutes(fastify) {
     nightCommissioner: 25,
     day: 90,
     voting: 45,
+    roleSetup: 120,
   };
 
   function normalizeMafiaTimers(timers) {
@@ -432,6 +453,7 @@ export async function roomRoutes(fastify) {
       nightCommissioner: toSec(t.nightCommissioner, DEFAULT_MAFIA_PHASE_TIMERS.nightCommissioner),
       day: toSec(t.day, DEFAULT_MAFIA_PHASE_TIMERS.day),
       voting: toSec(t.voting, DEFAULT_MAFIA_PHASE_TIMERS.voting),
+      roleSetup: toSec(t.roleSetup, DEFAULT_MAFIA_PHASE_TIMERS.roleSetup),
     };
   }
 
@@ -441,7 +463,22 @@ export async function roomRoutes(fastify) {
     if (phase === 'night_commissioner') return timers.nightCommissioner;
     if (phase === 'day') return timers.day;
     if (phase === 'voting') return timers.voting;
+    if (phase === 'role_setup_moderator' || phase === 'role_setup_vote') return timers.roleSetup;
     return 0;
+  }
+
+  function mafiaAliveHas(gs, playerId) {
+    return (gs.alive || []).some((id) => String(id) === String(playerId));
+  }
+
+  function finalizeMafiaRoleVotePhase(roomId, gs, io) {
+    const r = assignRolesFromPlayerVotes(gs);
+    if (r.error) return { error: r.error };
+    gs.roles = r.roleMap;
+    if (r.votes) gs.roleSetupVotes = r.votes;
+    markMafiaPhase(gs, 'night_mafia');
+    io.to(roomId).emit('mafia_phase', { phase: gs.phase });
+    return { ok: true };
   }
 
   function markMafiaPhase(gs, phase) {
@@ -466,10 +503,20 @@ export async function roomRoutes(fastify) {
     const correct = String(gs.word || '').trim().toLowerCase() === g;
     if (correct) {
       const io = fastify.io;
-      roomManager.endGame(roomId);
+      const guesser = room.players.find((p) => p.id === playerId);
+      roomManager.endGame(roomId, {
+        lastGameResult: {
+          game: 'spy',
+          guessMode: true,
+          isSpy: true,
+          votedOutName: guesser?.name || 'Шпион',
+          guessedLocation: guess,
+          actualLocation: gs.word,
+        },
+      });
       io.to(roomId).emit('game_guess_result', {
         guessedById: playerId,
-        guessedByName: room.players.find((p) => p.id === playerId)?.name || 'Шпион',
+        guessedByName: guesser?.name || 'Шпион',
         guessedLocation: guess,
         correct: true,
         actualLocation: gs.word,
@@ -564,7 +611,16 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.post('/rooms/mafia/start', async (request, reply) => {
-    const { roomId, hostId, moderatorId, extended = false, revealRoleOnDeath = true, mafiaCanSkipKill = false, phaseTimers } = request.body || {};
+    const {
+      roomId,
+      hostId,
+      moderatorId,
+      extended = false,
+      revealRoleOnDeath = true,
+      mafiaCanSkipKill = false,
+      phaseTimers,
+      mafiaRolesMode: mafiaRolesModeRaw,
+    } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
@@ -577,6 +633,8 @@ export async function roomRoutes(fastify) {
     if (!modId || !players.some((p) => p.id === modId)) {
       modId = players[Math.floor(Math.random() * players.length)].id;
     }
+    const mafiaRolesMode =
+      mafiaRolesModeRaw === 'moderator' || mafiaRolesModeRaw === 'player_vote' ? mafiaRolesModeRaw : 'random';
     const gs = createMafiaState(players, {
       extended,
       revealRoleOnDeath,
@@ -584,8 +642,9 @@ export async function roomRoutes(fastify) {
       moderatorId: modId,
       theme: 'default',
       phaseTimers: normalizeMafiaTimers(phaseTimers),
+      mafiaRolesMode,
     });
-    markMafiaPhase(gs, 'night_mafia');
+    markMafiaPhase(gs, gs.phase);
     recordGameSession();
     roomManager.setGame(roomId, 'mafia');
     roomManager.setState(roomId, 'playing', gs);
@@ -603,6 +662,68 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'mafia' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
     const state = toClientState(room.gameState, playerId, room.players);
     return state;
+  });
+
+  fastify.post('/rooms/:roomId/mafia/role-setup-vote', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, targets } = request.body || {};
+    if (!allowAction(`mafia:rolesetupvote:${roomId}:${playerId}`, 32, 8000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'mafia' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    const gs = room.gameState;
+    if (gs.phase !== 'role_setup_vote') return reply.code(400).send({ error: 'Сейчас не фаза голосования за состав' });
+    if (!mafiaAliveHas(gs, playerId)) return reply.code(403).send({ error: 'Вы не в игре' });
+    if (!Array.isArray(targets) || targets.length !== 2) {
+      return reply.code(400).send({ error: 'Нужно выбрать ровно двух игроков' });
+    }
+    const a = String(targets[0]);
+    const b = String(targets[1]);
+    if (a === b) return reply.code(400).send({ error: 'Выберите двух разных игроков' });
+    if (a === String(playerId) || b === String(playerId)) {
+      return reply.code(400).send({ error: 'Нельзя голосовать за себя' });
+    }
+    for (const t of [a, b]) {
+      if (!mafiaAliveHas(gs, t)) return reply.code(400).send({ error: 'Неверный игрок' });
+    }
+    gs.roleSetupVotes = gs.roleSetupVotes || {};
+    gs.roleSetupVotes[playerId] = [targets[0], targets[1]];
+    const io = fastify.io;
+    io.to(roomId).emit('mafia_phase', { phase: gs.phase, roleSetupTick: true });
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/mafia/set-roles', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, donId, mafiaId, commissionerId, doctorId, prostituteId } = request.body || {};
+    if (!allowAction(`mafia:setroles:${roomId}:${playerId}`, 8, 15_000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'mafia' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    const gs = room.gameState;
+    if (String(gs.moderatorId) !== String(playerId)) {
+      return reply.code(403).send({ error: 'Только ведущий назначает роли' });
+    }
+    if (gs.phase !== 'role_setup_moderator') return reply.code(400).send({ error: 'Сейчас не фаза назначения ведущим' });
+    const poolIds = gs.alive || [];
+    const r = assignRolesFromModeratorPicks({
+      poolIds,
+      donId,
+      mafiaId,
+      commissionerId,
+      doctorId,
+      prostituteId,
+      extended: !!gs.settings?.extended,
+    });
+    if (r.error) return reply.code(400).send({ error: r.error });
+    gs.roles = r.roleMap;
+    markMafiaPhase(gs, 'night_mafia');
+    const io = fastify.io;
+    io.to(roomId).emit('mafia_phase', { phase: gs.phase });
+    io.to(roomId).emit('room_updated');
+    return { ok: true };
   });
 
   fastify.post('/rooms/:roomId/mafia/action', async (request, reply) => {
@@ -623,17 +744,19 @@ export async function roomRoutes(fastify) {
         gs.mafiaVotes[playerId] = null;
         return { ok: true };
       }
-      if (!targetId || !gs.alive.includes(targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+      if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
       gs.mafiaVotes = gs.mafiaVotes || {};
       gs.mafiaVotes[playerId] = targetId;
       return { ok: true };
     }
     if (action === 'commissioner_check' && (phase === 'night_commissioner' || phase === 'night_mafia')) {
       if (gs.roles[playerId] !== 'commissioner') return reply.code(403).send({ error: 'Вы не комиссар' });
-      if (!targetId || !gs.alive.includes(targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+      if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
       gs.commissionerCheck = targetId;
       gs.commissionerCheckedId = targetId;
-      return { ok: true, isMafia: getMafiaPlayers(gs.roles).includes(targetId) };
+      const mafiaIds = getMafiaPlayers(gs.roles);
+      const isMafia = mafiaIds.some((id) => String(id) === String(targetId));
+      return { ok: true, isMafia };
     }
     return reply.code(400).send({ error: 'Действие недоступно в этой фазе' });
   });
@@ -657,9 +780,20 @@ export async function roomRoutes(fastify) {
       return reply.code(429).send(ERR.tooMany);
     }
     const io = fastify.io;
+    if (gs.phase === 'role_setup_vote') {
+      const next = finalizeMafiaRoleVotePhase(roomId, gs, io);
+      if (next.error) return reply.code(400).send({ error: next.error });
+      io.to(roomId).emit('room_updated');
+      return { ok: true };
+    }
+    if (gs.phase === 'role_setup_moderator') {
+      return reply.code(400).send({
+        error: 'Назначьте роли на экране ведущего и нажмите «Начать ночь»',
+      });
+    }
     if (gs.phase === 'night_mafia') {
       const mafiaIds = getMafiaPlayers(gs.roles);
-      const needCommissioner = room.players.some((p) => gs.roles[p.id] === 'commissioner' && gs.alive.includes(p.id));
+      const needCommissioner = room.players.some((p) => gs.roles[p.id] === 'commissioner' && mafiaAliveHas(gs, p.id));
       markMafiaPhase(gs, needCommissioner ? 'night_commissioner' : 'day');
       if (gs.phase === 'day') {
         const next = resolveNight(gs, room.players);
@@ -668,7 +802,7 @@ export async function roomRoutes(fastify) {
         gs.phaseDurationSec = phaseDurationFor(gs, gs.phase);
         const win = checkWin(gs);
         if (win) {
-          roomManager.endGame(roomId);
+          roomManager.endGame(roomId, { lastGameResult: { game: 'mafia', winner: win } });
           io.to(roomId).emit('mafia_ended', { winner: win });
           io.to(roomId).emit('game_ended');
           return { ok: true, winner: win };
@@ -685,7 +819,7 @@ export async function roomRoutes(fastify) {
       gs.phaseDurationSec = phaseDurationFor(gs, gs.phase);
       const win = checkWin(gs);
       if (win) {
-        roomManager.endGame(roomId);
+        roomManager.endGame(roomId, { lastGameResult: { game: 'mafia', winner: win } });
         io.to(roomId).emit('mafia_ended', { winner: win });
         io.to(roomId).emit('game_ended');
         return { ok: true, winner: win };
@@ -705,7 +839,7 @@ export async function roomRoutes(fastify) {
       gs.phaseDurationSec = phaseDurationFor(gs, gs.phase);
       const win = checkWin(gs);
       if (win) {
-        roomManager.endGame(roomId);
+        roomManager.endGame(roomId, { lastGameResult: { game: 'mafia', winner: win } });
         io.to(roomId).emit('mafia_ended', { winner: win });
         io.to(roomId).emit('game_ended');
         return { ok: true, winner: win };
@@ -723,8 +857,8 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'mafia' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
     const gs = room.gameState;
     if (gs.phase !== 'voting') return reply.code(400).send({ error: 'Not voting phase' });
-    if (!gs.alive.includes(playerId)) return reply.code(403).send({ error: 'You are dead' });
-    if (!targetId || !gs.alive.includes(targetId)) return reply.code(400).send({ error: 'Invalid target' });
+    if (!mafiaAliveHas(gs, playerId)) return reply.code(403).send({ error: 'You are dead' });
+    if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Invalid target' });
     gs.dayVotes = gs.dayVotes || {};
     if (gs.dayVotes[playerId] === targetId) return { ok: true };
     gs.dayVotes[playerId] = targetId;
@@ -863,16 +997,21 @@ export async function roomRoutes(fastify) {
     if (!allowAction(`truthdare:start:${roomId}:${hostId}`, 4, 20_000)) {
       return reply.code(429).send(ERR.tooMany);
     }
-    const gs = createTruthDareState(room, {
-      mode,
-      categorySlugs,
-      show18Plus,
-      safeMode,
-      roundsCount,
-      timerSeconds,
-      skipLimitPerPlayer,
-      randomStartPlayer,
-    });
+    const lobbyGs = room.gameSettings || {};
+    const mergedForStart = {
+      mode: mode ?? lobbyGs.mode,
+      categorySlugs: categorySlugs ?? lobbyGs.categorySlugs,
+      show18Plus: show18Plus ?? lobbyGs.show18Plus,
+      safeMode: safeMode ?? lobbyGs.safeMode,
+      roundsCount: roundsCount ?? lobbyGs.roundsCount,
+      timerSeconds: timerSeconds ?? lobbyGs.timerSeconds,
+      skipLimitPerPlayer: skipLimitPerPlayer ?? lobbyGs.skipLimitPerPlayer,
+      randomStartPlayer: randomStartPlayer ?? lobbyGs.randomStartPlayer,
+      truthDareOrderMode: lobbyGs.truthDareOrderMode,
+      truthDareTurnOrder: lobbyGs.truthDareTurnOrder,
+    };
+    const { playerOrder, orderMode } = buildTruthDarePlayerOrder(room, mergedForStart);
+    const gs = createTruthDareState(room, mergedForStart, { playerOrder, orderMode });
     if (!gs?.currentCard) {
       return reply.code(400).send({ error: 'Не удалось подобрать карточку для старта. Проверьте режим, Safe/18+ и выбранные категории (учитывается Pro у текущего игрока).' });
     }
@@ -910,6 +1049,7 @@ export async function roomRoutes(fastify) {
       safeMode: Boolean(gs.settings?.safeMode),
       show18Plus: Boolean(gs.settings?.show18Plus),
       playerOrder: gs.playerOrder || [],
+      turnOrderMode: gs.settings?.truthDareOrderMode === 'random' ? 'random' : 'host',
       currentPlayerId: gs.currentPlayerId || null,
       isMyTurn: gs.currentPlayerId === playerId,
       turnToken: gs.turnToken ?? null,
@@ -1019,8 +1159,18 @@ export async function roomRoutes(fastify) {
       return;
     }
 
-    const nextPlayerIndex = ((gs.currentPlayerIndex ?? 0) + 1) % playerOrder.length;
-    const nextPlayerId = playerOrder[nextPlayerIndex];
+    const orderMode = gs.settings?.truthDareOrderMode === 'random' ? 'random' : 'host';
+    let nextPlayerIndex;
+    let nextPlayerId;
+    if (orderMode === 'random' && playerOrder.length > 1) {
+      const cur = gs.currentPlayerId;
+      const pool = playerOrder.filter((id) => String(id) !== String(cur));
+      nextPlayerId = pool[Math.floor(Math.random() * pool.length)];
+      nextPlayerIndex = playerOrder.findIndex((id) => String(id) === String(nextPlayerId));
+    } else {
+      nextPlayerIndex = ((gs.currentPlayerIndex ?? 0) + 1) % playerOrder.length;
+      nextPlayerId = playerOrder[nextPlayerIndex];
+    }
 
     gs.roundIndex = nextRoundIndex;
     gs.currentPlayerIndex = nextPlayerIndex;
@@ -1382,7 +1532,21 @@ export async function roomRoutes(fastify) {
     }
 
     if (gs.phase === 'final') {
-      roomManager.endGame(roomId);
+      const roomB = roomManager.get(roomId);
+      const aliveIds = gs.alive || [];
+      const wid = aliveIds.length === 1 ? aliveIds[0] : null;
+      const winnerName =
+        wid && roomB?.players?.length
+          ? roomB.players.find((p) => p.id === wid)?.name || wid
+          : '—';
+      roomManager.endGame(roomId, {
+        lastGameResult: {
+          game: 'bunker',
+          winnerName,
+          roundIndex: gs.roundIndex,
+          crisisHistory: Array.isArray(gs.crisisHistory) ? gs.crisisHistory : [],
+        },
+      });
       io.to(roomId).emit('game_ended');
       return;
     }
@@ -1683,7 +1847,16 @@ export async function roomRoutes(fastify) {
       if (gs.teams[i].score >= gs.scoreLimit) {
         gs.winner = i;
         incrementEliasLobbyWin(roomId, i);
-        roomManager.endGame(roomId);
+        const roomSnap = roomManager.get(roomId);
+        const mvpSnap = playersToMvp(gs.playerStats, roomSnap?.players);
+        roomManager.endGame(roomId, {
+          lastGameResult: {
+            game: 'elias',
+            winnerTeamIndex: i,
+            teams: gs.teams.map((t) => ({ name: t.name, score: t.score })),
+            mvp: mvpSnap,
+          },
+        });
         io.to(roomId).emit('elias_ended', { winnerTeamIndex: i, teams: gs.teams });
         io.to(roomId).emit('game_ended');
         io.to(roomId).emit('room_updated');
@@ -1708,7 +1881,10 @@ export async function roomRoutes(fastify) {
     }
     const ti = parseInt(teamIndex, 10);
     if (Number.isNaN(ti) || ti < 0) return reply.code(400).send({ error: 'Некорректная команда' });
-    const key = scope === 'truth_dare' ? 'truthDareTeams' : 'eliasTeams';
+    if (scope === 'truth_dare') {
+      return reply.code(400).send({ error: 'В Правда или действие команд нет — только личная очередь' });
+    }
+    const key = 'eliasTeams';
     const gs = room.gameSettings || {};
     const teams = gs[key];
     if (!Array.isArray(teams) || ti >= teams.length) {
@@ -1752,10 +1928,10 @@ export async function roomRoutes(fastify) {
       return reply.code(400).send({ error: 'Игрок не в комнате' });
     }
     const sg = room.selectedGame;
-    if (sg !== 'elias' && sg !== 'truth_dare') {
-      return reply.code(400).send({ error: 'Команды только для Элиаса или Правда или действие' });
+    if (sg !== 'elias') {
+      return reply.code(400).send({ error: 'Смена команд доступна только в Элиасе' });
     }
-    const key = sg === 'truth_dare' ? 'truthDareTeams' : 'eliasTeams';
+    const key = 'eliasTeams';
     const gs = room.gameSettings || {};
     const teams = gs[key];
     if (!Array.isArray(teams) || teams.length < 2) {
