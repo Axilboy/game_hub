@@ -99,11 +99,12 @@
 .gpl__hero {
   text-align: center;
   padding: 20px 18px 28px;
-  margin: 0 -12px 20px;
+  margin: 6px -12px 20px;
   border-radius: 0 0 var(--gpl-radius-hero) var(--gpl-radius-hero);
   background: linear-gradient(160deg, var(--gpl-bg1) 0%, var(--gpl-bg2) 55%, var(--gpl-bg3) 100%);
   box-shadow: var(--gpl-shadow);
   color: var(--gpl-hero-text);
+  overflow: visible;
 }
 
 .gpl__eyebrow {
@@ -161,6 +162,24 @@
   border: 1px solid var(--gpl-pill-border);
   color: var(--gpl-hero-text);
   backdrop-filter: blur(8px);
+}
+
+/* Пилюли идут на фоне страницы — в светлой теме нельзя оставлять «геройский» светлый текст */
+html[data-theme='light'] .gpl .gpl__steps .gpl__step {
+  color: var(--gpl-panel-text);
+  background: color-mix(in srgb, var(--gpl-panel) 52%, #ffffff 48%);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme='light'] .gpl--truth_dare .gpl__steps .gpl__step {
+  color: #1a1a1a;
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+/* Тёмная тема сайта: чуть сильнее контраст плашек на тёмном фоне страницы */
+html[data-theme='dark'] .gpl .gpl__steps .gpl__step {
+  border-color: color-mix(in srgb, var(--gpl-pill-border) 80%, transparent);
 }
 
 .gpl__panel {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { canStartTrial, getInventory, getOrCreateReferralCode, redeemReferralCode, setPro, startTrialUnlock } from '../inventory';
 import { api, getApiErrorMessage } from '../api';
-import { getDisplayName, getAvatar, getProfilePhoto, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
+import { getDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
@@ -11,6 +11,7 @@ import { buildInviteLinks, shareInviteSmart } from '../invite';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import PageLayout from '../components/layout/PageLayout';
+import AppHeaderRight from '../components/layout/AppHeaderRight';
 import HomeLandingCarousel from '../components/HomeLandingCarousel';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -76,7 +77,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [inviteIssue, setInviteIssue] = useState(false);
   const codeInputRef = useRef(null);
   const shownName = displayNameState || user?.first_name || 'Игрок';
-  const profilePhoto = getProfilePhoto();
   const myReferralCode = getOrCreateReferralCode();
 
   const inviteToken = safeSessionGet('inviteToken');
@@ -298,35 +298,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   };
 
   return (
-    <PageLayout title="GameHub" onBack={() => window.history.back()}>
+    <PageLayout title="GameHub" onBack={() => window.history.back()} right={<AppHeaderRight user={user} />}>
       <HomeLandingCarousel />
-
-      <header
-        className="gh-card"
-        style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, padding: 14, cursor: 'pointer' }}
-        onClick={() => navigate('/profile')}
-        title="Открыть профиль и достижения"
-      >
-        <div style={{ flexShrink: 0 }}>
-          {avatarState ? (
-            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
-              {avatarState}
-            </div>
-          ) : profilePhoto ? (
-            <img src={profilePhoto} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
-          ) : user?.photo_url ? (
-            <img src={user.photo_url} alt="" style={{ width: 48, height: 48, borderRadius: '50%' }} />
-          ) : (
-            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20 }}>
-              {(shownName || '?')[0]}
-            </div>
-          )}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 'bold', fontSize: 18 }}>{shownName}</div>
-          <div style={{ fontSize: 14, opacity: 0.85 }}>{inv.hasPro ? 'Про' : 'Подписка отсутствует'}</div>
-        </div>
-      </header>
 
       {showAvatarPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>

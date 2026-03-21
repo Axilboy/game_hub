@@ -13,6 +13,7 @@ import Segmented from '../components/ui/Segmented';
 import { getFunnelSummary } from '../analytics';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import PageLayout from '../components/layout/PageLayout';
+import { applyTheme } from '../theme';
 
 const THEMES = [
   { id: 'dark', label: 'Тёмная (Telegram)' },
@@ -31,14 +32,6 @@ const GAME_LABELS = {
   bunker: 'Бункер',
   unknown: 'Другое',
 };
-
-function applyTheme(id) {
-  const v = id === 'light' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = v;
-  try {
-    localStorage.setItem('gh_theme', v);
-  } catch (_) {}
-}
 
 function applyDensity(id) {
   const v = id === 'compact' ? 'compact' : 'default';

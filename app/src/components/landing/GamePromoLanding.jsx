@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useSeo from '../../hooks/useSeo';
-import BackArrow from '../BackArrow';
-import SeoFooter from '../layout/SeoFooter';
+import PageLayout from '../layout/PageLayout';
+import AppHeaderRight from '../layout/AppHeaderRight';
 import JoinRoomModal from '../JoinRoomModal';
+import { useTelegram } from '../../useTelegram';
 import { track } from '../../analytics';
 import './gamePromoLanding.css';
 
@@ -31,9 +32,12 @@ export default function GamePromoLanding({
   onJoin,
   primaryCtaLabel = 'Начать игру',
   showTelegramCta = true,
+  /** Заголовок в общей шапке (как на главной) */
+  headerTitle = 'GameHub',
 }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { user } = useTelegram();
   const canonical = baseUrl ? `${baseUrl}${pathname}` : undefined;
   const [joinOpen, setJoinOpen] = useState(false);
 
@@ -88,73 +92,73 @@ export default function GamePromoLanding({
   };
 
   return (
-    <article className={`gh-page gh-fade-in gpl gpl--${theme}`}>
-      <div className="gpl__back">
-        {onBack ? <BackArrow onClick={onBack} title="Назад" /> : null}
-      </div>
+    <PageLayout
+      title={headerTitle}
+      onBack={onBack}
+      right={<AppHeaderRight user={user} />}
+    >
+      <article className={`gh-fade-in gpl gpl--${theme}`}>
+        <header className="gpl__hero">
+          {eyebrow ? <p className="gpl__eyebrow">{eyebrow}</p> : null}
+          <div className="gpl__mascot" aria-hidden="true">
+            {mascotEmoji}
+          </div>
+          <h1 className="gpl__title">{heroTitle}</h1>
+          {heroSubtitle ? <p className="gpl__subtitle">{heroSubtitle}</p> : null}
+        </header>
 
-      <header className="gpl__hero">
-        {eyebrow ? <p className="gpl__eyebrow">{eyebrow}</p> : null}
-        <div className="gpl__mascot" aria-hidden="true">
-          {mascotEmoji}
-        </div>
-        <h1 className="gpl__title">{heroTitle}</h1>
-        {heroSubtitle ? <p className="gpl__subtitle">{heroSubtitle}</p> : null}
-      </header>
+        {steps.length > 0 ? (
+          <ul className="gpl__steps" aria-label="Коротко о игре">
+            {steps.map((text, i) => (
+              <li key={i} className="gpl__step">
+                {text}
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
-      {steps.length > 0 ? (
-        <ul className="gpl__steps" aria-label="Коротко о игре">
-          {steps.map((text, i) => (
-            <li key={i} className="gpl__step">
-              {text}
-            </li>
+        <div className="gpl__panel">
+          <div className="gpl__ctas gpl__ctas--top">
+            <button type="button" className="gpl__btn gpl__btn--primary" onClick={handleStartGame}>
+              {primaryCtaLabel}
+            </button>
+            <button
+              type="button"
+              className="gpl__btn gpl__btn--secondary"
+              onClick={() => {
+                track('landing_join_open', { game: presetGameId || '', path: pathname });
+                setJoinOpen(true);
+              }}
+            >
+              Присоединиться к игре
+            </button>
+            {showTelegramCta && tgUrl ? (
+              <a href={tgUrl} className="gpl__btn gpl__btn--ghost" target="_blank" rel="noopener noreferrer">
+                Открыть в Telegram
+              </a>
+            ) : null}
+          </div>
+
+          {sections.map((s, idx) => (
+            <section key={idx}>
+              <h2 className="gpl__section-title">{s.title}</h2>
+              <div className="gpl__section-body">{s.body}</div>
+            </section>
           ))}
-        </ul>
-      ) : null}
 
-      <div className="gpl__panel">
-        <div className="gpl__ctas gpl__ctas--top">
-          <button type="button" className="gpl__btn gpl__btn--primary" onClick={handleStartGame}>
-            {primaryCtaLabel}
-          </button>
-          <button
-            type="button"
-            className="gpl__btn gpl__btn--secondary"
-            onClick={() => {
-              track('landing_join_open', { game: presetGameId || '', path: pathname });
-              setJoinOpen(true);
-            }}
-          >
-            Присоединиться к игре
-          </button>
-          {showTelegramCta && tgUrl ? (
-            <a href={tgUrl} className="gpl__btn gpl__btn--ghost" target="_blank" rel="noopener noreferrer">
-              Открыть в Telegram
-            </a>
-          ) : null}
+          <p className="gpl__hint">
+            Одна комната — настройки можно поменять в лобби.{' '}
+            <button
+              type="button"
+              className="gpl__inline-link"
+              onClick={() => navigate('/rules')}
+            >
+              Правила сервиса
+            </button>
+          </p>
+          <p className="gpl__brand">GameHub</p>
         </div>
-
-        {sections.map((s, idx) => (
-          <section key={idx}>
-            <h2 className="gpl__section-title">{s.title}</h2>
-            <div className="gpl__section-body">{s.body}</div>
-          </section>
-        ))}
-
-        <p className="gpl__hint">
-          Одна комната — настройки можно поменять в лобби.{' '}
-          <button
-            type="button"
-            className="gpl__inline-link"
-            onClick={() => navigate('/rules')}
-          >
-            Правила сервиса
-          </button>
-        </p>
-        <p className="gpl__brand">GameHub</p>
-      </div>
-
-      <SeoFooter style={{ marginTop: 20 }} />
+      </article>
 
       {onJoin ? (
         <JoinRoomModal
@@ -167,6 +171,6 @@ export default function GamePromoLanding({
           }}
         />
       ) : null}
-    </article>
+    </PageLayout>
   );
 }

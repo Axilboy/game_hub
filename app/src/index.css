@@ -91,7 +91,7 @@ html[data-density='compact'] {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  grid-template-columns: minmax(44px, auto) 1fr minmax(44px, max-content);
   align-items: center;
   gap: 8px;
   padding: calc(var(--gh-space-2) + env(safe-area-inset-top, 0px)) var(--gh-space-3) var(--gh-space-2);
@@ -123,6 +123,123 @@ html[data-density='compact'] {
   color: inherit;
   font-size: 22px;
   line-height: 1;
+}
+
+/* Шапка: тема + профиль (главная, промо-лендинги) */
+.gh-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(240px, 52vw);
+}
+
+@media (min-width: 400px) {
+  .gh-header-actions {
+    max-width: min(280px, 58vw);
+  }
+}
+
+.gh-theme-toggle {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--gh-border);
+  background: var(--gh-surface);
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gh-theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--gh-focus-ring);
+}
+
+.gh-header-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--gh-border);
+  background: var(--gh-surface);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.gh-header-profile:focus-visible {
+  outline: none;
+  box-shadow: var(--gh-focus-ring);
+}
+
+.gh-header-profile__text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.15;
+}
+
+.gh-header-profile__name {
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-header-profile__sub {
+  font-size: 11px;
+  opacity: 0.72;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-header-profile__avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, transparent);
+}
+
+.gh-header-profile__emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.gh-header-profile__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gh-header-profile__placeholder {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tg-theme-button-text-color, #fff);
+  background: var(--tg-theme-button-color, #3a7bd5);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .gh-actionbar {
@@ -231,15 +348,35 @@ html[data-density='compact'] {
   }
 }
 
+/* Явная тёмная тема (как в браузере без Telegram) */
+html[data-theme='dark'] {
+  --tg-theme-bg-color: #141824;
+  --tg-theme-text-color: #eceff4;
+  --tg-theme-button-color: #4a8ae8;
+  --tg-theme-button-text-color: #fff;
+  --tg-theme-link-color: #7ab3ff;
+  --gh-surface: rgba(255, 255, 255, 0.06);
+  --gh-surface-strong: rgba(255, 255, 255, 0.1);
+  --gh-border: rgba(255, 255, 255, 0.12);
+  --gh-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
 html[data-theme='light'] {
   --tg-theme-bg-color: #f4f6fa;
   --tg-theme-text-color: #1a1d26;
   --tg-theme-button-color: #2d6cdf;
   --tg-theme-button-text-color: #fff;
+  --tg-theme-link-color: #1e5bb8;
   --gh-surface: rgba(0, 0, 0, 0.04);
   --gh-surface-strong: rgba(0, 0, 0, 0.08);
   --gh-border: rgba(0, 0, 0, 0.1);
   --gh-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme='dark'] body,
+html[data-theme='dark'] #root {
+  background: var(--tg-theme-bg-color);
+  color: var(--tg-theme-text-color);
 }
 
 html[data-theme='light'] body,
