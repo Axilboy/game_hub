@@ -48,7 +48,8 @@
   gap: 10px;
 }
 
-.lobby-code-chip {
+/* Код комнаты — только отображение (копирование через «Поделиться» / ссылку) */
+.lobby-code-display {
   flex: 1;
   min-width: 140px;
   display: flex;
@@ -61,20 +62,10 @@
   border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.14));
   background: color-mix(in srgb, var(--tg-theme-bg-color, #1a1a2e) 88%, var(--tg-theme-button-color, #3a7bd5) 12%);
   color: inherit;
-  cursor: pointer;
   text-align: left;
-  transition: opacity 0.15s ease, transform 0.1s ease;
 }
 
-.lobby-code-chip:hover {
-  opacity: 0.95;
-}
-
-.lobby-code-chip:active {
-  transform: scale(0.99);
-}
-
-.lobby-code-chip__label {
+.lobby-code-display__label {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -82,7 +73,7 @@
   opacity: 0.75;
 }
 
-.lobby-code-chip__value {
+.lobby-code-display__value {
   font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -275,11 +266,6 @@
 
 /* Заголовок блока настроек игры */
 .lobby-game-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
   margin-top: 20px;
   margin-bottom: 10px;
 }
@@ -288,16 +274,4 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 800;
-}
-
-.lobby-game-heading__switch {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0;
-  border: none;
-  background: none;
-  color: color-mix(in srgb, var(--tg-theme-link-color, #8af) 100%, transparent);
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }

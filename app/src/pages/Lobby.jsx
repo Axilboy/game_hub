@@ -535,15 +535,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     return `${gn}: игроков достаточно — настройте режим и нажмите «Начать».`;
   })();
 
-  const copyRoomCode = async () => {
-    try {
-      await navigator.clipboard.writeText(String(room.code));
-      showToast({ type: 'success', message: 'Код скопирован' });
-    } catch {
-      showToast({ type: 'error', message: 'Не удалось скопировать код' });
-    }
-  };
-
   return (
     <PageLayout
       title={roomName}
@@ -575,10 +566,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
         <section className="lobby-invite" aria-label="Код и приглашение">
           <div className="lobby-invite__row">
-            <button type="button" className="lobby-code-chip" onClick={copyRoomCode} title="Нажмите, чтобы скопировать код">
-              <span className="lobby-code-chip__label">Код комнаты</span>
-              <span className="lobby-code-chip__value">{room.code}</span>
-            </button>
+            <div className="lobby-code-display" aria-label={`Код комнаты ${room.code}`}>
+              <span className="lobby-code-display__label">Код комнаты</span>
+              <span className="lobby-code-display__value">{room.code}</span>
+            </div>
             <div className="lobby-invite__actions">
               <Button variant="primary" onClick={shareInvite}>
                 Поделиться
@@ -617,7 +608,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
         {!isHost && !selectedGame ? (
           <div className="lobby-guest-wait">
-            Ожидайте: хост должен выбрать игру. Вы уже в комнате — можете позвать друзей по коду выше.
+            Ожидайте: хост должен выбрать игру. Позовите друзей через «Поделиться», QR или ссылку ниже.
           </div>
         ) : null}
 
@@ -726,11 +717,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <>
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Шпион</h3>
-            {isHost ? (
-              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
-                Сменить игру
-              </button>
-            ) : null}
           </div>
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
@@ -868,11 +854,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <>
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Мафия</h3>
-            {isHost ? (
-              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
-                Сменить игру
-              </button>
-            ) : null}
           </div>
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
@@ -1025,11 +1006,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <>
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Элиас</h3>
-            {isHost ? (
-              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
-                Сменить игру
-              </button>
-            ) : null}
           </div>
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
@@ -1198,11 +1174,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <>
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Правда или действие</h3>
-            {isHost ? (
-              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
-                Сменить игру
-              </button>
-            ) : null}
           </div>
 
           {(room?.gameSettings && !isHost) && (
@@ -1365,9 +1336,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <div style={{ ...settingsBox, marginTop: 24 }}>
           <div className="lobby-game-heading" style={{ marginTop: 0 }}>
             <h3 className="lobby-game-heading__title" style={{ marginBottom: 0 }}>Бункер</h3>
-            <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
-              Сменить игру
-            </button>
           </div>
           <p style={{ marginBottom: 8, marginTop: 12, opacity: 0.9, fontSize: 14 }}>Настройки партии</p>
 

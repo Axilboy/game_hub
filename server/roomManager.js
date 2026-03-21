@@ -34,14 +34,15 @@ export const roomManager = {
     const roomId = crypto.randomUUID();
     const code = generateCode();
     const inviteToken = generateInviteToken();
+    const hid = String(hostId);
     const room = {
       id: roomId,
-      hostId,
+      hostId: hid,
       code,
       inviteToken,
       name: generateRoomName(),
-      players: [{ id: hostId, name: hostName, isHost: true, photo_url: hostPhotoUrl || null, avatar_emoji: hostAvatarEmoji || null }],
-      playerInventories: { [hostId]: { dictionaries: ['free'], hasPro: false } },
+      players: [{ id: hid, name: hostName, isHost: true, photo_url: hostPhotoUrl || null, avatar_emoji: hostAvatarEmoji || null }],
+      playerInventories: { [hid]: { dictionaries: ['free'], hasPro: false } },
       selectedGame: null,
       gameSettings: null,
       game: null,
@@ -72,25 +73,26 @@ export const roomManager = {
   join(roomId, playerId, playerName, inventory = null, photoUrl = null, avatarEmoji = null) {
     const room = rooms.get(roomId);
     if (!room) return null;
-    if (room.players.some((p) => p.id === playerId)) {
-      if (inventory && room.playerInventories) room.playerInventories[playerId] = inventory;
-      const p = room.players.find((x) => x.id === playerId);
-      if (p) {
-        if (photoUrl !== undefined) p.photo_url = photoUrl || null;
-        if (avatarEmoji !== undefined) p.avatar_emoji = avatarEmoji || null;
-      }
+    const pid = String(playerId);
+    const existing = room.players.find((p) => String(p.id) === pid);
+    if (existing) {
+      if (inventory && room.playerInventories) room.playerInventories[pid] = inventory;
+      if (playerName && String(playerName).trim()) existing.name = String(playerName).trim();
+      if (photoUrl !== undefined) existing.photo_url = photoUrl || null;
+      if (avatarEmoji !== undefined) existing.avatar_emoji = avatarEmoji || null;
       return room;
     }
-    room.players.push({ id: playerId, name: playerName, isHost: false, photo_url: photoUrl || null, avatar_emoji: avatarEmoji || null });
+    room.players.push({ id: pid, name: playerName || 'Игрок', isHost: false, photo_url: photoUrl || null, avatar_emoji: avatarEmoji || null });
     if (!room.playerInventories) room.playerInventories = {};
-    room.playerInventories[playerId] = inventory || { dictionaries: ['free'], hasPro: false };
+    room.playerInventories[pid] = inventory || { dictionaries: ['free'], hasPro: false };
     return room;
   },
 
   setPlayerSocket(roomId, playerId, socketId) {
     const room = rooms.get(roomId);
     if (!room) return;
-    room.playerSockets[playerId] = socketId;
+    const pid = String(playerId);
+    room.playerSockets[pid] = socketId;
   },
 
   setGame(roomId, game) {
@@ -140,8 +142,9 @@ export const roomManager = {
     const room = rooms.get(roomId);
     if (!room) return null;
     if (!room.playerInventories) room.playerInventories = {};
-    room.playerInventories[playerId] = inventory;
-    const p = room.players.find((x) => x.id === playerId);
+    const pid = String(playerId);
+    room.playerInventories[pid] = inventory;
+    const p = room.players.find((x) => String(x.id) === pid);
     if (p) {
       if (photoUrl !== undefined) p.photo_url = photoUrl || null;
       if (avatarEmoji !== undefined) p.avatar_emoji = avatarEmoji || null;
@@ -151,7 +154,7 @@ export const roomManager = {
 
   setLobbyGame(roomId, hostId, selectedGame, gameSettings) {
     const room = rooms.get(roomId);
-    if (!room || room.hostId !== hostId) return null;
+    if (!room || String(room.hostId) !== String(hostId)) return null;
     room.selectedGame = selectedGame || null;
     if (gameSettings !== undefined) room.gameSettings = gameSettings;
     return room;
@@ -160,10 +163,11 @@ export const roomManager = {
   leave(roomId, playerId) {
     const room = rooms.get(roomId);
     if (!room) return null;
-    const wasHost = room.hostId === playerId;
-    room.players = room.players.filter((p) => p.id !== playerId);
-    if (room.playerInventories) delete room.playerInventories[playerId];
-    delete room.playerSockets[playerId];
+    const pid = String(playerId);
+    const wasHost = String(room.hostId) === pid;
+    room.players = room.players.filter((p) => String(p.id) !== pid);
+    if (room.playerInventories) delete room.playerInventories[pid];
+    delete room.playerSockets[pid];
     if (room.players.length === 0) {
       rooms.delete(roomId);
       codes.delete(room.code);
@@ -173,7 +177,7 @@ export const roomManager = {
     room.players.forEach((p) => { p.isHost = false; });
     if (wasHost) {
       const idx = Math.floor(Math.random() * room.players.length);
-      room.hostId = room.players[idx].id;
+      room.hostId = String(room.players[idx].id);
       room.players[idx].isHost = true;
     }
     return room;
@@ -181,22 +185,22 @@ export const roomManager = {
 
   kick(roomId, hostId, playerIdToKick) {
     const room = rooms.get(roomId);
-    if (!room || room.hostId !== hostId) return null;
-    if (playerIdToKick === hostId) return null;
-    if (!room.players.some((p) => p.id === playerIdToKick)) return null;
-    const socketId = room.playerSockets?.[playerIdToKick] || null;
+    if (!room || String(room.hostId) !== String(hostId)) return null;
+    if (String(playerIdToKick) === String(hostId)) return null;
+    if (!room.players.some((p) => String(p.id) === String(playerIdToKick))) return null;
+    const socketId = room.playerSockets?.[String(playerIdToKick)] || null;
     return { socketId };
   },
 
   /** Передача хоста добровольно (текущий хост → другой игрок в комнате). */
   transferHost(roomId, currentHostId, newHostId) {
     const room = rooms.get(roomId);
-    if (!room || room.hostId !== currentHostId) return null;
-    if (newHostId === currentHostId) return room;
-    if (!room.players.some((p) => p.id === newHostId)) return null;
+    if (!room || String(room.hostId) !== String(currentHostId)) return null;
+    if (String(newHostId) === String(currentHostId)) return room;
+    if (!room.players.some((p) => String(p.id) === String(newHostId))) return null;
     room.players.forEach((p) => { p.isHost = false; });
-    room.hostId = newHostId;
-    const np = room.players.find((p) => p.id === newHostId);
+    room.hostId = String(newHostId);
+    const np = room.players.find((p) => String(p.id) === String(newHostId));
     if (np) np.isHost = true;
     return room;
   },
@@ -207,13 +211,13 @@ export const roomManager = {
    */
   transferHostAfterHostDisconnect(roomId, disconnectedHostId) {
     const room = rooms.get(roomId);
-    if (!room || room.hostId !== disconnectedHostId) return room;
-    const others = room.players.filter((p) => p.id !== disconnectedHostId);
+    if (!room || String(room.hostId) !== String(disconnectedHostId)) return room;
+    const others = room.players.filter((p) => String(p.id) !== String(disconnectedHostId));
     if (!others.length) return room;
-    const online = others.find((p) => room.playerSockets?.[p.id]);
+    const online = others.find((p) => room.playerSockets?.[String(p.id)]);
     const next = online || others[0];
     room.players.forEach((p) => { p.isHost = false; });
-    room.hostId = next.id;
+    room.hostId = String(next.id);
     next.isHost = true;
     return room;
   },
