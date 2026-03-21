@@ -35,7 +35,6 @@ function AppRoutes() {
   const { user, ready } = useTelegram();
   const [room, setRoom] = useState(null);
   const [roomId, setRoomId] = useState(null);
-  const [pendingNavigateGame, setPendingNavigateGame] = useState(null);
   const [socketReconnecting, setSocketReconnecting] = useState(false);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const navigate = useNavigate();
@@ -309,12 +308,11 @@ function AppRoutes() {
       if (!data?.game) return;
       recordGameStart(data.game);
       track('game_start', { game: data.game });
-      setPendingNavigateGame(data.game);
       await refreshRoom();
     };
     const onGameEnded = async () => {
-      recordGameFinish(room?.game || pendingNavigateGame || null);
-      track('match_completed', { game: room?.game || pendingNavigateGame || 'unknown' });
+      recordGameFinish(room?.game || null);
+      track('match_completed', { game: room?.game || 'unknown' });
       try {
         if (roomId) sessionStorage.setItem('gameHub_rematchRoomId', roomId);
       } catch (_) {}
@@ -342,7 +340,7 @@ function AppRoutes() {
       socket.off('game_start', onGameStart);
       socket.off('game_ended', onGameEnded);
     };
-  }, [roomId, location.pathname, navigate, refreshRoom, room?.game, pendingNavigateGame]);
+  }, [roomId, location.pathname, navigate, refreshRoom, room?.game]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -403,29 +401,36 @@ function AppRoutes() {
     navigate('/lobby');
   }, [navigate, refreshRoom]);
 
+  /**
+   * Не-хост в лобби при старте игры: переход в раунд по актуальному room (не только по socket game_start).
+   * Хост сам вызывает navigate из Lobby после start — иначе здесь сработала бы реклама у хоста дважды.
+   */
   useEffect(() => {
-    if (!pendingNavigateGame || room?.state !== 'playing' || room?.game !== pendingNavigateGame) return;
-    const path = '/' + pendingNavigateGame;
-    if (location.pathname === path) {
-      setPendingNavigateGame(null);
-      return;
-    }
+    if (!roomId || !room) return;
+    if (room.state !== 'playing' || !room.game) return;
+    const game = room.game;
+    const path = `/${game}`;
+    if (location.pathname === path) return;
+    if (location.pathname !== '/lobby') return;
+
+    const isHostUser = user?.id != null && String(room.hostId) === String(user.id);
+    if (isHostUser) return;
+
     let cancelled = false;
     const uid = user?.id != null ? String(user.id) : '';
     showAdIfNeeded().then(async ({ adSdkShown }) => {
       if (adSdkShown && uid) {
-        track('ad_completed', { game: pendingNavigateGame });
+        track('ad_completed', { game });
         try {
           await api.post('/stats/ad-shown', { playerId: uid });
         } catch (_) {}
       }
-      if (!cancelled) {
-        setPendingNavigateGame(null);
-        navigate(path);
-      }
+      if (!cancelled) navigate(path);
     });
-    return () => { cancelled = true; };
-  }, [pendingNavigateGame, room?.state, room?.game, location.pathname, navigate, user?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [room?.state, room?.game, room?.hostId, location.pathname, roomId, navigate, user?.id]);
 
   if (!ready) return <div className="gh-skeleton" style={{ margin: 20, height: 56 }} aria-label="Загрузка приложения" />;
 

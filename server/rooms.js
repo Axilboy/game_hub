@@ -182,6 +182,7 @@ export async function roomRoutes(fastify) {
     });
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'spy', allSpiesRound });
+    io.to(roomId).emit('room_updated');
     return { ok: true };
   });
 
@@ -580,6 +581,7 @@ export async function roomRoutes(fastify) {
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'mafia' });
+    io.to(roomId).emit('room_updated');
     return { ok: true, moderatorId: modId };
   });
 
@@ -779,6 +781,11 @@ export async function roomRoutes(fastify) {
       lastGuessedWord: null,
       lastSkippedWord: null,
       playerStats: {},
+      /** Слова текущего раунда: { word, outcome, awardedToTeam?, lastWordBonus? } */
+      roundLog: [],
+      /** null | 'playing' | 'last_word' | 'review' */
+      roundPhase: null,
+      roundStartScores: null,
     };
     for (const p of players) {
       gs.playerStats[p.id] = { guessed: 0, skipped: 0 };
@@ -788,6 +795,7 @@ export async function roomRoutes(fastify) {
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'elias' });
+    io.to(roomId).emit('room_updated');
     return { ok: true };
   });
 
@@ -845,6 +853,7 @@ export async function roomRoutes(fastify) {
     if (gs.turnTimeoutId) clearTimeout(gs.turnTimeoutId);
     gs.turnTimeoutId = setTimeout(() => truthDareOnTurnTimeout(roomId, tokenToSchedule), durMs);
     io.to(roomId).emit('game_start', { game: 'truth_dare' });
+    io.to(roomId).emit('room_updated');
     return { ok: true };
   });
 
@@ -1373,6 +1382,7 @@ export async function roomRoutes(fastify) {
     const token = gs.phaseToken;
     gs.bunkerPhaseTimeoutId = setTimeout(() => bunkerOnPhaseTimeout(roomId, token), gs.phaseDurationSec * 1000);
     io.to(roomId).emit('game_start', { game: 'bunker' });
+    io.to(roomId).emit('room_updated');
     io.to(roomId).emit('bunker_update', {});
     return { ok: true };
   });
@@ -1487,12 +1497,20 @@ export async function roomRoutes(fastify) {
     const explainer = room.players.find((p) => p.id === explainerId);
     const playerStats = gs.playerStats && typeof gs.playerStats === 'object' ? gs.playerStats : {};
     const mvp = playersToMvp(playerStats, room.players);
+    const roundPhase = gs.roundPhase || null;
+    const showWordToAll = roundPhase === 'last_word' || roundPhase === 'review';
+    let wordForClient = null;
+    if (showWordToAll && gs.currentWord) {
+      wordForClient = gs.currentWord;
+    } else if (isExplainer && !gs.awaitingExplainerStart && roundPhase === 'playing') {
+      wordForClient = gs.currentWord;
+    }
     return {
       teams: gs.teams.map((t) => ({ name: t.name, score: t.score, playerIds: t.players })),
       currentTeamIndex: gs.currentTeamIndex,
       currentExplainerIndex: gs.currentExplainerIndex,
       awaitingExplainerStart: Boolean(gs.awaitingExplainerStart),
-      word: isExplainer && !gs.awaitingExplainerStart ? gs.currentWord : null,
+      word: wordForClient,
       roundEndsAt: gs.roundEndsAt,
       timerSeconds: gs.timerSeconds,
       scoreLimit: gs.scoreLimit,
@@ -1505,8 +1523,35 @@ export async function roomRoutes(fastify) {
       explainerName: explainer?.name || 'Игрок',
       playerStats,
       mvp,
+      roundPhase,
+      roundLog: Array.isArray(gs.roundLog) ? gs.roundLog : [],
+      dictionaryIds: gs.dictionaryIds || ['basic'],
+      roundStartScores: Array.isArray(gs.roundStartScores) ? gs.roundStartScores : null,
     };
   });
+
+  function recomputeEliasScoresFromRoundLog(gs, roundLog) {
+    const base = gs.roundStartScores;
+    if (!base || !Array.isArray(roundLog)) return;
+    const ci = gs.currentTeamIndex;
+    const penalty = Math.min(3, Math.max(0, Number(gs.skipPenalty) || 0));
+    for (let i = 0; i < gs.teams.length; i++) {
+      gs.teams[i].score = Number(base[i]) || 0;
+    }
+    for (const e of roundLog) {
+      if (e.outcome === 'guessed') {
+        if (typeof e.awardedToTeam === 'number' && gs.teams[e.awardedToTeam]) {
+          gs.teams[e.awardedToTeam].score = (gs.teams[e.awardedToTeam].score || 0) + 1;
+        } else {
+          gs.teams[ci].score = (gs.teams[ci].score || 0) + 1;
+        }
+      } else if (e.outcome === 'skipped') {
+        if (penalty > 0 && !e.lastWord) {
+          gs.teams[ci].score = Math.max(0, (gs.teams[ci].score || 0) - penalty);
+        }
+      }
+    }
+  }
 
   function eliasNextWord(roomId, io) {
     const room = roomManager.get(roomId);
@@ -1514,6 +1559,7 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     if (gs.winner) return;
     if (gs.awaitingExplainerStart) return;
+    if (gs.roundPhase && gs.roundPhase !== 'playing') return;
     gs.currentWord = pickEliasWord(gs);
     gs.lastGuessedWord = null;
     gs.lastSkippedWord = null;
@@ -1536,6 +1582,9 @@ export async function roomRoutes(fastify) {
     gs.lastGuessedWord = null;
     gs.lastSkippedWord = null;
     gs.roundEndsAt = null;
+    gs.roundLog = [];
+    gs.roundPhase = null;
+    gs.roundStartScores = null;
     io.to(roomId).emit('elias_update', {});
   }
 
@@ -1592,9 +1641,14 @@ export async function roomRoutes(fastify) {
     if (gs.awaitingExplainerStart || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Раунд ещё не начат' });
     }
+    if (gs.roundPhase !== 'playing') {
+      return reply.code(400).send({ error: 'Сейчас нельзя отметить слово' });
+    }
     if (gs.lastGuessedWord === gs.currentWord) return { ok: true, already: true };
     gs.lastGuessedWord = gs.currentWord;
-    team.score = (team.score || 0) + 1;
+    if (!Array.isArray(gs.roundLog)) gs.roundLog = [];
+    gs.roundLog.push({ word: gs.currentWord, outcome: 'guessed' });
+    recomputeEliasScoresFromRoundLog(gs, gs.roundLog);
     const stats = gs.playerStats?.[playerId] || { guessed: 0, skipped: 0 };
     stats.guessed = (stats.guessed || 0) + 1;
     if (gs.playerStats) gs.playerStats[playerId] = stats;
@@ -1617,13 +1671,17 @@ export async function roomRoutes(fastify) {
     if (gs.awaitingExplainerStart || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Раунд ещё не начат' });
     }
+    if (gs.roundPhase !== 'playing') {
+      return reply.code(400).send({ error: 'Сейчас нельзя пропустить слово' });
+    }
     if (gs.lastSkippedWord === gs.currentWord) return { ok: true, already: true };
     gs.lastSkippedWord = gs.currentWord;
+    if (!Array.isArray(gs.roundLog)) gs.roundLog = [];
+    gs.roundLog.push({ word: gs.currentWord, outcome: 'skipped' });
+    recomputeEliasScoresFromRoundLog(gs, gs.roundLog);
     const stats = gs.playerStats?.[playerId] || { guessed: 0, skipped: 0 };
     stats.skipped = (stats.skipped || 0) + 1;
     if (gs.playerStats) gs.playerStats[playerId] = stats;
-    const penalty = Math.min(3, Math.max(0, Number(gs.skipPenalty) || 0));
-    if (penalty > 0) team.score = Math.max(0, (team.score || 0) - penalty);
     eliasNextWord(roomId, fastify.io);
     return { ok: true, score: team.score };
   });
@@ -1671,10 +1729,130 @@ export async function roomRoutes(fastify) {
     gs.awaitingExplainerStart = false;
     gs.lastGuessedWord = null;
     gs.lastSkippedWord = null;
+    gs.roundLog = [];
+    gs.roundPhase = 'playing';
+    gs.roundStartScores = gs.teams.map((t) => t.score || 0);
     gs.roundEndsAt = Date.now() + (Number(gs.timerSeconds) || 60) * 1000;
     fastify.io.to(roomId).emit('elias_timer_start', { roundEndsAt: gs.roundEndsAt });
     fastify.io.to(roomId).emit('elias_update', {});
     return { ok: true, roundEndsAt: gs.roundEndsAt };
+  });
+
+  fastify.post('/rooms/:roomId/elias/timer-ended', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!allowAction(`elias:timeup:${roomId}:${playerId}`, 8, 5000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    const gs = room.gameState;
+    if (gs.roundPhase !== 'playing') {
+      return { ok: true, already: true };
+    }
+    if (!gs.roundEndsAt || Date.now() < gs.roundEndsAt - 400) {
+      return reply.code(400).send({ error: 'Таймер ещё не истёк' });
+    }
+    gs.roundPhase = 'last_word';
+    gs.roundEndsAt = null;
+    fastify.io.to(roomId).emit('elias_update', {});
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/elias/last-word-assign', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, teamIndex } = request.body || {};
+    if (!playerId || teamIndex === undefined || teamIndex === null) {
+      return reply.code(400).send({ error: 'Нужны playerId и teamIndex' });
+    }
+    if (!allowAction(`elias:lastword:${roomId}:${playerId}`, 8, 4000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    const gs = room.gameState;
+    if (gs.roundPhase !== 'last_word' || gs.currentWord == null) {
+      return reply.code(400).send({ error: 'Нет фазы последнего слова' });
+    }
+    const ti = parseInt(teamIndex, 10);
+    if (Number.isNaN(ti)) {
+      return reply.code(400).send({ error: 'Некорректная команда' });
+    }
+    if (ti === -1) {
+      if (!Array.isArray(gs.roundLog)) gs.roundLog = [];
+      gs.roundLog.push({
+        word: gs.currentWord,
+        outcome: 'skipped',
+        lastWord: true,
+      });
+      recomputeEliasScoresFromRoundLog(gs, gs.roundLog);
+      gs.currentWord = null;
+      gs.roundPhase = 'review';
+      eliasCheckWin(roomId, fastify.io);
+      fastify.io.to(roomId).emit('elias_update', {});
+      return { ok: true };
+    }
+    if (ti < 0 || ti >= gs.teams.length) {
+      return reply.code(400).send({ error: 'Некорректная команда' });
+    }
+    if (!Array.isArray(gs.roundLog)) gs.roundLog = [];
+    gs.roundLog.push({
+      word: gs.currentWord,
+      outcome: 'guessed',
+      awardedToTeam: ti,
+      lastWordBonus: true,
+    });
+    recomputeEliasScoresFromRoundLog(gs, gs.roundLog);
+    gs.currentWord = null;
+    gs.roundPhase = 'review';
+    eliasCheckWin(roomId, fastify.io);
+    fastify.io.to(roomId).emit('elias_update', {});
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/elias/finalize-round', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, roundLog: clientLog } = request.body || {};
+    if (!playerId) return reply.code(400).send({ error: 'Нужен playerId' });
+    if (!allowAction(`elias:finalize:${roomId}:${playerId}`, 6, 8000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    const gs = room.gameState;
+    if (gs.roundPhase !== 'review') {
+      return reply.code(400).send({ error: 'Нет экрана проверки раунда' });
+    }
+    const team = gs.teams[gs.currentTeamIndex];
+    const explainerId = team?.players?.length
+      ? team.players[gs.currentExplainerIndex % team.players.length]
+      : null;
+    if (playerId !== explainerId) {
+      return reply.code(403).send({ error: 'Подтвердить может только текущий объясняющий' });
+    }
+    if (!Array.isArray(clientLog) || clientLog.length === 0) {
+      return reply.code(400).send({ error: 'Нужен список слов' });
+    }
+    const sanitized = clientLog.map((e) => ({
+      word: String(e?.word || '').trim(),
+      outcome: e?.outcome === 'skipped' ? 'skipped' : 'guessed',
+      awardedToTeam: typeof e?.awardedToTeam === 'number' ? e.awardedToTeam : undefined,
+      lastWordBonus: Boolean(e?.lastWordBonus),
+      lastWord: Boolean(e?.lastWord),
+    })).filter((e) => e.word);
+    if (!sanitized.length) return reply.code(400).send({ error: 'Пустой список' });
+    gs.roundLog = sanitized;
+    recomputeEliasScoresFromRoundLog(gs, gs.roundLog);
+    eliasCheckWin(roomId, fastify.io);
+    if (gs.winner != null) {
+      fastify.io.to(roomId).emit('elias_update', {});
+      return { ok: true, winner: gs.winner };
+    }
+    eliasNextTurn(roomId, fastify.io);
+    return { ok: true };
   });
 
   fastify.patch('/rooms/:roomId/players/me', async (request, reply) => {

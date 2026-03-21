@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { socket } from '../socket';
@@ -9,6 +9,20 @@ import GameplayScreen from '../components/game/GameplayScreen';
 import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
+import './eliasRound.css';
+
+const DICT_LABELS = {
+  basic: 'Базовый',
+  animals: 'Животные',
+  movies: 'Кино',
+  science: 'Наука',
+  sport: 'Спорт',
+  elias_basic: 'Базовый',
+  elias_animals: 'Животные',
+  elias_movies: 'Кино',
+  elias_science: 'Наука',
+  elias_sport: 'Спорт',
+};
 
 function formatTime(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -17,20 +31,132 @@ function formatTime(ms) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+function dictSubtitle(ids) {
+  const list = Array.isArray(ids) && ids.length ? ids : ['basic'];
+  return list.map((id) => DICT_LABELS[id] || id).join(', ');
+}
+
+/** Очки раунда для активной объясняющей команды (предпросмотр как на сервере) */
+function explainingTeamRoundDelta(log, currentTeamIndex, skipPenalty) {
+  const p = Math.min(3, Math.max(0, Number(skipPenalty) || 0));
+  let d = 0;
+  for (const e of log || []) {
+    if (e.outcome === 'guessed') {
+      if (e.lastWordBonus && typeof e.awardedToTeam === 'number') {
+        if (e.awardedToTeam === currentTeamIndex) d += 1;
+      } else if (!e.lastWordBonus) {
+        d += 1;
+      }
+    } else if (e.outcome === 'skipped' && !e.lastWord) {
+      if (p > 0) d -= p;
+    }
+  }
+  return d;
+}
+
+function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
+  const start = useRef({ x: 0, y: 0 });
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [hint, setHint] = useState(null);
+
+  const reset = () => {
+    setDrag({ x: 0, y: 0 });
+    setHint(null);
+  };
+
+  const getPoint = (e) => {
+    const t = e.touches?.[0];
+    if (t) return { x: t.clientX, y: t.clientY };
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  const onDown = (e) => {
+    if (disabled) return;
+    const p = getPoint(e);
+    start.current = p;
+    setDrag({ x: 0, y: 0 });
+    setHint(null);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const onMove = (e) => {
+    if (disabled) return;
+    const p = getPoint(e);
+    const dx = p.x - start.current.x;
+    const dy = p.y - start.current.y;
+    setDrag({ x: dx, y: dy });
+    if (Math.abs(dx) > 28 || Math.abs(dy) > 28) {
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        setHint(dx > 0 ? 'yes' : 'no');
+      } else {
+        setHint(dy < 0 ? 'yes' : 'no');
+      }
+    } else setHint(null);
+  };
+
+  const fireSwipe = useCallback(() => {
+    const t = 48;
+    const { x: dx, y: dy } = drag;
+    reset();
+    if (Math.abs(dx) < t && Math.abs(dy) < t) return;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      if (dx > t) onYes();
+      else if (dx < -t) onNo();
+    } else {
+      if (dy < -t) onYes();
+      else if (dy > t) onNo();
+    }
+  }, [drag, onYes, onNo]);
+
+  const onUp = () => {
+    if (disabled) return;
+    fireSwipe();
+  };
+
+  const rot = Math.max(-12, Math.min(12, drag.x / 25));
+
+  return (
+    <div className="elias-round__card-wrap">
+      <div className="elias-round__card-stack">
+        <div className="elias-round__card-shadow" aria-hidden />
+        <div
+          className={`elias-round__card ${hint === 'yes' ? 'elias-round__card--hint-yes' : ''} ${hint === 'no' ? 'elias-round__card--hint-no' : ''}`}
+          style={{
+            '--dx': `${drag.x}px`,
+            '--dy': `${drag.y}px`,
+            '--rot': `${rot}deg`,
+          }}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+        >
+          <p className="elias-round__word">{word}</p>
+          {subtitle ? <p className="elias-round__sub">({subtitle})</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EliasRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
-  useSeo({
-    robots: 'noindex, nofollow',
-  });
+  useSeo({ robots: 'noindex, nofollow' });
   const myId = user?.id != null ? String(user.id) : '';
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [winnerTeamIndex, setWinnerTeamIndex] = useState(null);
   const [endedTeams, setEndedTeams] = useState(null);
   const [tick, setTick] = useState(0);
+  const [editLog, setEditLog] = useState([]);
+  const [finalizeBusy, setFinalizeBusy] = useState(false);
   const requestSeqRef = useRef(0);
+  const timerEndedSentRef = useRef(false);
+  const prevPhaseRef = useRef(null);
 
-  const refreshState = ({ silent = false } = {}) => {
+  const refreshState = useCallback(({ silent = false } = {}) => {
     if (!myId) return;
     const reqId = ++requestSeqRef.current;
     if (!silent) setLoading(true);
@@ -42,9 +168,9 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       if (reqId !== requestSeqRef.current) return;
       if (!silent) setLoading(false);
     });
-  };
+  }, [roomId, myId]);
 
-  useEffect(() => refreshState(), [roomId, myId]);
+  useEffect(() => refreshState(), [refreshState]);
   useEffect(() => {
     if (!myId || !state) return;
     api.post(`/rooms/${roomId}/ready`, { playerId: myId, game: 'elias' }).catch(() => {});
@@ -52,9 +178,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   useEffect(() => {
     const onUpdate = () => refreshState({ silent: true });
-    const onTimer = (data) => {
-      if (data?.roundEndsAt) refreshState({ silent: true });
-    };
+    const onTimer = () => refreshState({ silent: true });
     const onEnded = (data) => {
       setWinnerTeamIndex(data?.winnerTeamIndex ?? null);
       if (data?.teams) setEndedTeams(data.teams);
@@ -70,19 +194,30 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
       socket.off('elias_ended', onEnded);
       socket.off('game_ended', onGameEnded);
     };
-  }, [roomId, myId]);
+  }, [refreshState]);
 
   useEffect(() => {
     const onSock = () => refreshState({ silent: true });
     socket.onConnect(onSock);
     return () => socket.offConnect(onSock);
-  }, [roomId, myId]);
+  }, [refreshState]);
 
   useEffect(() => {
-    if (!state?.roundEndsAt) return;
-    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    if (!state?.roundEndsAt && state?.roundPhase !== 'playing') return;
+    const t = setInterval(() => setTick((n) => n + 1), 200);
     return () => clearInterval(t);
-  }, [state?.roundEndsAt]);
+  }, [state?.roundEndsAt, state?.roundPhase]);
+
+  useEffect(() => {
+    const phase = state?.roundPhase;
+    if (phase === 'playing') {
+      timerEndedSentRef.current = false;
+    }
+    if (phase === 'review' && prevPhaseRef.current !== 'review') {
+      setEditLog(JSON.parse(JSON.stringify(state?.roundLog || [])));
+    }
+    prevPhaseRef.current = phase || null;
+  }, [state?.roundPhase, state?.roundLog]);
 
   const guessed = async () => {
     try {
@@ -98,19 +233,50 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     } catch (_) {}
   };
 
-  const nextTurn = async () => {
-    try {
-      await api.post(`/rooms/${roomId}/elias/next-turn`, { playerId: myId });
-      refreshState({ silent: true });
-    } catch (_) {}
-  };
-
   const beginRound = async () => {
     try {
       await api.post(`/rooms/${roomId}/elias/begin-round`, { playerId: myId });
       refreshState({ silent: true });
     } catch (_) {}
   };
+
+  const timerEnded = useCallback(async () => {
+    try {
+      await api.post(`/rooms/${roomId}/elias/timer-ended`, { playerId: myId });
+      refreshState({ silent: true });
+    } catch (_) {}
+  }, [roomId, myId, refreshState]);
+
+  const lastWordAssign = async (teamIndex) => {
+    try {
+      await api.post(`/rooms/${roomId}/elias/last-word-assign`, { playerId: myId, teamIndex });
+      refreshState({ silent: true });
+    } catch (_) {}
+  };
+
+  const finalizeRound = async () => {
+    if (!editLog.length) return;
+    setFinalizeBusy(true);
+    try {
+      await api.post(`/rooms/${roomId}/elias/finalize-round`, { playerId: myId, roundLog: editLog });
+      refreshState({ silent: true });
+    } catch (_) {
+    } finally {
+      setFinalizeBusy(false);
+    }
+  };
+
+  const timeLeft = state?.roundEndsAt ? Math.max(0, state.roundEndsAt - Date.now()) : 0;
+  const durationMs = (state?.timerSeconds || 60) * 1000;
+  const timeFrac = state?.roundEndsAt ? Math.min(1, Math.max(0, timeLeft / durationMs)) : 0;
+
+  useEffect(() => {
+    if (!state || state.roundPhase !== 'playing' || !state.roundEndsAt) return;
+    if (timeLeft > 500) return;
+    if (timerEndedSentRef.current) return;
+    timerEndedSentRef.current = true;
+    timerEnded();
+  }, [state, timeLeft, timerEnded]);
 
   if (loading) {
     return (
@@ -128,29 +294,42 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   }
 
   const awaitingStart = Boolean(state.awaitingExplainerStart);
-  const timerStarted = state.roundEndsAt != null && !awaitingStart;
-  const timeLeft = state.roundEndsAt ? Math.max(0, state.roundEndsAt - Date.now()) : 0;
-  const timeUp = timerStarted && timeLeft <= 0;
-  const winner = state.winner != null ? state.winner : winnerTeamIndex;
+  const phase = state.roundPhase || null;
   const teams = endedTeams || state.teams || [];
-  const explainingTeamIndex = state.currentTeamIndex ?? null;
-  const explainingTeamName =
-    explainingTeamIndex != null && teams[explainingTeamIndex]
-      ? teams[explainingTeamIndex].name
-      : null;
-  const myStats = state.playerStats?.[myId] || { guessed: 0, skipped: 0 };
-  const topPlayers = Object.entries(state.playerStats || {})
-    .map(([id, s]) => ({
-      id,
-      guessed: Number(s?.guessed) || 0,
-      skipped: Number(s?.skipped) || 0,
-      value: (Number(s?.guessed) || 0) - (Number(s?.skipped) || 0),
-    }))
-    .sort((a, b) => b.value - a.value || b.guessed - a.guessed)
-    .slice(0, 3);
-  const playerNameById = new Map(
-    (room?.players || []).map((p) => [p.id, p.name]),
-  );
+  const winner = state.winner != null ? state.winner : winnerTeamIndex;
+  const explainingTeamIndex = state.currentTeamIndex ?? 0;
+  const explainingTeamName = teams[explainingTeamIndex]?.name || 'Команда';
+  const roundPtsPreview = explainingTeamRoundDelta(editLog.length ? editLog : state.roundLog, explainingTeamIndex, state.skipPenalty);
+  const canPlayActions = state.isExplainer && phase === 'playing' && !awaitingStart && state.word;
+  const sub = `(Все наборы: ${dictSubtitle(state.dictionaryIds)})`;
+
+  const updateRowOutcome = (index, outcome) => {
+    setEditLog((prev) => {
+      const next = [...prev];
+      const row = { ...next[index] };
+      if (outcome === 'guessed') {
+        row.outcome = 'guessed';
+        if (row.lastWordBonus) {
+          if (typeof row.awardedToTeam !== 'number') {
+            row.awardedToTeam = explainingTeamIndex;
+          }
+        } else {
+          delete row.awardedToTeam;
+          delete row.lastWordBonus;
+        }
+        delete row.lastWord;
+      } else {
+        row.outcome = 'skipped';
+        if (row.lastWordBonus) {
+          row.lastWord = true;
+          delete row.awardedToTeam;
+          delete row.lastWordBonus;
+        }
+      }
+      next[index] = row;
+      return next;
+    });
+  };
 
   if (winner != null) {
     const winTeam = teams[winner];
@@ -167,13 +346,13 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         secondaryBg="#333"
       >
         <div className="gpl__panel" style={{ textAlign: 'center' }}>
-        <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
-        <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t, i) => `${t.name} ${t.score}`).join(' — ')}</p>
-        {state?.mvp && (
-          <p style={{ marginBottom: 0, opacity: 0.9 }}>
-            MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
-          </p>
-        )}
+          <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
+          <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t) => `${t.name} ${t.score}`).join(' — ')}</p>
+          {state?.mvp && (
+            <p style={{ marginBottom: 0, opacity: 0.9 }}>
+              MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
+            </p>
+          )}
         </div>
       </PostMatchScreen>
     );
@@ -181,171 +360,195 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   return (
     <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
-    <GameLayout
-      top={null}
-      center={false}
-      padding={0}
-      minHeight="auto"
-      textAlign="center"
-      bottom={
-        <button type="button" onClick={() => navigate('/lobby')} className="gameplay__btn gameplay__btn--secondary">
-          В лобби
-        </button>
-      }
-    >
-      <div className="gpl__panel" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        {(state.teams || []).map((t, i) => (
-          <div
-            key={i}
-            style={{
-              padding: 12,
-              background:
-                state.currentTeamIndex === i
-                  ? 'color-mix(in srgb, var(--gpl-accent) 18%, transparent)'
-                  : 'rgba(0,0,0,0.06)',
-              borderRadius: 12,
-              flex: 1,
-              minWidth: 120,
-              border:
-                state.currentTeamIndex === i ? '1px solid color-mix(in srgb, var(--gpl-accent) 40%, transparent)' : '1px solid rgba(0,0,0,0.08)',
-            }}
-          >
-            <p style={{ margin: 0, fontWeight: 'bold' }}>
-              {t.name}{state.currentTeamIndex === i ? ' ' : ''}
-              {state.currentTeamIndex === i && (
-                <span
-                  style={{
-                    marginLeft: 8,
-                    fontSize: 12,
-                    padding: '4px 8px',
-                    borderRadius: 999,
-                    background: 'color-mix(in srgb, var(--gpl-accent) 22%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--gpl-accent) 45%, transparent)',
-                    opacity: 0.95,
-                  }}
-                >
-                  Объясняет
-                </span>
-              )}
-            </p>
-            <p style={{ margin: '4px 0 0', fontSize: 24 }}>{t.score ?? 0} / {state.scoreLimit}</p>
-          </div>
-        ))}
-      </div>
+      <GameLayout
+        top={null}
+        center={false}
+        padding={0}
+        minHeight="auto"
+        textAlign="center"
+        bottom={
+          <button type="button" onClick={() => navigate('/lobby')} className="gameplay__btn gameplay__btn--secondary">
+            В лобби
+          </button>
+        }
+      >
+        <div className="elias-round">
+          <p className="elias-round__meta">
+            Объясняет: <strong>{state.explainerName}</strong>
+            {' · '}
+            {explainingTeamName}
+          </p>
 
-      <div className="gpl__panel">
-        <p style={{ marginBottom: 8, opacity: 0.9 }}>Объясняет: {state.explainerName}</p>
-        {explainingTeamName && (
-          <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>
-            Активная команда: {explainingTeamName}
-          </p>
-        )}
-        {awaitingStart ? (
-          <p style={{ marginBottom: 0, fontSize: 16, opacity: 0.9 }}>
-            Слово и таймер запустятся, когда объясняющий нажмёт «Начать».
-          </p>
-        ) : timerStarted ? (
-          <>
-            <p style={{ marginBottom: 6, fontSize: 20 }}>Таймер: {formatTime(timeLeft)}</p>
-            <p style={{ marginBottom: 0, fontSize: 14, opacity: 0.85 }}>
-              Смена слова: {timeUp ? 'сейчас' : `через ${Math.max(1, Math.ceil(timeLeft / 1000))} сек`}
-            </p>
-          </>
-        ) : (
-          <p style={{ marginBottom: 0, fontSize: 16, opacity: 0.8 }}>Подготовка раунда…</p>
-        )}
-      </div>
-
-      <div className="gpl__panel" style={{ background: 'color-mix(in srgb, var(--gpl-panel-text) 6%, var(--gpl-panel))' }}>
-        <p style={{ margin: '0 0 8px 0', fontWeight: 700 }}>Scoreboard раунда</p>
-        <p style={{ margin: '0 0 6px 0', fontSize: 13, opacity: 0.9 }}>
-          Ваш вклад: угадано {myStats.guessed || 0} · пропусков {myStats.skipped || 0}
-        </p>
-        <p style={{ margin: '0 0 6px 0', fontSize: 13, opacity: 0.85 }}>
-          Штраф за пропуск: −{state.skipPenalty ?? 1} очко (у активной команды)
-        </p>
-        {state.mvp && (
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.92 }}>
-            MVP объясняющего: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped}, value {state.mvp.value})
-          </p>
-        )}
-        {topPlayers.length > 0 && (
-          <p style={{ margin: '8px 0 0 0', fontSize: 13, opacity: 0.9 }}>
-            Топ раунда: {topPlayers.map((p) => `${playerNameById.get(p.id) || 'Игрок'} (${p.value})`).join(' · ')}
-          </p>
-        )}
-      </div>
-
-      {state.isExplainer ? (
-        <div className="gpl__panel">
-          <p style={{ margin: 0, fontSize: 14, opacity: 0.85, fontWeight: 800, marginBottom: 10 }}>
-            Команда объясняет
-          </p>
-          <p style={{ margin: '0 0 16px', fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
-            Правило: не произноси само слово вслух. Объясняй так, чтобы команда догадалась.
-          </p>
-          {awaitingStart ? (
-            <>
-              {state.isCurrentExplainer ? (
-                <button type="button" onClick={beginRound} className="gameplay__btn gameplay__btn--primary" style={{ marginBottom: 12 }}>
-                  Начать
-                </button>
-              ) : (
-                <p style={{ margin: '0 0 12px', fontSize: 14, opacity: 0.9 }}>
-                  Ожидайте: раунд начнёт <strong>{state.explainerName}</strong> — кнопка «Начать» у текущего объясняющего.
-                </p>
-              )}
-              <p style={{ margin: 0, fontSize: 13, opacity: 0.75 }}>Слово скрыто, пока раунд не начат.</p>
-            </>
+          {phase === 'review' ? (
+            <div className="elias-round__review">
+              <div className="elias-round__review-head">{explainingTeamName}</div>
+              <div className="elias-round__review-list">
+                {(editLog.length ? editLog : state.roundLog || []).map((entry, i) => (
+                  <div key={`${entry.word}-${i}`} className="elias-round__review-row">
+                    <span className="elias-round__review-word">
+                      {entry.word}
+                      {entry.lastWordBonus && typeof entry.awardedToTeam === 'number' ? (
+                        <span style={{ fontWeight: 500, fontSize: 12, color: '#718096' }}>
+                          {' '}
+                          (бонус → {teams[entry.awardedToTeam]?.name || `№${entry.awardedToTeam + 1}`})
+                        </span>
+                      ) : null}
+                    </span>
+                    {state.isCurrentExplainer ? (
+                      <div className="elias-round__review-toggles">
+                        <button
+                          type="button"
+                          className={`elias-round__toggle elias-round__toggle--no ${entry.outcome === 'skipped' ? 'is-on' : ''}`}
+                          onClick={() => updateRowOutcome(i, 'skipped')}
+                          aria-label="Не отгадано"
+                        >
+                          👎
+                        </button>
+                        <button
+                          type="button"
+                          className={`elias-round__toggle elias-round__toggle--yes ${entry.outcome === 'guessed' ? 'is-on' : ''}`}
+                          onClick={() => updateRowOutcome(i, 'guessed')}
+                          aria-label="Отгадано"
+                        >
+                          👍
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 13, color: '#718096' }}>
+                        {entry.outcome === 'guessed' ? '✓' : '✗'}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="elias-round__review-footer">
+                <div className="elias-round__points-bar">
+                  <span>Набрано очков (ваша команда)</span>
+                  <span>{roundPtsPreview}</span>
+                </div>
+                {state.isCurrentExplainer ? (
+                  <button
+                    type="button"
+                    className="elias-round__start-btn"
+                    disabled={finalizeBusy || !editLog.length}
+                    onClick={finalizeRound}
+                  >
+                    Дальше
+                  </button>
+                ) : (
+                  <p style={{ margin: 0, textAlign: 'center', fontSize: 14, color: '#4a5568' }}>
+                    Ожидайте: диктор подтверждает раунд
+                  </p>
+                )}
+              </div>
+            </div>
           ) : (
             <>
-              <p style={{ fontSize: 28, fontWeight: 'bold', marginBottom: 24, wordBreak: 'break-word', color: 'var(--gpl-accent)' }}>{state.word}</p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button type="button" onClick={guessed} className="gameplay__btn gameplay__btn--primary" style={{ flex: 1 }}>
-                  Угадали
-                </button>
-                <button type="button" onClick={skip} className="gameplay__btn gameplay__btn--secondary" style={{ flex: 1 }}>
-                  Пропустить
-                </button>
+              <div className="elias-round__top">
+                <div className="elias-round__pause" aria-hidden title="Пауза">
+                  ⏸
+                </div>
+                <div className="elias-round__timer-wrap">
+                  {phase === 'playing' && state.roundEndsAt ? (
+                    <div
+                      className="elias-round__timer-ring"
+                      style={{
+                        background: `conic-gradient(#38a169 0deg, #38a169 ${timeFrac * 360}deg, rgba(255,255,255,0.22) 0)`,
+                      }}
+                    >
+                      <div className="elias-round__timer-inner">{formatTime(timeLeft)}</div>
+                    </div>
+                  ) : (
+                    <div className="elias-round__timer-ring" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                      <div className="elias-round__timer-inner">—</div>
+                    </div>
+                  )}
+                </div>
+                <div className="elias-round__score" title="Очки вашей команды за раунд">
+                  {state.roundStartScores && teams[explainingTeamIndex]
+                    ? (teams[explainingTeamIndex].score ?? 0) - (state.roundStartScores[explainingTeamIndex] ?? 0)
+                    : 0}
+                </div>
               </div>
+
+              {awaitingStart && (
+                <div className="elias-round__panel">
+                  {state.isCurrentExplainer ? (
+                    <>
+                      <p style={{ margin: '0 0 12px', fontSize: 15 }}>Когда будете готовы, нажмите «Начать» — появится слово и запустится таймер.</p>
+                      <button type="button" className="elias-round__start-btn" onClick={beginRound}>
+                        Начать
+                      </button>
+                    </>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 15 }}>
+                      Ожидайте: раунд начнёт <strong>{state.explainerName}</strong>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {phase === 'last_word' && state.word && (
+                <div className="elias-round__panel">
+                  <p className="elias-round__last-word-title">Кто отгадал последнее слово?</p>
+                  <div className="elias-round__card-wrap">
+                    <div className="elias-round__card-stack">
+                      <div className="elias-round__card-shadow" aria-hidden />
+                      <div className="elias-round__card" style={{ transform: 'none' }}>
+                        <p className="elias-round__word">{state.word}</p>
+                        <p className="elias-round__sub">({sub})</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="elias-round__team-grid" style={{ marginTop: 12 }}>
+                    {teams.map((t, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="elias-round__team-btn"
+                        onClick={() => lastWordAssign(i)}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                    <button type="button" className="elias-round__team-btn elias-round__team-btn--muted" onClick={() => lastWordAssign(-1)}>
+                      Никто
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {phase === 'playing' && !awaitingStart && state.word && state.isExplainer && (
+                <>
+                  <EliasSwipeCard
+                    word={state.word}
+                    subtitle={sub}
+                    disabled={!canPlayActions}
+                    onYes={guessed}
+                    onNo={skip}
+                  />
+                  <div className="elias-round__actions">
+                    <button type="button" className="elias-round__btn-skip" onClick={skip} disabled={!canPlayActions} aria-label="Нет">
+                      ✕
+                    </button>
+                    <button type="button" className="elias-round__btn-yes" onClick={guessed} disabled={!canPlayActions} aria-label="Да">
+                      ✓
+                    </button>
+                  </div>
+                  <p className="elias-round__hint">Свайп влево/вниз — нет · вправо/вверх — да</p>
+                </>
+              )}
+
+              {phase === 'playing' && !awaitingStart && !state.isExplainer && (
+                <div className="elias-round__wait">
+                  <p>Команда <strong>{explainingTeamName}</strong> объясняет слово.</p>
+                  <p style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>Слово видно только объясняющей команде.</p>
+                </div>
+              )}
             </>
           )}
         </div>
-      ) : (
-        <div className="gh-card" style={{ padding: 16 }}>
-          <p style={{ margin: 0, fontSize: 18, opacity: 0.9, fontWeight: 800 }}>Раунд: угадывайте</p>
-          {awaitingStart && (
-            <p style={{ margin: '10px 0 0', fontSize: 14, opacity: 0.9 }}>
-              Скоро начнётся объяснение — ждите, пока <strong>{state.explainerName}</strong> нажмёт «Начать».
-            </p>
-          )}
-          <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, transparent)' }}>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Слово видит только команда объясняющего</p>
-            <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Объясняющий не произносит слово вслух</p>
-            <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Нажимайте действия только во время своего этапа</p>
-          </div>
-          {explainingTeamName && (
-            <p style={{ margin: '10px 0 0', fontSize: 14, opacity: 0.85 }}>
-              Сейчас объясняет: <strong>{explainingTeamName}</strong> (кнопки доступны этой команде)
-            </p>
-          )}
-        </div>
-      )}
-
-      {timeUp && (
-        state.isCurrentExplainer ? (
-          <button type="button" onClick={nextTurn} className="gameplay__btn gameplay__btn--primary" style={{ marginTop: 16 }}>
-            Следующий ход
-          </button>
-        ) : (
-          <div className="gpl__panel" style={{ marginTop: 16, background: 'color-mix(in srgb, var(--gpl-panel-text) 6%, var(--gpl-panel))' }}>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
-              Таймер вышел. Смену хода запускает текущий объясняющий: <strong>{state.explainerName}</strong>
-            </p>
-          </div>
-        )
-      )}
-    </GameLayout>
+      </GameLayout>
     </GameplayScreen>
   );
 }
