@@ -18,3 +18,13 @@
 1. Скопируй `.env.example` в `.env` и заполни хотя бы `BOT_TOKEN`.
 2. Для теста можно оставить `BASE_URL=http://localhost:5173` и `API_URL=http://localhost:3000` (и использовать ngrok или аналог, чтобы Telegram мог открыть Mini App).
 3. Установка и запуск — в [README.md](README.md).
+
+### Если `npm run dev` падает с `Cannot find package 'vite-plugin-pwa'`
+
+Зависимости фронта не установлены. Из корня проекта:
+
+```bash
+cd app && npm install && cd ..
+```
+
+Затем снова `npm run dev`. При **первой** установке нужно `npm install` в корне, `server/`, `app/`, `bot/` — см. [README.md](README.md) раздел «Установка».

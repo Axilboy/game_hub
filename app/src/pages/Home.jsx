@@ -47,6 +47,30 @@ function isInviteExpiredError(err) {
   return msg.includes('room not found') || msg.includes('комната не найдена') || msg.includes('not in room');
 }
 
+/** До `max`: сначала онлайн, затем офлайн. */
+function buildFriendsPreview(friends, max) {
+  const online = friends.filter((f) => f.online);
+  const offline = friends.filter((f) => !f.online);
+  const out = [];
+  for (const f of online) {
+    if (out.length >= max) break;
+    out.push(f);
+  }
+  for (const f of offline) {
+    if (out.length >= max) break;
+    out.push(f);
+  }
+  return out;
+}
+
+function friendStatusLine(f) {
+  if (!f.online) return 'Не в сети';
+  if (f.location === 'playing') return 'В игре';
+  if (f.location === 'home') return 'На главной';
+  if (f.location === 'lobby') return 'В лобби';
+  return '';
+}
+
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
   useSeo({
@@ -121,6 +145,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [hasRematchRoom, setHasRematchRoom] = useState(false);
   const [inviteIssue, setInviteIssue] = useState(false);
   const [homeQrJoinOpen, setHomeQrJoinOpen] = useState(false);
+  const [friendsList, setFriendsList] = useState([]);
+  const [friendLobbyJoining, setFriendLobbyJoining] = useState(null);
   const codeInputRef = useRef(null);
   const shownName = displayNameState || user?.first_name || 'Игрок';
   const myReferralCode = getOrCreateReferralCode();
@@ -150,6 +176,53 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
     }
   }, []);
   const hasLastRoom = Boolean(safeSessionGet('gameHub_lastRoomId'));
+
+  const myPlayerId = user?.id != null ? String(user.id) : '';
+
+  const loadFriendsForHome = useCallback(async () => {
+    if (!myPlayerId) {
+      setFriendsList([]);
+      return;
+    }
+    try {
+      const r = await api.get(`/friends/list?playerId=${encodeURIComponent(myPlayerId)}`);
+      const list = Array.isArray(r.friends) ? r.friends : [];
+      setFriendsList(list);
+    } catch (_) {
+      setFriendsList([]);
+    }
+  }, [myPlayerId]);
+
+  useEffect(() => {
+    loadFriendsForHome();
+  }, [loadFriendsForHome]);
+
+  useEffect(() => {
+    if (!myPlayerId) return undefined;
+    const t = setInterval(loadFriendsForHome, 12_000);
+    const onFocus = () => loadFriendsForHome();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [myPlayerId, loadFriendsForHome]);
+
+  const handleJoinFriendLobby = async (f) => {
+    if (!f?.joinInviteToken || !onJoinByInvite) return;
+    setError('');
+    setFriendLobbyJoining(String(f.id));
+    setLoading(true);
+    try {
+      await onJoinByInvite(f.joinInviteToken);
+      navigate('/lobby');
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Не удалось войти в комнату друга'));
+    } finally {
+      setFriendLobbyJoining(null);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const pending = safeSessionGet('pendingInvite');
@@ -512,6 +585,45 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
             </>
           )}
         </section>
+
+        {friendsList.length > 0 ? (
+          <section className="home-panel home-friends">
+            <div className="home-friends__header">
+              <h2 className="home-panel__title home-friends__title">Друзья</h2>
+              <button
+                type="button"
+                className="home-friends__allLink"
+                onClick={() => navigate('/friends')}
+              >
+                Все друзья
+              </button>
+            </div>
+            <ul className="home-friends__list">
+              {buildFriendsPreview(friendsList, 3).map((f) => (
+                <li key={f.id} className="home-friends__row">
+                  <span
+                    className={`home-friends__dot ${f.online ? 'home-friends__dot--on' : 'home-friends__dot--off'}`}
+                    aria-hidden
+                  />
+                  <div className="home-friends__meta">
+                    <div className="home-friends__name">{f.displayName || `Игрок ${f.id}`}</div>
+                    <div className="home-friends__sub">{friendStatusLine(f)}</div>
+                  </div>
+                  {f.joinInviteToken ? (
+                    <button
+                      type="button"
+                      className="home-btn home-btn--primary home-btn--inline home-friends__joinBtn"
+                      onClick={() => handleJoinFriendLobby(f)}
+                      disabled={loading || friendLobbyJoining === String(f.id)}
+                    >
+                      {friendLobbyJoining === String(f.id) ? '…' : 'В лобби'}
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <JoinRoomModal
           open={homeQrJoinOpen}

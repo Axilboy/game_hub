@@ -10,6 +10,7 @@ import { getAvatar, getDisplayName, getProfilePhoto } from './displayName';
 import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
 import { reapplyStoredTheme } from './theme';
+import { usePresenceHeartbeat } from './usePresenceHeartbeat';
 import Home from './pages/Home';
 import { ToastProvider, useToast } from './components/ui/ToastProvider';
 import RouteLoadingFallback from './components/RouteLoadingFallback';
@@ -29,6 +30,7 @@ const SeoGameTruthDare = lazy(() => import('./pages/SeoGameTruthDare'));
 const SeoGameBunker = lazy(() => import('./pages/SeoGameBunker'));
 const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
+const FriendsPage = lazy(() => import('./pages/Friends'));
 
 function AppRoutes() {
   const { showToast } = useToast();
@@ -96,6 +98,8 @@ function AppRoutes() {
   useEffect(() => {
     if (ready) reapplyStoredTheme();
   }, [ready]);
+
+  usePresenceHeartbeat({ userId: user?.id, room, roomId });
 
   /** Telegram WebApp перезаписывает --tg-theme-* на <html> после загрузки — повторяем нашу тему. */
   useEffect(() => {
@@ -640,6 +644,10 @@ function AppRoutes() {
           }
         />
         <Route path="/admin" element={<Admin />} />
+        <Route
+          path="/friends"
+          element={<FriendsPage user={user} onJoinByInvite={joinByInvite} />}
+        />
         <Route path="/profile" element={<Profile user={user} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

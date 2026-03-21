@@ -63,7 +63,15 @@ for (let i = 0; i < players.length; i++) {
     { id: p.id, name: p.name, kId: WEB_PLAYER_ID_KEY, kName: WEB_NAME_KEY },
   );
   const page = await ctx.newPage();
-  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  } catch (e) {
+    console.error(`\n[${i + 1}] Не удалось открыть ${APP_URL} для «${p.name}»:`, e.message);
+    console.error('Сначала запусти фронт и сервер в корне проекта: npm run dev (или отдельно app на :5173).\n');
+    await ctx.close().catch(() => {});
+    await browser.close().catch(() => {});
+    process.exit(1);
+  }
   contexts.push({ ctx, page, name: p.name });
   console.log(`[${i + 1}] открыто: ${p.name} (${p.id})`);
 }
@@ -73,11 +81,20 @@ console.log(`Готово: ${players.length} окон. URL: ${APP_URL}`);
 console.log('Создай комнату в одном окне, остальные зайдут по приглашению / коду.');
 console.log('');
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-await new Promise((resolve) => {
-  rl.question('Enter — закрыть все окна и выйти\n', () => resolve());
-});
-rl.close();
+// Без интерактивного stdin (двойной клик, некоторые оболочки) readline сразу «отвечает» — окна мгновенно закрывались.
+if (process.stdin.isTTY) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  await new Promise((resolve) => {
+    rl.question('Enter — закрыть все окна и выйти\n', () => resolve());
+  });
+  rl.close();
+} else {
+  console.log('Интерактивный ввод недоступен. Закрой окна вручную или нажми Ctrl+C здесь — тогда скрипт завершится.');
+  await new Promise((resolve) => {
+    process.once('SIGINT', resolve);
+    process.once('SIGTERM', resolve);
+  });
+}
 
 for (const { ctx } of contexts) {
   await ctx.close().catch(() => {});

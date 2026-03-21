@@ -151,6 +151,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   /** Выбранный в списке участников игрок (меню: хост / кик / друзья) */
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
+  /** id друзей текущего игрока (для кнопки «Уже в друзьях») */
+  const [friendIds, setFriendIds] = useState(() => new Set());
   /** Переименование команды: { scope: 'elias'|'truth_dare', teamIndex, name } */
   const [teamRename, setTeamRename] = useState(null);
   /** Смена команды игрока: { targetId, targetName } */
@@ -277,6 +279,20 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     const local = getCustomDictionaries();
     setEliasCustomWordsText((local.elias || []).join('\n'));
   }, []);
+
+  const reloadFriendIds = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const r = await api.get(`/friends/list?playerId=${encodeURIComponent(String(user.id))}`);
+      setFriendIds(new Set((r.friends || []).map((x) => String(x.id))));
+    } catch (_) {
+      setFriendIds(new Set());
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    reloadFriendIds();
+  }, [reloadFriendIds, roomId]);
 
   useEffect(() => {
     const inv = getInventory();
@@ -606,6 +622,24 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     },
     [roomId, user?.id, onRoomUpdate, showToast],
   );
+
+  const addFriendFromLobby = async () => {
+    const target = playerMenuPlayer;
+    if (!target || !user?.id) return;
+    if (String(target.id) === String(user.id)) return;
+    try {
+      await api.post('/friends/add', {
+        playerId: String(user.id),
+        friendId: String(target.id),
+        friendName: target.name || undefined,
+      });
+      showToast({ type: 'success', message: 'Добавлено в друзья' });
+      await reloadFriendIds();
+      setPlayerMenuPlayer(null);
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось добавить в друзья') });
+    }
+  };
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -2088,12 +2122,17 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 Кикнуть из комнаты
               </Button>
             ) : null}
-            <Button variant="secondary" fullWidth disabled title="Функция появится в следующих версиях">
-              Добавить в друзья
-            </Button>
-            <p style={{ margin: 0, fontSize: 12, opacity: 0.8, lineHeight: 1.4 }}>
-              Добавление в друзья внутри приложения пока в разработке.
-            </p>
+            {!playerMenuIsSelf ? (
+              friendIds.has(String(pp.id)) ? (
+                <Button variant="secondary" fullWidth disabled>
+                  Уже в друзьях
+                </Button>
+              ) : (
+                <Button variant="secondary" fullWidth onClick={addFriendFromLobby}>
+                  Добавить в друзья
+                </Button>
+              )
+            ) : null}
             <Button variant="ghost" fullWidth onClick={() => setPlayerMenuPlayer(null)}>
               Закрыть
             </Button>
