@@ -598,7 +598,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <button
             type="button"
             onClick={shareInvite}
-            style={{ ...btnStyle, marginTop: 8, background: '#6a5' }}
+            style={{ ...btnStyleSuccess, marginTop: 8 }}
           >
             Поделиться
           </button>
@@ -753,7 +753,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(!settingsOpen)}
-                  style={{ ...btnStyle, background: '#555', flex: 1 }}
+                  style={{ ...btnStyleToggleMid, flex: 1 }}
                 >
                   Настройки
                 </button>
@@ -780,10 +780,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                             patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount: n, allSpiesChanceEnabled, dictionaryIds } });
                           }}
                           style={{
-                            ...btnStyle,
+                            ...(on ? btnStyle : btnStyleToggleOff),
                             width: 'auto',
                             padding: '8px 14px',
-                            background: on ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                             opacity: enabled ? 1 : 0.6,
                           }}
                         >
@@ -827,7 +826,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       setSpyDictDraft([...cur]);
                       setSpyLocationsModalOpen(true);
                     }}
-                    style={{ ...btnStyle, marginBottom: 16, background: '#555' }}
+                    style={{ ...btnStyleToggleMid, marginBottom: 16 }}
                   >
                     Локации (выбрано: {(room?.gameSettings?.dictionaryIds || dictionaryIds || []).length})
                   </button>
@@ -850,10 +849,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                             type="button"
                             onClick={() => { setTimerSeconds(opt.value); patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds: opt.value, spyCount, allSpiesChanceEnabled, dictionaryIds } }); }}
                             style={{
-                              ...btnStyle,
+                              ...(timerSeconds === opt.value ? btnStyle : btnStyleToggleOff),
                               width: 'auto',
                               padding: '8px 14px',
-                              background: timerSeconds === opt.value ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                             }}
                           >
                             {opt.label}
@@ -893,7 +891,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 type="button"
                 onClick={() => setMafiaAccordions((s) => ({ ...s, mode: !s.mode }))}
-                style={{ ...btnStyle, width: '100%', background: mafiaAccordions.mode ? '#555' : '#444', marginBottom: 12 }}
+                style={{ ...(mafiaAccordions.mode ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
               >
                 Режим <span style={{ fontSize: 12, opacity: 0.8 }}>(мин. {MIN_PLAYERS.mafia} игр.)</span>
               </button>
@@ -902,7 +900,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   <button
                     type="button"
                     onClick={() => { setMafiaClassicPopup(true); if (room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: false } }); }}
-                    style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.extended ? '#444' : 'var(--tg-theme-button-color, #3a7bd5)') }}
+                    style={{ ...(room?.gameSettings?.extended ? btnStyleToggleOff : btnStyle), flex: 1, padding: 10 }}
                     title="Какие роли в игре"
                   >
                     Классика
@@ -910,7 +908,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   <button
                     type="button"
                     onClick={() => { setMafiaExtendedPopup(true); if (roomHasPro && !room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: true } }); }}
-                    style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.extended ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444'), opacity: roomHasPro ? 1 : 0.6 }}
+                    style={{ ...(room?.gameSettings?.extended ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, opacity: roomHasPro ? 1 : 0.6 }}
                     title="Подробнее об расширенной версии"
                   >
                     Расширенная (Премиум)
@@ -921,7 +919,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 type="button"
                 onClick={() => setMafiaAccordions((s) => ({ ...s, rules: !s.rules }))}
-                style={{ ...btnStyle, width: '100%', background: mafiaAccordions.rules ? '#555' : '#444', marginBottom: 12 }}
+                style={{ ...(mafiaAccordions.rules ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
               >
                 Правила
               </button>
@@ -949,7 +947,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                           key={p.id}
                           type="button"
                           onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, phaseTimers: p.val } })}
-                          style={{ ...btnStyle, flex: 1, padding: 10, background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                          style={{ ...(active ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
                         >
                           {p.label}
                         </button>
@@ -964,7 +962,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         phaseTimers: { nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
                       },
                     })}
-                    style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}
+                    style={{ ...btnStyleSuccess, marginBottom: 12 }}
                     title="Компактная партия около 10 минут"
                   >
                     Режим 10 минут
@@ -978,7 +976,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 type="button"
                 onClick={() => setMafiaAccordions((s) => ({ ...s, host: !s.host }))}
-                style={{ ...btnStyle, width: '100%', background: mafiaAccordions.host ? '#555' : '#444', marginBottom: 12 }}
+                style={{ ...(mafiaAccordions.host ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
               >
                 Ведущий
               </button>
@@ -988,14 +986,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     <button
                       type="button"
                       onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, hostSelection: 'random', moderatorId: null } })}
-                      style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.hostSelection !== 'choose' ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444') }}
+                      style={{ ...(room?.gameSettings?.hostSelection !== 'choose' ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
                     >
                       Случайно
                     </button>
                     <button
                       type="button"
                       onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, hostSelection: 'choose' } })}
-                      style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.hostSelection === 'choose' ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444') }}
+                      style={{ ...(room?.gameSettings?.hostSelection === 'choose' ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
                     >
                       Выбрать
                     </button>
@@ -1008,7 +1006,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                           key={p.id}
                           type="button"
                           onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, moderatorId: p.id } })}
-                          style={{ ...btnStyle, marginBottom: 6, padding: 8, background: room?.gameSettings?.moderatorId === p.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                          style={{ ...(room?.gameSettings?.moderatorId === p.id ? btnStyle : btnStyleToggleOff), marginBottom: 6, padding: 8 }}
                         >
                           {p.name}
                         </button>
@@ -1051,7 +1049,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 type="button"
                 onClick={() => setEliasAccordions((s) => ({ ...s, timer: !s.timer }))}
-                style={{ ...btnStyle, width: '100%', background: eliasAccordions.timer ? '#555' : '#444', marginBottom: 12 }}
+                style={{ ...(eliasAccordions.timer ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
               >
                 Таймер раунда (сек) <span style={{ fontSize: 12, opacity: 0.8 }}>(мин. {MIN_PLAYERS.elias} игр.)</span>
               </button>
@@ -1062,7 +1060,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       key={sec}
                       type="button"
                       onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerSeconds: sec } })}
-                      style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: (room?.gameSettings?.timerSeconds ?? 60) === sec ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                      style={{ ...((room?.gameSettings?.timerSeconds ?? 60) === sec ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
                     >
                       {sec} сек
                     </button>
@@ -1073,7 +1071,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 type="button"
                 onClick={() => setEliasAccordions((s) => ({ ...s, goal: !s.goal }))}
-                style={{ ...btnStyle, width: '100%', background: eliasAccordions.goal ? '#555' : '#444', marginBottom: 12 }}
+                style={{ ...(eliasAccordions.goal ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
               >
                 Победа (очков)
               </button>
@@ -1084,7 +1082,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       key={n}
                       type="button"
                       onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, scoreLimit: n } })}
-                      style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: (room?.gameSettings?.scoreLimit ?? 10) === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                      style={{ ...((room?.gameSettings?.scoreLimit ?? 10) === n ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
                     >
                       {n}
                     </button>
@@ -1098,7 +1096,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     key={n}
                     type="button"
                     onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipPenalty: n } })}
-                    style={{ ...btnStyle, width: 'auto', padding: '8px 14px', background: (room?.gameSettings?.skipPenalty ?? 1) === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                    style={{ ...((room?.gameSettings?.skipPenalty ?? 1) === n ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
                   >
                     {n === 0 ? 'Без штрафа' : `−${n} очко`}
                   </button>
@@ -1112,7 +1110,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   setEliasDictDraft([...cur]);
                   setEliasDictModalOpen(true);
                 }}
-                style={{ ...btnStyle, width: '100%', background: '#444', marginBottom: 12 }}
+                style={{ ...btnStyleToggleOff, width: '100%', marginBottom: 12 }}
               >
                 Словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
               </button>
@@ -1120,7 +1118,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 type="button"
                 onClick={() => setEliasAccordions((s) => ({ ...s, teams: !s.teams }))}
-                style={{ ...btnStyle, width: '100%', background: eliasAccordions.teams ? '#555' : '#444', marginBottom: 12 }}
+                style={{ ...(eliasAccordions.teams ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
               >
                 Команды
               </button>
@@ -1134,7 +1132,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
                         patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: [...teams, { name: `Команда ${teams.length + 1}`, playerIds: [] }] } });
                       }}
-                      style={{ ...btnStyle, width: 'auto', padding: '6px 12px', fontSize: 13, background: '#555' }}
+                      style={{ ...btnStyleToggleMid, width: 'auto', padding: '6px 12px', fontSize: 13 }}
                     >
                       + Добавить команду
                     </button>
@@ -1145,7 +1143,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                           const teams = room?.gameSettings?.eliasTeams;
                           if (teams?.length > 2) patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: teams.slice(0, -1) } });
                         }}
-                        style={{ ...btnStyle, width: 'auto', padding: '6px 12px', fontSize: 13, background: '#633' }}
+                        style={{ ...btnStyleWarn, width: 'auto', padding: '6px 12px', fontSize: 13 }}
                       >
                         − Убрать команду
                       </button>
@@ -1170,7 +1168,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                               key={t.name}
                               type="button"
                               onClick={() => setTeam(i)}
-                              style={{ ...btnStyle, width: 'auto', padding: '6px 8px', fontSize: 11, background: playerTeamIndex === i ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444' }}
+                              style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
                             >
                               {t.name}
                             </button>
@@ -1178,7 +1176,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                           <button
                             type="button"
                             onClick={() => setTeam(-1)}
-                            style={{ ...btnStyle, width: 'auto', padding: '6px 8px', fontSize: 11, background: playerTeamIndex === -1 ? '#555' : '#333' }}
+                            style={{ ...(playerTeamIndex === -1 ? btnStyleToggleMid : btnStyleToggleInk), width: 'auto', padding: '6px 8px', fontSize: 11 }}
                           >
                             Не играет
                           </button>
@@ -1290,7 +1288,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     key={n}
                     type="button"
                     onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, roundsCount: n } })}
-                    style={{ ...btnStyle, flex: 1, padding: 10, background: tdRoundsCount === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', fontSize: 14 }}
+                    style={{ ...(tdRoundsCount === n ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, fontSize: 14 }}
                   >
                     {n}
                   </button>
@@ -1304,7 +1302,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     key={n}
                     type="button"
                     onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipLimitPerPlayer: n } })}
-                    style={{ ...btnStyle, flex: 1, padding: 10, background: tdSkipLimitPerPlayer === n ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', fontSize: 14 }}
+                    style={{ ...(tdSkipLimitPerPlayer === n ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, fontSize: 14 }}
                   >
                     {n}
                   </button>
@@ -1334,7 +1332,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     categorySlugs: ['classic', 'friends'],
                   },
                 })}
-                style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}
+                style={{ ...btnStyleSuccess, marginBottom: 12 }}
               >
                 Быстрая партия (3 раунда)
               </button>
@@ -1349,7 +1347,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   setTdCategoryDraft([...cur]);
                   setTdCategoryModalOpen(true);
                 }}
-                style={{ ...btnStyle, width: '100%', background: '#555', marginBottom: 16 }}
+                style={{ ...btnStyleToggleMid, width: '100%', marginBottom: 16 }}
               >
                 Карточки (выбрано: {tdCategorySlugs.length})
               </button>
@@ -1383,10 +1381,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   }}
                   disabled={startingGame}
                   style={{
-                    ...btnStyle,
+                    ...(active ? btnStyle : btnStyleToggleOff),
                     width: 'auto',
                     padding: '8px 14px',
-                    background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                     opacity: startingGame ? 0.7 : 1,
                   }}
                 >
@@ -1411,10 +1408,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   }}
                   disabled={startingGame}
                   style={{
-                    ...btnStyle,
+                    ...(active ? btnStyle : btnStyleToggleOff),
                     width: 'auto',
                     padding: '8px 14px',
-                    background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                     opacity: startingGame ? 0.7 : 1,
                   }}
                 >
@@ -1440,10 +1436,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   disabled={startingGame || !canUse}
                   title={!canUse ? `Нужен Pro или pack ${s.itemId}` : ''}
                   style={{
-                    ...btnStyle,
+                    ...(active ? btnStyle : btnStyleToggleOff),
                     width: 'auto',
                     padding: '8px 14px',
-                    background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
                     opacity: (!canUse || startingGame) ? 0.6 : 1,
                   }}
                 >
@@ -1459,17 +1454,17 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      <button type="button" onClick={() => setShopOpen(true)} style={{ ...btnStyle, marginTop: 16, background: '#55a' }}>
+      <button type="button" onClick={() => setShopOpen(true)} style={{ ...btnStyleShop, marginTop: 16 }}>
         Магазин
       </button>
 
       {isHost && selectedGame ? (
-        <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ ...btnStyle, marginTop: 24, background: '#555' }}>
+        <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ ...btnStyleToggleMid, marginTop: 24 }}>
           Назад
         </button>
       ) : null}
       {(!isHost || !selectedGame) && (
-        <button type="button" onClick={() => setLeaveConfirmOpen(true)} style={{ ...btnStyle, marginTop: isHost && selectedGame ? 8 : 24, background: '#555' }}>
+        <button type="button" onClick={() => setLeaveConfirmOpen(true)} style={{ ...btnStyleToggleMid, marginTop: isHost && selectedGame ? 8 : 24 }}>
           Выйти из комнаты
         </button>
       )}
@@ -1596,10 +1591,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               })}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button type="button" onClick={closeSpyLocationsModal} style={{ ...btnStyle, flex: 1, background: '#555' }}>
+              <button type="button" onClick={closeSpyLocationsModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
                 Отмена
               </button>
-              <button type="button" onClick={confirmSpyDictDraft} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>
+              <button type="button" onClick={confirmSpyDictDraft} style={{ ...btnStyleSuccess, flex: 1 }}>
                 Готово
               </button>
             </div>
@@ -1718,10 +1713,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               })}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button type="button" onClick={closeTdCategoryModal} style={{ ...btnStyle, flex: 1, background: '#555' }}>
+              <button type="button" onClick={closeTdCategoryModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
                 Отмена
               </button>
-              <button type="button" onClick={confirmTdCategoryDraft} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>
+              <button type="button" onClick={confirmTdCategoryDraft} style={{ ...btnStyleSuccess, flex: 1 }}>
                 Готово
               </button>
             </div>
@@ -1777,10 +1772,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               })}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button type="button" onClick={closeEliasDictModal} style={{ ...btnStyle, flex: 1, background: '#555' }}>
+              <button type="button" onClick={closeEliasDictModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
                 Отмена
               </button>
-              <button type="button" onClick={confirmEliasDictDraft} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>
+              <button type="button" onClick={confirmEliasDictDraft} style={{ ...btnStyleSuccess, flex: 1 }}>
                 Готово
               </button>
             </div>
@@ -1803,7 +1798,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button
                 type="button"
-                style={{ ...btnStyle, background: '#5a4' }}
+                style={{ ...btnStyleSuccess }}
                 onClick={() => {
                   const words = eliasCustomWordsText.split('\n').map((x) => x.trim()).filter(Boolean);
                   const saved = saveCustomEliasWords(words);
@@ -1814,7 +1809,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               </button>
               <button
                 type="button"
-                style={{ ...btnStyle, background: '#444' }}
+                style={{ ...btnStyleToggleOff }}
                 onClick={async () => {
                   const text = exportCustomDictionariesText();
                   try {
@@ -1834,7 +1829,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             />
             <button
               type="button"
-              style={{ ...btnStyle, background: '#555', marginBottom: 10 }}
+              style={{ ...btnStyleToggleMid, marginBottom: 10 }}
               onClick={() => {
                 try {
                   const parsed = importCustomDictionariesText(eliasImportText);
@@ -1874,14 +1869,60 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 const btnStyle = {
   padding: '12px 20px',
   fontSize: 16,
-  borderRadius: 10,
-  border: 'none',
-  background: 'var(--tg-theme-button-color, #3a7bd5)',
+  borderRadius: 'var(--gh-btn-radius)',
+  border: '1px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, rgba(255, 255, 255, 0.2))',
+  background: 'var(--gh-btn-primary-fill)',
   color: 'var(--tg-theme-button-text-color, #fff)',
   cursor: 'pointer',
   width: '100%',
-  boxShadow: '0 6px 18px rgba(0,0,0,0.2)',
+  boxShadow: 'var(--gh-btn-shadow)',
   fontWeight: 600,
+  transition:
+    'transform 0.14s cubic-bezier(0.2,0,0,1), box-shadow 0.14s cubic-bezier(0.2,0,0,1), filter 0.14s cubic-bezier(0.2,0,0,1)',
+};
+
+/** Неактивный сегмент / «выкл» — как на промо: градиент + мягкая тень */
+const btnStyleToggleOff = {
+  ...btnStyle,
+  background: 'var(--gh-toggle-off-gradient)',
+  boxShadow: 'var(--gh-btn-toggle-shadow)',
+  border: '1px solid var(--gh-border)',
+  color: 'var(--tg-theme-text-color)',
+};
+
+/** Заголовок секции в развёрнутом аккордеоне — чуть светлее */
+const btnStyleToggleMid = {
+  ...btnStyleToggleOff,
+  background: 'var(--gh-toggle-mid-gradient)',
+};
+
+const btnStyleToggleInk = {
+  ...btnStyleToggleOff,
+  background: 'var(--gh-toggle-ink-gradient)',
+};
+
+const btnStyleSuccess = {
+  ...btnStyle,
+  background: 'var(--gh-btn-success-gradient)',
+  border: '1px solid rgba(100, 130, 70, 0.45)',
+  color: '#fff',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.2) inset, 0 6px 18px rgba(60,90,40,0.35)',
+};
+
+const btnStyleShop = {
+  ...btnStyle,
+  background: 'var(--gh-btn-shop-gradient)',
+  border: '1px solid rgba(120, 100, 200, 0.4)',
+  color: '#fff',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset, 0 6px 20px rgba(60,40,120,0.4)',
+};
+
+const btnStyleWarn = {
+  ...btnStyleToggleOff,
+  background: 'var(--gh-btn-warn-gradient)',
+  color: '#fff',
+  border: '1px solid rgba(160, 80, 80, 0.4)',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 14px rgba(80,30,30,0.35)',
 };
 
 const settingsBox = {

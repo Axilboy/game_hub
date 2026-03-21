@@ -54,6 +54,40 @@ html, body, #root {
   --gh-motion-normal: 220ms;
   --gh-motion-slow: 320ms;
   --gh-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Кнопки: объём и согласованность с промо-лендингами */
+  --gh-btn-radius: 14px;
+  --gh-btn-primary-top: #6b9ff5;
+  --gh-btn-primary-mid: var(--tg-theme-button-color, #3a7bd5);
+  --gh-btn-primary-bot: #2a5cad;
+  --gh-btn-primary-fill: linear-gradient(
+    180deg,
+    var(--gh-btn-primary-top) 0%,
+    var(--gh-btn-primary-mid) 48%,
+    var(--gh-btn-primary-bot) 100%
+  );
+  --gh-btn-warn-gradient: linear-gradient(180deg, #9a5a5a 0%, #633 50%, #4a2828 100%);
+  --gh-toggle-ink-gradient: linear-gradient(180deg, #3a3f4d 0%, #2a2e38 100%);
+  --gh-btn-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 6px 20px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+  --gh-btn-shadow-hover:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 8px 26px rgba(37, 99, 235, 0.35),
+    0 3px 8px rgba(0, 0, 0, 0.15);
+  --gh-toggle-off: #3d4354;
+  --gh-toggle-mid: #4a5163;
+  --gh-toggle-deep: #2f343f;
+  --gh-toggle-danger: #5c3838;
+  --gh-toggle-off-gradient: linear-gradient(180deg, #4f5669 0%, #3d4354 52%, #2f3542 100%);
+  --gh-toggle-mid-gradient: linear-gradient(180deg, #5c6478 0%, #4a5163 55%, #3d4354 100%);
+  --gh-btn-success-gradient: linear-gradient(180deg, #7a8f55 0%, #5a6 45%, #3d4a2e 100%);
+  --gh-btn-shop-gradient: linear-gradient(180deg, #8a7ad8 0%, #55a 45%, #3a3a88 100%);
+  --gh-btn-toggle-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 4px 14px rgba(0, 0, 0, 0.22),
+    0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 html[data-density='compact'] {
@@ -368,6 +402,26 @@ html[data-theme='dark'] {
   --gh-surface-strong: rgba(255, 255, 255, 0.1);
   --gh-border: rgba(255, 255, 255, 0.12);
   --gh-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --gh-btn-primary-top: #7aacff;
+  --gh-btn-primary-mid: #4a8ae8;
+  --gh-btn-primary-bot: #3568c4;
+  --gh-toggle-off: #3d4354;
+  --gh-toggle-mid: #4f5669;
+  --gh-toggle-deep: #2c303c;
+  --gh-toggle-danger: #5c3838;
+  --gh-color-muted: #5a6274;
+  --gh-toggle-off-gradient: linear-gradient(180deg, #4f5669 0%, #3d4354 52%, #2f3542 100%);
+  --gh-toggle-mid-gradient: linear-gradient(180deg, #5c6478 0%, #4a5163 55%, #3d4354 100%);
+  --gh-btn-success-gradient: linear-gradient(180deg, #7a8f55 0%, #5a6 45%, #3d4a2e 100%);
+  --gh-btn-shop-gradient: linear-gradient(180deg, #8a7ad8 0%, #55a 45%, #3a3a88 100%);
+  --gh-btn-primary-fill: linear-gradient(
+    180deg,
+    var(--gh-btn-primary-top) 0%,
+    var(--gh-btn-primary-mid) 48%,
+    var(--gh-btn-primary-bot) 100%
+  );
+  --gh-btn-warn-gradient: linear-gradient(180deg, #9a5a5a 0%, #633 50%, #4a2828 100%);
+  --gh-toggle-ink-gradient: linear-gradient(180deg, #3a3f4d 0%, #2a2e38 100%);
 }
 
 html[data-theme='light'] {
@@ -380,6 +434,38 @@ html[data-theme='light'] {
   --gh-surface-strong: rgba(0, 0, 0, 0.08);
   --gh-border: rgba(0, 0, 0, 0.1);
   --gh-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  --gh-btn-primary-top: #4f8cff;
+  --gh-btn-primary-mid: #2d6cdf;
+  --gh-btn-primary-bot: #2457b8;
+  --gh-btn-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 6px 18px rgba(37, 99, 235, 0.22),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+  --gh-btn-shadow-hover:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 10px 28px rgba(37, 99, 235, 0.28),
+    0 3px 8px rgba(0, 0, 0, 0.08);
+  --gh-toggle-off: #e4e8f0;
+  --gh-toggle-mid: #d8dde8;
+  --gh-toggle-deep: #f0f2f7;
+  --gh-toggle-danger: #e8d4d4;
+  --gh-color-muted: #6b7285;
+  --gh-toggle-off-gradient: linear-gradient(180deg, #f4f6fb 0%, #e4e8f0 55%, #d8dde8 100%);
+  --gh-toggle-mid-gradient: linear-gradient(180deg, #eef1f7 0%, #d8dde8 55%, #cdd4e2 100%);
+  --gh-btn-success-gradient: linear-gradient(180deg, #9ab86a 0%, #7a9a4a 45%, #5f7a38 100%);
+  --gh-btn-shop-gradient: linear-gradient(180deg, #9a8ae8 0%, #6a5acd 45%, #4a3a9a 100%);
+  --gh-btn-primary-fill: linear-gradient(
+    180deg,
+    var(--gh-btn-primary-top) 0%,
+    var(--gh-btn-primary-mid) 48%,
+    var(--gh-btn-primary-bot) 100%
+  );
+  --gh-btn-warn-gradient: linear-gradient(180deg, #c08080 0%, #a06060 50%, #804848 100%);
+  --gh-toggle-ink-gradient: linear-gradient(180deg, #c5cbd8 0%, #a8b4c8 100%);
+  --gh-btn-toggle-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
 html[data-theme='dark'] body,
@@ -394,25 +480,49 @@ html[data-theme='light'] #root {
   color: var(--tg-theme-text-color);
 }
 
-/* Утилиты кнопок — меньше inline-стилей на экранах вроде Home */
+/* Утилиты кнопок — объём, градиенты, как на промо-лендингах */
 .gh-btn {
   padding: var(--gh-space-3) var(--gh-space-5);
   font-size: var(--gh-font-size-md);
-  border-radius: var(--gh-radius-md);
-  border: none;
-  background: var(--gh-color-primary);
+  border-radius: var(--gh-btn-radius);
+  border: 1px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, rgba(255, 255, 255, 0.2));
+  background: linear-gradient(
+    180deg,
+    var(--gh-btn-primary-top) 0%,
+    var(--gh-btn-primary-mid) 48%,
+    var(--gh-btn-primary-bot) 100%
+  );
   color: var(--gh-color-primary-text);
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--gh-btn-shadow);
   font-weight: var(--gh-font-weight-semibold);
+  transition:
+    transform var(--gh-motion-fast) var(--gh-motion-ease),
+    box-shadow var(--gh-motion-fast) var(--gh-motion-ease),
+    filter var(--gh-motion-fast) var(--gh-motion-ease),
+    border-color var(--gh-motion-fast) var(--gh-motion-ease);
+}
+.gh-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--gh-btn-shadow-hover);
+  filter: brightness(1.04);
+}
+.gh-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.97);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.12) inset,
+    0 3px 10px rgba(0, 0, 0, 0.2);
 }
 .gh-btn:focus-visible {
   outline: none;
-  box-shadow: var(--gh-focus-ring);
+  box-shadow: var(--gh-focus-ring), var(--gh-btn-shadow);
 }
 .gh-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  filter: none;
+  transform: none;
 }
 .gh-btn--block {
   width: 100%;
@@ -426,19 +536,82 @@ html[data-theme='light'] #root {
   width: auto;
 }
 .gh-btn--muted {
-  background: var(--gh-color-muted);
+  border: 1px solid var(--gh-border);
+  background: linear-gradient(180deg, var(--gh-surface-strong) 0%, var(--gh-surface) 100%);
+  color: var(--tg-theme-text-color);
+  box-shadow: var(--gh-btn-toggle-shadow);
+}
+.gh-btn--muted:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 6px 16px rgba(0, 0, 0, 0.18);
 }
 .gh-btn--green {
-  background: var(--gh-color-success);
+  border-color: rgba(100, 130, 70, 0.45);
+  background: var(--gh-btn-success-gradient);
+  color: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 6px 18px rgba(60, 90, 40, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.gh-btn--green:hover:not(:disabled) {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 8px 22px rgba(80, 120, 50, 0.4),
+    0 3px 8px rgba(0, 0, 0, 0.12);
 }
 .gh-btn--purple {
-  background: #55a;
+  border-color: rgba(120, 100, 200, 0.4);
+  background: var(--gh-btn-shop-gradient);
+  color: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 6px 20px rgba(60, 40, 120, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.gh-btn--purple:hover:not(:disabled) {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 8px 26px rgba(80, 60, 160, 0.45),
+    0 3px 8px rgba(0, 0, 0, 0.12);
 }
 .gh-btn--charcoal {
-  background: #444;
+  border: 1px solid var(--gh-border);
+  background: var(--gh-toggle-off-gradient);
+  color: var(--tg-theme-text-color);
+  box-shadow: var(--gh-btn-toggle-shadow);
+}
+.gh-btn--charcoal:hover:not(:disabled) {
+  filter: brightness(1.06);
 }
 .gh-btn--danger {
-  background: var(--gh-color-danger);
+  border-color: rgba(180, 60, 60, 0.45);
+  background: linear-gradient(180deg, #c85a5a 0%, var(--gh-color-danger) 50%, #722 100%);
+  color: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 6px 18px rgba(120, 30, 30, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.gh-btn--danger:hover:not(:disabled) {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 8px 22px rgba(160, 40, 40, 0.4),
+    0 3px 8px rgba(0, 0, 0, 0.1);
+}
+.gh-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--gh-border);
+  color: var(--tg-theme-link-color);
+  box-shadow: none;
+}
+.gh-btn--ghost:hover:not(:disabled) {
+  background: var(--gh-surface);
+  filter: none;
+  transform: translateY(-1px);
+  box-shadow: var(--gh-btn-toggle-shadow);
 }
 .gh-btn--compact {
   padding: var(--gh-space-2) var(--gh-space-3);
