@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { resolveJoinPayload } from '../inviteParse';
@@ -73,8 +73,9 @@ function QrScannerPanel({ active, onDecoded, onError }) {
  * @param {boolean} props.open
  * @param {() => void} props.onClose
  * @param {(payload: { kind: 'code' | 'invite'; value: string }) => Promise<void>} props.onJoin
+ * @param {boolean} [props.openWithScanner] — сразу открыть камеру (кнопка «Войти по QR» на главной)
  */
-export default function JoinRoomModal({ open, onClose, onJoin, title = 'Присоединиться к игре' }) {
+export default function JoinRoomModal({ open, onClose, onJoin, title = 'Присоединиться к игре', openWithScanner = false }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -82,15 +83,21 @@ export default function JoinRoomModal({ open, onClose, onJoin, title = 'Прис
   const [scanErr, setScanErr] = useState('');
   const joinInFlightRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
       setCode('');
       setErr('');
       setBusy(false);
       setScan(false);
       setScanErr('');
+      return;
     }
-  }, [open]);
+    if (openWithScanner) {
+      setScan(true);
+    } else {
+      setScan(false);
+    }
+  }, [open, openWithScanner]);
 
   const handleDecoded = useCallback(
     async (text) => {

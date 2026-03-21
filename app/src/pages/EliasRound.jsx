@@ -436,7 +436,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                     Дальше
                   </button>
                 ) : (
-                  <p style={{ margin: 0, textAlign: 'center', fontSize: 14, color: '#4a5568' }}>
+                  <p className="elias-round__review-wait-msg">
                     Ожидайте: диктор подтверждает раунд
                   </p>
                 )}
@@ -449,15 +449,13 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                 <div className="elias-round__timer-wrap">
                   {phase === 'playing' && state.roundEndsAt ? (
                     <div
-                      className="elias-round__timer-ring"
-                      style={{
-                        background: `conic-gradient(#38a169 0deg, #38a169 ${timeFrac * 360}deg, rgba(255,255,255,0.22) 0)`,
-                      }}
+                      className="elias-round__timer-ring elias-round__timer-ring--progress"
+                      style={{ '--elias-timer-frac': timeFrac }}
                     >
                       <div className="elias-round__timer-inner">{formatTime(timeLeft)}</div>
                     </div>
                   ) : (
-                    <div className="elias-round__timer-ring" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                    <div className="elias-round__timer-ring elias-round__timer-ring--idle">
                       <div className="elias-round__timer-inner">—</div>
                     </div>
                   )}
@@ -470,7 +468,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
               </div>
 
               {awaitingStart && (
-                <div className="elias-round__panel">
+                <div className="gpl__panel" style={{ marginBottom: 12 }}>
                   {state.isCurrentExplainer ? (
                     <>
                       <p style={{ margin: '0 0 12px', fontSize: 15 }}>Когда будете готовы, нажмите «Начать» — появится слово и запустится таймер.</p>
@@ -487,7 +485,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
               )}
 
               {phase === 'last_word' && state.word && (
-                <div className="elias-round__panel">
+                <div className="gpl__panel" style={{ marginBottom: 12 }}>
                   <p className="elias-round__last-word-title">Кто отгадал последнее слово?</p>
                   <div className="elias-round__card-wrap">
                     <div className="elias-round__card-stack">

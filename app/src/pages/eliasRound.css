@@ -56,6 +56,19 @@
   box-shadow: var(--gpl-shadow, 0 8px 24px rgba(0, 0, 0, 0.25));
 }
 
+/* Кольцо таймера — цвет акцента лендинга Элиас (--gpl-accent), не «чужой» зелёный */
+.elias-round__timer-ring--progress {
+  background: conic-gradient(
+    var(--gpl-accent) 0deg,
+    var(--gpl-accent) calc(var(--elias-timer-frac, 1) * 360deg),
+    color-mix(in srgb, var(--gpl-hero-text) 14%, transparent) 0
+  );
+}
+
+.elias-round__timer-ring--idle {
+  background: color-mix(in srgb, var(--gpl-hero-text) 12%, transparent);
+}
+
 .elias-round__timer-inner {
   width: 58px;
   height: 58px;
@@ -79,6 +92,10 @@
   color: var(--gpl-accent);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme='light'] .elias-round__score {
+  text-shadow: none;
 }
 
 .elias-round__card-wrap {
@@ -200,21 +217,14 @@
   transform: none;
 }
 
-.elias-round__panel {
-  background: color-mix(in srgb, var(--gpl-panel) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gpl-accent) 22%, transparent);
-  border-radius: var(--gpl-radius-panel, 20px);
-  padding: 16px;
-  color: var(--gpl-hero-text);
-  margin-bottom: 10px;
-  backdrop-filter: blur(8px);
-}
+/* Панели «Начать» / последнее слово — класс .gpl__panel из gamePromoLanding.css */
 
-.elias-round__last-word-title {
+.gpl__panel .elias-round__last-word-title {
   margin: 0 0 12px;
   font-size: 17px;
   font-weight: 800;
   text-align: center;
+  color: var(--gpl-panel-text);
 }
 
 .elias-round__team-grid {
@@ -338,8 +348,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-  color: #ecfdf5;
+  background: var(--gpl-accent);
+  color: var(--gpl-accent-text);
   padding: 12px 14px;
   border-radius: var(--gpl-radius-btn, 14px);
   margin-bottom: 12px;
@@ -367,6 +377,13 @@
 .elias-round__start-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.elias-round__review-wait-msg {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--gpl-panel-muted);
 }
 
 .elias-round__wait {

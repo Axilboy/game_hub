@@ -518,6 +518,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           onClose={() => setHomeQrJoinOpen(false)}
           onJoin={handleJoinFromQrModal}
           title="Войти по QR"
+          openWithScanner={homeQrJoinOpen}
         />
 
         {hasRematchRoom && (

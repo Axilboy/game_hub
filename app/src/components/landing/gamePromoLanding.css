@@ -74,6 +74,22 @@ article.gpl.gh-fade-in {
   --gpl-shadow: 0 20px 50px rgba(0, 0, 0, 0.38);
 }
 
+/* Элиас — дневная тема: те же акценты, фон и текст как у светлых панелей промо (см. .gpl__step в light) */
+html[data-theme='light'] .gpl--elias {
+  --gpl-bg1: #f3f0ff;
+  --gpl-bg2: #e8e2fc;
+  --gpl-bg3: #ddd4f5;
+  --gpl-hero-text: #1c1530;
+  --gpl-accent: #0f766e;
+  --gpl-accent-text: #ecfeff;
+  --gpl-pill-bg: rgba(15, 118, 110, 0.1);
+  --gpl-pill-border: rgba(15, 118, 110, 0.22);
+  --gpl-panel: #ffffff;
+  --gpl-panel-text: #161022;
+  --gpl-panel-muted: rgba(22, 16, 34, 0.72);
+  --gpl-shadow: 0 14px 36px rgba(28, 21, 48, 0.1);
+}
+
 /* ——— Правда или действие: тёмный + лайм (референс, без откровенного копирайта) ——— */
 .gpl--truth_dare {
   --gpl-bg1: #050505;
