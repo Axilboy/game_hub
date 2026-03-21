@@ -11,6 +11,7 @@ import { useToast } from '../components/ui/ToastProvider';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import PageLayout from '../components/layout/PageLayout';
+import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Badge from '../components/ui/Badge';
 import Chip from '../components/ui/Chip';
 import EmptyState from '../components/ui/EmptyState';
@@ -391,49 +392,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     else if (selectedGame === 'truth_dare') await startTruthDare();
   };
 
-  const getMinPlayersForSelectedGame = () => {
-    if (!selectedGame) return 0;
-    if (selectedGame === 'spy') return minSpyPlayers(spyCount);
-    if (selectedGame === 'mafia') return MIN_PLAYERS.mafia;
-    if (selectedGame === 'elias') return MIN_PLAYERS.elias;
-    if (selectedGame === 'bunker') return MIN_PLAYERS.bunker;
-    if (selectedGame === 'truth_dare') return MIN_PLAYERS.truth_dare;
-    return 0;
-  };
-
-  const getHostTips = () => {
-    if (!isHost || !selectedGame || startingGame) return null;
-    const count = room?.players?.length ?? 0;
-    const min = getMinPlayersForSelectedGame();
-    const gs = room?.gameSettings || {};
-
-    if (selectedGame === 'elias' && Array.isArray(gs.eliasTeams) && gs.eliasTeams.length >= 2) {
-      const totalPlaying = gs.eliasTeams.reduce((sum, t) => sum + (t.playerIds?.length || 0), 0);
-      const teamsWithPlayers = gs.eliasTeams.filter((t) => (t.playerIds || []).length > 0).length;
-      if (totalPlaying > 0 && totalPlaying < 2) {
-        return `Для Элиаса в командах должно быть минимум 2 игрока. Сейчас в командах: ${totalPlaying}.`;
-      }
-      if (totalPlaying >= 2 && teamsWithPlayers < 2) {
-        return 'Элиас стартует только если игроки распределены минимум в двух разных командах.';
-      }
-    }
-
-    if (min > 0 && count < min) {
-      if (selectedGame === 'spy') {
-        return `Нужно минимум ${min} игроков для Шпиона (сейчас: ${count}).`;
-      }
-      if (selectedGame === 'mafia') {
-        return `Нужно минимум ${MIN_PLAYERS.mafia} игроков для Мафии (сейчас: ${count}).`;
-      }
-      if (selectedGame === 'elias') {
-        return `Нужно минимум ${MIN_PLAYERS.elias} игроков для Элиаса (сейчас: ${count}).`;
-      }
-      return `Нужно минимум ${min} игроков для этой игры (сейчас: ${count}).`;
-    }
-
-    return null;
-  };
-
   const saveRoomName = async () => {
     setEditingName(false);
     const name = (editNameValue || '').trim() || 'Лобби';
@@ -461,15 +419,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       return;
     }
     showToast({ type: 'error', message: 'Не удалось поделиться приглашением' });
-  };
-
-  const copyRoomCode = async () => {
-    try {
-      await navigator.clipboard.writeText(String(room.code || ''));
-      showToast({ type: 'success', message: 'Код комнаты скопирован' });
-    } catch (_) {
-      showToast({ type: 'error', message: 'Не удалось скопировать код' });
-    }
   };
 
   const handleBack = () => {
@@ -539,12 +488,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const playersList = room.players || [];
-  const onlineCount = playersList.filter((p) => p.online !== false).length;
   return (
     <PageLayout
       title={roomName}
       onBack={handleBack}
-      right={<span style={{ fontSize: 12, opacity: 0.8 }}>{onlineCount}/{playersList.length}</span>}
+      right={<AppHeaderRight user={user} />}
     >
       {editingName && isHost ? (
         <input
@@ -566,13 +514,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </h2>
       )}
 
-      <p>Код комнаты: <strong>{room.code}</strong></p>
-      <p style={{ fontSize: 14, opacity: 0.88, marginTop: 4, marginBottom: 12 }}>
-        Онлайн: <strong>{onlineCount}</strong> / {playersList.length}
+      <p style={{ marginBottom: 12 }}>
+        ID комнаты: <strong>{room.code}</strong>
       </p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <Button variant="secondary" onClick={copyRoomCode} style={{ flex: 1 }}>
-          Копировать код
+        <Button variant="primary" onClick={shareInvite} style={{ flex: 1 }}>
+          Поделиться
         </Button>
         <Button variant="secondary" onClick={() => setQrOpen(true)} style={{ flex: 1 }} disabled={!inviteLink}>
           QR
@@ -676,7 +623,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 <span style={{ marginLeft: 6 }}>
                   {p.isHost ? <Badge tone="info">Хост</Badge> : null}
                   {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Премиум</Badge></span> : null}
-                  {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : <span style={{ marginLeft: 4 }}><Badge tone="success">Онлайн</Badge></span>}
+                  {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : null}
                 </span>
               </span>
             </div>
@@ -717,13 +664,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           ) : (
             <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>Игра выбрана.</p>
           )}
-        </div>
-      )}
-
-      {getHostTips() && (
-        <div className="gh-card" style={{ padding: 12, marginBottom: 16, borderColor: 'rgba(255, 220, 80, 0.35)' }}>
-          <p style={{ margin: 0, fontWeight: 800, marginBottom: 6, opacity: 0.95, color: '#fd8' }}>Подсказка хосту</p>
-          <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>{getHostTips()}</p>
         </div>
       )}
 

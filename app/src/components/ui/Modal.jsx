@@ -13,6 +13,10 @@ export default function Modal({
 }) {
   const panelRef = useRef(null);
   const prevActive = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  /** Чтобы при каждом ре-рендере родителя не срабатывала автофокусировка (на мобильных закрывает клавиатуру в полях ввода). */
+  const didFocusOnOpenRef = useRef(false);
 
   const handleTab = useCallback(
     (e) => {
@@ -39,21 +43,32 @@ export default function Modal({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      didFocusOnOpenRef.current = false;
+      return;
+    }
+
     prevActive.current = document.activeElement;
-    const t = requestAnimationFrame(() => {
-      const root = panelRef.current;
-      if (!root) return;
-      const first = root.querySelector(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      (first || root).focus?.();
-    });
+
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') onCloseRef.current?.();
       handleTab(e);
     };
     window.addEventListener('keydown', onKeyDown);
+
+    let t = 0;
+    if (!didFocusOnOpenRef.current) {
+      didFocusOnOpenRef.current = true;
+      t = requestAnimationFrame(() => {
+        const root = panelRef.current;
+        if (!root) return;
+        const first = root.querySelector(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        (first || root).focus?.();
+      });
+    }
+
     return () => {
       cancelAnimationFrame(t);
       window.removeEventListener('keydown', onKeyDown);
@@ -63,7 +78,7 @@ export default function Modal({
         } catch (_) {}
       }
     };
-  }, [open, onClose, handleTab]);
+  }, [open, handleTab]);
 
   if (!open) return null;
 
@@ -83,7 +98,7 @@ export default function Modal({
         padding: 'var(--gh-space-6, 24px)',
       }}
       onClick={() => {
-        if (closeOnOverlayClick !== false) onClose?.();
+        if (closeOnOverlayClick !== false) onCloseRef.current?.();
       }}
       role="presentation"
     >

@@ -188,6 +188,16 @@ html[data-theme='light'] {
   align-items: stretch;
 }
 
+.home-join-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.home-join-compact .home-panel__text {
+  margin-bottom: 10px;
+}
+
 .home-form-row .gh-input {
   flex: 1;
   min-width: 0;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { canStartTrial, getInventory, getOrCreateReferralCode, redeemReferralCode, setPro, startTrialUnlock } from '../inventory';
 import { api, getApiErrorMessage } from '../api';
@@ -44,6 +44,27 @@ function isInviteExpiredError(err) {
   return msg.includes('room not found') || msg.includes('комната не найдена') || msg.includes('not in room');
 }
 
+/** Из текста ссылки или буфера — токен приглашения для /rooms/join */
+function extractInviteTokenFromText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+  let u;
+  try {
+    u = new URL(raw.includes('://') ? raw : `https://${raw.replace(/^\/+/, '')}`);
+  } catch {
+    const m = raw.match(/[?&]invite=([^&\s#]+)/i);
+    if (m) return decodeURIComponent(m[1]);
+    const m2 = raw.match(/[?&]start=([^&\s#]+)/i);
+    if (m2) return decodeURIComponent(m2[1]);
+    return '';
+  }
+  const inv = u.searchParams.get('invite');
+  if (inv) return inv;
+  const st = u.searchParams.get('start');
+  if (st) return st;
+  return '';
+}
+
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
   useSeo({
@@ -77,6 +98,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [adLoading, setAdLoading] = useState(false);
   const [hasRematchRoom, setHasRematchRoom] = useState(false);
   const [inviteIssue, setInviteIssue] = useState(false);
+  const [homeQrJoinOpen, setHomeQrJoinOpen] = useState(false);
   const codeInputRef = useRef(null);
   const shownName = displayNameState || user?.first_name || 'Игрок';
   const myReferralCode = getOrCreateReferralCode();
@@ -271,6 +293,39 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
     setShowThanks(false);
   };
 
+  const closeFeedback = useCallback(() => {
+    setShowFeedback(false);
+    setFeedbackCategory(null);
+  }, []);
+
+  const handlePasteInviteAndJoin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      let text = '';
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {
+        setError('Нет доступа к буферу обмена. Вставьте ссылку вручную в поле ниже или введите код.');
+        setLoading(false);
+        return;
+      }
+      const token = extractInviteTokenFromText(text);
+      if (!token) {
+        setError('В буфере не найдена ссылка-приглашение. Скопируйте ссылку из чата с другом.');
+        setLoading(false);
+        return;
+      }
+      await onJoinByInvite(token);
+      setHomeQrJoinOpen(false);
+      navigate('/lobby');
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Не удалось войти по приглашению'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submitFeedback = async () => {
     const text = feedbackText.trim();
     if (text.length < 3) {
@@ -358,7 +413,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
                 }}
                 disabled={loading}
               >
-                Начать игру
+                НАЧНИ ИГРУ
               </button>
               {hasRematchRoom && (
                 <button
@@ -390,14 +445,17 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
             className="home-btn home-btn--primary"
             onClick={handleCreate}
             disabled={loading}
-            aria-label="Начать игру и создать комнату"
+            aria-label="Создать комнату и начать игру"
           >
-            Начать игру
+            НАЧНИ ИГРУ
           </button>
         </div>
 
-        <section className="home-panel">
-          <p className="home-panel__title">Войти по коду</p>
+        <section className="home-panel home-join-compact">
+          <div className="home-panel__title">Войти в комнату</div>
+          <p className="home-panel__text" style={{ marginBottom: 10 }}>
+            Введите шестизначный ID или вставьте ссылку-приглашение из чата (кнопка «Войти по QR»).
+          </p>
           {showAdminPassword ? (
             <form onSubmit={handleAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input
@@ -411,24 +469,48 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               <button type="button" className="home-btn home-btn--secondary" onClick={() => { setShowAdminPassword(false); setAdminPassword(''); setError(''); }}>Отмена</button>
             </form>
           ) : (
-            <form onSubmit={handleJoinByCode} className="home-form-row">
-              <input
-                ref={codeInputRef}
-                type="text"
-                className="gh-input gh-input--grow"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="000000"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                aria-label="Код комнаты из 6 цифр"
-              />
-              <button type="submit" className="home-btn home-btn--primary home-btn--inline" disabled={loading}>
-                Войти
+            <>
+              <form onSubmit={handleJoinByCode} className="home-join-row">
+                <input
+                  ref={codeInputRef}
+                  type="text"
+                  className="gh-input"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="ID"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  aria-label="ID комнаты, 6 цифр"
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <button type="submit" className="home-btn home-btn--primary home-btn--inline" disabled={loading}>
+                  Войти
+                </button>
+              </form>
+              <button
+                type="button"
+                className="home-btn home-btn--secondary"
+                style={{ marginTop: 10, width: '100%' }}
+                onClick={() => setHomeQrJoinOpen(true)}
+              >
+                Войти по QR
               </button>
-            </form>
+            </>
           )}
         </section>
+
+        <Modal open={homeQrJoinOpen} onClose={() => setHomeQrJoinOpen(false)} title="Войти по QR" width={380}>
+          <p style={{ marginTop: 0, fontSize: 14, lineHeight: 1.5, opacity: 0.92 }}>
+            Попросите друга открыть лобби и нажать «QR» — отсканируйте код камерой или скопируйте
+            <strong> ссылку-приглашение</strong> из чата и нажмите кнопку ниже (вставится из буфера обмена).
+          </p>
+          <button type="button" className="home-btn home-btn--primary home-btn--mb" onClick={handlePasteInviteAndJoin} disabled={loading}>
+            {loading ? 'Вход…' : 'Вставить ссылку из буфера и войти'}
+          </button>
+          <button type="button" className="home-btn home-btn--secondary" onClick={() => setHomeQrJoinOpen(false)}>
+            Закрыть
+          </button>
+        </Modal>
 
         {hasRematchRoom && (
           <section className="home-panel gh-fade-in">
@@ -455,7 +537,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <section className="home-panel gh-fade-in">
           <div className="home-panel__title">Сценарий за 30 секунд</div>
           <ol className="home-scenario">
-            <li className="home-scenario__item">Нажми «Начать игру» и создай комнату.</li>
+            <li className="home-scenario__item">Нажми «НАЧНИ ИГРУ» и создай комнату.</li>
             <li className="home-scenario__item">
               Поделись ссылкой · покажи QR · продиктуй ID комнаты друзьям.
             </li>
@@ -594,8 +676,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               onClick={() => {
                 dismissThanks();
                 setFeedbackCategory(null);
-                setShowFeedback(true);
                 setFeedbackDone(false);
+                setShowFeedback(true);
               }}
               disabled={loading}
             >
@@ -621,10 +703,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
         <Modal
           open={showFeedback}
-          onClose={() => {
-            setShowFeedback(false);
-            setFeedbackCategory(null);
-          }}
+          onClose={closeFeedback}
           title="Обратная связь"
           width={400}
         >
@@ -636,6 +715,17 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               <p style={{ color: '#22c55e', fontSize: 14 }}>Спасибо! Сообщение отправлено.</p>
             ) : (
               <>
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+                  Сообщение
+                </label>
+                <textarea
+                  className="gh-input gh-input--full"
+                  rows={5}
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Например: не хватает кнопки… или нашёл ошибку в…"
+                  style={{ resize: 'vertical', minHeight: 100, marginBottom: 12 }}
+                />
                 <div style={{ marginBottom: 12 }}>
                   <span style={{ display: 'block', fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Категория (необязательно)</span>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -656,17 +746,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
                   </div>
                 </div>
                 <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
-                  Сообщение
-                </label>
-                <textarea
-                  className="gh-input gh-input--full"
-                  rows={5}
-                  value={feedbackText}
-                  onChange={(e) => setFeedbackText(e.target.value)}
-                  placeholder="Например: не хватает кнопки… или нашёл ошибку в…"
-                  style={{ resize: 'vertical', minHeight: 100, marginBottom: 12 }}
-                />
-                <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
                   Контакт (необязательно)
                 </label>
                 <input
@@ -683,7 +762,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               </>
             )}
             <div style={{ marginTop: 12 }}>
-              <button type="button" className="home-btn home-btn--secondary" onClick={() => setShowFeedback(false)}>
+              <button type="button" className="home-btn home-btn--secondary" onClick={closeFeedback}>
                 {feedbackDone ? 'Закрыть' : 'Отмена'}
               </button>
             </div>
