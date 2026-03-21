@@ -13,6 +13,7 @@ import Segmented from '../components/ui/Segmented';
 import { getFunnelSummary } from '../analytics';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import PageLayout from '../components/layout/PageLayout';
+import SaveAccountPanel from '../components/SaveAccountPanel';
 import { applyTheme } from '../theme';
 
 const THEMES = [
@@ -242,6 +243,8 @@ export default function Profile({ user }) {
           ))}
         </div>
       </header>
+
+      <SaveAccountPanel user={user} variant="full" showImport />
 
       <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Статистика устройства</div>

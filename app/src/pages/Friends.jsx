@@ -4,6 +4,7 @@ import { api, getApiErrorMessage } from '../api';
 import { useToast } from '../components/ui/ToastProvider';
 import useSeo from '../hooks/useSeo';
 import PageLayout from '../components/layout/PageLayout';
+import SaveAccountPanel from '../components/SaveAccountPanel';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Button from '../components/ui/Button';
 import { friendDisplayNameOnly } from '../displayName';
@@ -116,6 +117,7 @@ export default function FriendsPage({ user, onJoinByInvite }) {
       onBack={() => navigate('/')}
     >
       <div className="friends-page">
+        {myId ? <SaveAccountPanel user={user} variant="full" /> : null}
         {!myId ? (
           <p className="friends-page__muted">Войдите в приложение, чтобы видеть друзей.</p>
         ) : loading ? (

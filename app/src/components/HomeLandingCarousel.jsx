@@ -55,8 +55,8 @@ const GAME_SLIDES = [
   },
 ];
 
-/** GameHub + 5 игр */
-const CYCLE_LEN = 1 + GAME_SLIDES.length;
+/** Только слайды игр */
+const CYCLE_LEN = GAME_SLIDES.length;
 /** Средняя копия (влево и вправо есть ещё по одной полной серии) */
 const MIDDLE_START = CYCLE_LEN;
 
@@ -218,16 +218,6 @@ export default function HomeLandingCarousel() {
     const logical = logicalRef.current;
     const nextLogical = (logical + 1) % CYCLE_LEN;
 
-    if (logical === CYCLE_LEN - 1 && nextLogical === 0) {
-      const hubMid = slides[MIDDLE_START];
-      if (hubMid) {
-        logicalRef.current = 0;
-        setActiveLogical(0);
-        scrollSlideIntoViewCenter(root, hubMid, 'smooth');
-      }
-      return;
-    }
-
     const target = slides[MIDDLE_START + nextLogical];
     if (target) {
       scrollSlideIntoViewCenter(root, target, 'smooth');
@@ -256,9 +246,9 @@ export default function HomeLandingCarousel() {
     requestAnimationFrame(() => {
       const r = scrollRef.current;
       const slides = r ? [...r.querySelectorAll('[data-carousel-slide]')] : [];
-      const hubMid = slides[MIDDLE_START];
-      if (r && hubMid) {
-        scrollSlideIntoViewCenter(r, hubMid, 'auto');
+      const midFirst = slides[MIDDLE_START];
+      if (r && midFirst) {
+        scrollSlideIntoViewCenter(r, midFirst, 'auto');
       }
       logicalRef.current = 0;
       setActiveLogical(0);
@@ -307,13 +297,13 @@ export default function HomeLandingCarousel() {
     scrollToLogical(i, 'smooth');
   };
 
-  const baseSlides = [{ kind: 'hub', key: 'hub' }, ...GAME_SLIDES.map((g) => ({ kind: 'game', ...g }))];
+  const baseSlides = GAME_SLIDES.map((g) => ({ ...g }));
   const renderedSlides = [...baseSlides, ...baseSlides, ...baseSlides];
 
-  const dotLabels = ['GameHub', 'Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер'];
+  const dotLabels = ['Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер'];
 
   return (
-    <section className="gh-home-carousel-wrap" aria-label="GameHub и игры">
+    <section className="gh-home-carousel-wrap" aria-label="Игры">
       <div className="gh-home-carousel__frame">
         <div className="gh-home-carousel__strip">
           <button
@@ -333,44 +323,24 @@ export default function HomeLandingCarousel() {
             ›
           </button>
           <div className="gh-home-carousel" ref={scrollRef} role="region" aria-roledescription="карусель">
-          {renderedSlides.map((s, idx) => {
-            if (s.kind === 'hub') {
-              return (
-                <div
-                  key={`hub-${idx}`}
-                  data-carousel-slide
-                  className="gh-home-carousel__slide gh-home-carousel__slide--hub"
-                  role="group"
-                  aria-label="GameHub Party — общий вход"
-                >
-                  <div className="gh-home-carousel__inner gh-home-carousel__inner--hub">
-                    <div className="gh-home-carousel__hub-line1">GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
-                    <div className="gh-home-carousel__hub-line2">Играй с друзьями прямо в браузере</div>
-                    <div className="gh-home-carousel__hub-line3">Без регистрации</div>
-                  </div>
+          {renderedSlides.map((s, idx) => (
+            <Link
+              key={`${s.key}-${idx}`}
+              to={s.to}
+              data-carousel-slide
+              className={`gh-home-carousel__slide gpl gpl--${s.theme}`}
+              onClick={() => track('home_carousel_landing', { path: s.to, theme: s.theme })}
+            >
+              <div className="gh-home-carousel__inner">
+                <div className="gh-home-carousel__emoji" aria-hidden>
+                  {s.emoji}
                 </div>
-              );
-            }
-
-            return (
-              <Link
-                key={`${s.key}-${idx}`}
-                to={s.to}
-                data-carousel-slide
-                className={`gh-home-carousel__slide gpl gpl--${s.theme}`}
-                onClick={() => track('home_carousel_landing', { path: s.to, theme: s.theme })}
-              >
-                <div className="gh-home-carousel__inner">
-                  <div className="gh-home-carousel__emoji" aria-hidden>
-                    {s.emoji}
-                  </div>
-                  <p className="gh-home-carousel__eyebrow">{s.eyebrow}</p>
-                  <h3 className="gh-home-carousel__title">{s.title}</h3>
-                  <p className="gh-home-carousel__subtitle">{s.subtitle}</p>
-                </div>
-              </Link>
-            );
-          })}
+                <p className="gh-home-carousel__eyebrow">{s.eyebrow}</p>
+                <h3 className="gh-home-carousel__title">{s.title}</h3>
+                <p className="gh-home-carousel__subtitle">{s.subtitle}</p>
+              </div>
+            </Link>
+          ))}
           </div>
         </div>
         <div className="gh-home-carousel__dots" role="tablist" aria-label="Выбор слайда">

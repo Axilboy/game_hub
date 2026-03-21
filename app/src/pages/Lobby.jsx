@@ -2471,7 +2471,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         )}
       </Modal>
 
-      <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} initialGameFilter={selectedGame || 'all'} />
+      <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} initialGameFilter={selectedGame || 'all'} user={user} />
     </PageLayout>
   );
 }

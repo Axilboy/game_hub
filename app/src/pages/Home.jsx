@@ -779,7 +779,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
             </div>
           </div>
         )}
-        <ShopModal open={showShopStub} onClose={() => setShowShopStub(false)} initialGameFilter="all" />
+        <ShopModal open={showShopStub} onClose={() => setShowShopStub(false)} initialGameFilter="all" user={user} />
 
         <section className="home-panel" style={{ marginTop: 8 }}>
           <div className="home-panel__title">Поддержать проект</div>
