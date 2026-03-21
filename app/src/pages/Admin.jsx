@@ -85,10 +85,10 @@ export default function Admin() {
   };
 
   const sharePromo = () => {
-    const text = `GameHub — промокод на Про: ${createdPromo.code}\nПерейди в приложение и введи промокод: ${APP_LINK}`;
+    const text = `GameHub — промокод на Премиум: ${createdPromo.code}\nПерейди в приложение и введи промокод: ${APP_LINK}`;
     const tg = window.Telegram?.WebApp;
     if (tg?.openTelegramLink) {
-      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(APP_LINK)}&text=${encodeURIComponent('GameHub — промокод на Про: ' + createdPromo.code + '\nПерейди в приложение и введи промокод.')}`);
+      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(APP_LINK)}&text=${encodeURIComponent('GameHub — промокод на Премиум: ' + createdPromo.code + '\nПерейди в приложение и введи промокод.')}`);
       showToast({ type: 'info', message: 'Выберите чат для отправки' });
     } else {
       navigator.clipboard.writeText(text).then(() => {

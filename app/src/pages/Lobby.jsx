@@ -39,18 +39,18 @@ const BUNKER_SCENARIOS = [
 ];
 const DICT_NAMES = {
   free: 'Базовый',
-  theme1: 'Детектив (Про)',
-  theme2: 'Пираты (Про)',
-  travel: 'Путешествия (Про)',
-  food: 'Еда (Про)',
-  sports: 'Спорт (Про)',
-  movies: 'Кино (Про)',
-  music: 'Музыка (Про)',
-  nature: 'Природа (Про)',
-  science: 'Наука (Про)',
-  history: 'История (Про)',
-  art: 'Искусство (Про)',
-  tech: 'Технологии (Про)',
+  theme1: 'Детектив (Премиум)',
+  theme2: 'Пираты (Премиум)',
+  travel: 'Путешествия (Премиум)',
+  food: 'Еда (Премиум)',
+  sports: 'Спорт (Премиум)',
+  movies: 'Кино (Премиум)',
+  music: 'Музыка (Премиум)',
+  nature: 'Природа (Премиум)',
+  science: 'Наука (Премиум)',
+  history: 'История (Премиум)',
+  art: 'Искусство (Премиум)',
+  tech: 'Технологии (Премиум)',
 };
 const MIN_PLAYERS = { mafia: 4, elias: 2, truth_dare: 2, bunker: 4 };
 function minSpyPlayers(spyCount) {
@@ -668,14 +668,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   </div>
                 )}
                 {p.hasPro && !p.isHost && (
-                  <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 14 }} title="Про">👑</span>
+                  <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 14 }} title="Премиум">👑</span>
                 )}
               </div>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {p.name}
                 <span style={{ marginLeft: 6 }}>
                   {p.isHost ? <Badge tone="info">Хост</Badge> : null}
-                  {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Про</Badge></span> : null}
+                  {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Премиум</Badge></span> : null}
                   {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : <span style={{ marginLeft: 4 }}><Badge tone="success">Онлайн</Badge></span>}
                 </span>
               </span>
@@ -773,7 +773,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                           key={n}
                           type="button"
                           disabled={!enabled}
-                          title={!enabled ? 'Нужна подписка Про' : ''}
+                          title={!enabled ? 'Нужна подписка Премиум' : ''}
                           onClick={() => {
                             if (!enabled) return;
                             setSpyCount(n);
@@ -787,7 +787,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                             opacity: enabled ? 1 : 0.6,
                           }}
                         >
-                          {n}{n > 1 && <span style={{ fontSize: 10, marginLeft: 4 }}>Про</span>}
+                          {n}{n > 1 && <span style={{ fontSize: 10, marginLeft: 4 }}>Премиум</span>}
                         </button>
                       );
                     })}
@@ -880,7 +880,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
-              <p style={{ margin: 0, fontSize: 14 }}>Режим: {room.gameSettings.extended ? 'Расширенный (Про)' : 'Классика'}</p>
+              <p style={{ margin: 0, fontSize: 14 }}>Режим: {room.gameSettings.extended ? 'Расширенный (Премиум)' : 'Классика'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Ведущий: {room.gameSettings.hostSelection === 'choose' ? 'выбор' : 'случайно'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>
                 Таймеры фаз: ночь {room.gameSettings.phaseTimers?.nightMafia ?? 45}с, день {room.gameSettings.phaseTimers?.day ?? 90}с, голосование {room.gameSettings.phaseTimers?.voting ?? 45}с
@@ -913,7 +913,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     style={{ ...btnStyle, flex: 1, padding: 10, background: (room?.gameSettings?.extended ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444'), opacity: roomHasPro ? 1 : 0.6 }}
                     title="Подробнее об расширенной версии"
                   >
-                    Расширенная (Про)
+                    Расширенная (Премиум)
                   </button>
                 </div>
               )}
@@ -1541,7 +1541,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <li>Доктор — может лечить одного игрока за ночь</li>
               <li>Маньяк — побеждает, если остаётся с мирным</li>
             </ul>
-            <p style={{ marginBottom: 0, fontSize: 13, opacity: 0.9 }}>Доступно по подписке Про.</p>
+            <p style={{ marginBottom: 0, fontSize: 13, opacity: 0.9 }}>Доступно по подписке Премиум.</p>
             <button type="button" onClick={() => setMafiaExtendedPopup(false)} style={{ ...btnStyle, marginTop: 16 }}>Понятно</button>
           </div>
         </div>
@@ -1584,7 +1584,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     }}
                   >
                     {!available && (
-                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Про">🔒</div>
+                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Премиум">🔒</div>
                     )}
                     <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 8 }}>
                       {card.emoji}
@@ -1611,7 +1611,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
             <p style={{ marginBottom: 8 }}>🔒 {DICT_NAMES[spyDictLockPopup] || spyDictLockPopup}</p>
-            <p style={{ fontSize: 14, opacity: 0.9, marginBottom: 16 }}>Этот словарь доступен только по подписке Про. Покупка отдельных словарей пока не реализована — оформите Премиум, чтобы открыть все тематические локации.</p>
+            <p style={{ fontSize: 14, opacity: 0.9, marginBottom: 16 }}>Этот словарь доступен только по подписке Премиум. Покупка отдельных словарей пока не реализована — оформите Премиум, чтобы открыть все тематические локации.</p>
             <button type="button" onClick={() => setSpyDictLockPopup(null)} style={btnStyle}>Понятно</button>
           </div>
         </div>
@@ -1703,10 +1703,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       minHeight: 100,
                       opacity: locked ? 0.55 : 1,
                     }}
-                    title={lockedByPro ? `Нужен Про или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
+                    title={lockedByPro ? `Нужен Премиум или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
                   >
                     {lockedByPro && (
-                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Про / pack">🔒</div>
+                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Премиум / pack">🔒</div>
                     )}
                     <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 8 }}>
                       {c.emoji || '📇'}
@@ -1768,7 +1768,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       {card.emoji}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{card.name}{!card.free && <span style={{ fontSize: 11, marginLeft: 6, opacity: 0.8 }}>Про</span>}</div>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{card.name}{!card.free && <span style={{ fontSize: 11, marginLeft: 6, opacity: 0.8 }}>Премиум</span>}</div>
                       <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}>{card.description}</div>
                     </div>
                     <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${selected ? 'var(--tg-theme-button-color)' : '#666'}`, background: selected ? 'var(--tg-theme-button-color)' : 'transparent', flexShrink: 0 }} />

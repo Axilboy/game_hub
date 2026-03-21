@@ -476,7 +476,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       {showSubStub && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 16 }}>Про убирает рекламу перед стартом, открывает премиальные словари и режимы (например, расширенную Мафию) для <strong>всех</strong> в вашей комнате на время сессии.</p>
+            <p style={{ marginBottom: 16 }}>Премиум убирает рекламу перед стартом, открывает премиальные словари и режимы (например, расширенную Мафию) для <strong>всех</strong> в вашей комнате на время сессии.</p>
             <ul style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18, fontSize: 13, opacity: 0.92, lineHeight: 1.45 }}>
               <li>Без рекламы перед стартом.</li>
               <li>Премиальные словари и режимы.</li>
@@ -561,7 +561,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               </button>
             </div>
             <p style={{ margin: '0 0 12px', fontSize: 12, opacity: 0.82 }}>
-              Ваш код: <strong>{myReferralCode}</strong> (бонус +12ч Про для друга)
+              Ваш код: <strong>{myReferralCode}</strong> (бонус +12ч Премиум для друга)
             </p>
             <button
               type="button"
@@ -609,7 +609,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         width={360}
       >
         <p style={{ marginBottom: 12, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
-          Спасибо за поддержку и тестирование. У вас включён <strong>Про</strong>, чтобы можно было попробовать все режимы бесплатно.
+          Спасибо за поддержку и тестирование. У вас включён <strong>Премиум</strong>, чтобы можно было попробовать все режимы бесплатно.
           Будем благодарны, если поделитесь проектом с друзьями и напишете отзыв через «Обратная связь».
         </p>
         <Button variant="primary" fullWidth onClick={dismissThanks}>

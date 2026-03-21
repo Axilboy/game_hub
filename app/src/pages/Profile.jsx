@@ -48,7 +48,7 @@ export default function Profile({ user }) {
 
   useSeo({
     title: 'Профиль — GameHub',
-    description: 'Имя, статистика, подписка Про и настройки темы.',
+    description: 'Имя, статистика, подписка Премиум и настройки темы.',
     canonical,
     robots: 'noindex, nofollow',
   });
@@ -110,7 +110,7 @@ export default function Profile({ user }) {
     `Сыграно матчей: ${gamesPlayed}\n` +
     `Любимая игра: ${topGame}\n` +
     `Streak: ${currentStreak} (рекорд ${bestStreak})\n` +
-    `Про: ${inv.hasPro ? 'да' : 'нет'}`;
+    `Премиум: ${inv.hasPro ? 'да' : 'нет'}`;
 
   const saveName = () => {
     const v = String(nameDraft || '').trim();
@@ -157,7 +157,7 @@ export default function Profile({ user }) {
     { id: 'creator', label: 'Создатель комнат (5+)', done: (funnel.roomCreate || 0) >= 5 },
     { id: 'starter', label: 'Запуск игр (10+)', done: (funnel.gameStart || 0) >= 10 },
     { id: 'finisher', label: 'Завершённые матчи (10+)', done: (funnel.matchCompleted || 0) >= 10 },
-    { id: 'pro', label: 'Про активна', done: Boolean(inv.hasPro) },
+    { id: 'pro', label: 'Премиум активен', done: Boolean(inv.hasPro) },
     { id: 'spy_fan', label: 'Фанат Шпиона (10+)', done: (local.gamesByType?.spy || 0) >= 10 },
     { id: 'mafia_fan', label: 'Фанат Мафии (10+)', done: (local.gamesByType?.mafia || 0) >= 10 },
     { id: 'elias_fan', label: 'Фанат Элиаса (10+)', done: (local.gamesByType?.elias || 0) >= 10 },
@@ -213,7 +213,7 @@ export default function Profile({ user }) {
               <div style={{ fontWeight: 800, fontSize: 18 }}>{name}</div>
             )}
             <div style={{ fontSize: 14, opacity: 0.85, marginTop: 4 }}>
-              {inv.hasPro ? <Badge tone="success">Про активна</Badge> : <Badge>Без Про</Badge>}
+              {inv.hasPro ? <Badge tone="success">Премиум активен</Badge> : <Badge>Без Премиума</Badge>}
             </div>
           </div>
         </div>
@@ -332,7 +332,7 @@ export default function Profile({ user }) {
         </div>
         <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Chip active>Уровень {level.level}</Chip>
-          <Chip active={inv.hasPro}>Про</Chip>
+          <Chip active={inv.hasPro}>Премиум</Chip>
           <Chip>{topGame === '—' ? 'Без любимой игры' : `Любимая: ${topGame}`}</Chip>
           <Chip active={currentStreak >= 3}>Серия {currentStreak} дн.</Chip>
           <Chip active={gamesPlayed >= 50}>50+ матчей</Chip>
@@ -369,7 +369,7 @@ export default function Profile({ user }) {
             <div key={row.game} style={{ padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.05)' }}>
               <div style={{ fontWeight: 700 }}>{row.title}</div>
               <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>Free: {row.free.join(', ')}</div>
-              <div style={{ fontSize: 12, opacity: 0.92, marginTop: 4 }}>Pro: {row.pro.join(', ')}</div>
+              <div style={{ fontSize: 12, opacity: 0.92, marginTop: 4 }}>Премиум: {row.pro.join(', ')}</div>
             </div>
           ))}
         </div>

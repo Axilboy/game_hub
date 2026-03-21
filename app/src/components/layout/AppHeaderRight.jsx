@@ -13,7 +13,7 @@ export default function AppHeaderRight({ user }) {
   const profilePhoto = getProfilePhoto();
   const avatarEmoji = getAvatar();
 
-  const sub = inv.hasPro ? 'Про' : 'Без Про';
+  const sub = inv.hasPro ? 'Премиум' : 'Без Премиума';
 
   return (
     <div className="gh-header-actions">

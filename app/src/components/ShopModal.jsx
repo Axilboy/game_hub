@@ -88,7 +88,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
       >
         <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин и словари</h3>
         <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
-          Витрина: тематические наборы слов и фичи по играм. С <strong>Про</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
+          Витрина: тематические наборы слов и фичи по играм. С <strong>Премиум</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
         </p>
         <p style={{ fontSize: 13, marginBottom: 8 }}>Игра</p>
         <Select
@@ -196,7 +196,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
           </div>
         </div>
         <p style={{ fontSize: 12, opacity: 0.85, marginTop: 12, lineHeight: 1.45 }}>
-          Отдельная покупка карточек пока в разработке. Сейчас самый быстрый путь — <strong>Про</strong>: все премиальные словари, расширенная Мафия и без рекламы перед стартом для всей группы.
+          Отдельная покупка карточек пока в разработке. Сейчас самый быстрый путь — <strong>Премиум</strong>: все премиальные словари, расширенная Мафия и без рекламы перед стартом для всей группы.
         </p>
         <button type="button" onClick={onClose} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
       </div>
