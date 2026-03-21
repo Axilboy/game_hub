@@ -1,10 +1,11 @@
-/** Стрелка «Назад». `inline` — в шапке игры (не fixed), иначе плавающая кнопка для экранов без topbar. */
-export default function BackArrow({ onClick, title = 'Назад', inline = false }) {
+/** Стрелка «Назад». `inline` — в шапке игры (не fixed), иначе плавающая кнопка для экранов без topbar. `icon` — например ⌂ для выхода на главную. */
+export default function BackArrow({ onClick, title = 'Назад', inline = false, icon }) {
   if (!onClick) return null;
+  const glyph = icon ?? '‹';
   if (inline) {
     return (
       <button type="button" className="gameplay__backBtn" onClick={onClick} title={title} aria-label={title}>
-        ‹
+        {glyph}
       </button>
     );
   }
@@ -32,7 +33,7 @@ export default function BackArrow({ onClick, title = 'Назад', inline = fals
       }}
       aria-label={title}
     >
-      ‹
+      {glyph}
     </button>
   );
 }

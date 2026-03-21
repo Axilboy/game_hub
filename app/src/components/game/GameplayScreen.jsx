@@ -6,12 +6,16 @@ import '../landing/gamePromoLanding.css';
 /**
  * Единая оболочка экрана игры: градиент и токены темы как на промо-лендингах (.gpl--*).
  * @param {'spy'|'mafia'|'elias'|'truth_dare'|'bunker'} theme
+ * @param {boolean} [showHomeButton] — отдельная кнопка «на главную» справа (у мафии обычно false — выход в левой кнопке).
  */
 export default function GameplayScreen({
   theme,
   user,
   onBack,
   backTitle = 'Назад',
+  /** Необязательный символ левой кнопки (например ⌂) */
+  backIcon,
+  showHomeButton = true,
   title,
   children,
   headerExtra,
@@ -22,19 +26,21 @@ export default function GameplayScreen({
       <div className="gameplay__inner">
         <header className="gameplay__topbar">
           <div className="gameplay__topbarSlot gameplay__topbarSlot--start">
-            {onBack ? <BackArrow onClick={onBack} title={backTitle} inline /> : <span className="gameplay__topbarPad" aria-hidden />}
+            {onBack ? <BackArrow onClick={onBack} title={backTitle} inline icon={backIcon} /> : <span className="gameplay__topbarPad" aria-hidden />}
           </div>
           <span className="gameplay__title">{title || '\u00a0'}</span>
           <div className="gameplay__topbarSlot gameplay__topbarSlot--end">
-            <button
-              type="button"
-              className="gameplay__homeBtn"
-              onClick={() => navigate('/')}
-              title="На главную"
-              aria-label="На главную"
-            >
-              ⌂
-            </button>
+            {showHomeButton ? (
+              <button
+                type="button"
+                className="gameplay__homeBtn"
+                onClick={() => navigate('/')}
+                title="На главную"
+                aria-label="На главную"
+              >
+                ⌂
+              </button>
+            ) : null}
             <AppHeaderRight user={user} />
           </div>
         </header>

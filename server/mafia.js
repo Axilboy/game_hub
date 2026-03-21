@@ -116,12 +116,18 @@ function baseMafiaPayload(moderatorId, poolIds, roleMap, settings) {
     mafiaVotes: {},
     commissionerCheck: null,
     doctorSave: null,
+    prostituteVisit: null,
     nightKill: null,
     dayVotes: {},
     killedTonight: [],
     eliminatedToday: [],
     revealed: [],
-    commissionerCheckedId: null,
+    /** Приватная проверка комиссара (только для комиссара в toClientState), не для общего стола */
+    commissionerPrivate: null,
+    /** Итог ночи до оглашений ведущим */
+    pendingNight: null,
+    /** Уже оглашено всем столом (доктор/путана) */
+    publicDawn: {},
     phaseStartedAt: Date.now(),
     phaseDurationSec: null,
     roleSetupVotes: {},
@@ -134,10 +140,12 @@ export function createMafiaState(players, settings = {}) {
   const pool = players.filter((p) => p.id !== moderatorId);
   const poolIds = pool.map((p) => p.id);
 
+  /** Ведущий/голосование за роли — только после первого подготовительного дня (как в правилах стола). */
   if (mafiaRolesMode === 'moderator' || mafiaRolesMode === 'player_vote') {
     const out = baseMafiaPayload(moderatorId, poolIds, {}, settings);
     out.roles = {};
-    out.phase = mafiaRolesMode === 'moderator' ? 'role_setup_moderator' : 'role_setup_vote';
+    out.phase = 'prep_day_1';
+    out.killNightEnabled = false;
     out.roleSetupVotes = {};
     return out;
   }
@@ -206,8 +214,8 @@ function pickTwoOthersFromPool(poolIds, selfId) {
 }
 
 /**
- * Итог голосования: у каждого 2 номинации; по очкам выбираем (1 + k) человек в команду мафии (дон + k мафий),
- * дон случайно среди них, остальные — мафия; комиссар и пр. — случайно из оставшихся по правилам состава.
+ * Итог голосования за состав: у каждого 1 или 2 номинации (два — как раньше);
+ * по очкам выбираем (1 + k) человек в команду мафии. Если голосов нет — случайная раздача.
  */
 export function assignRolesFromPlayerVotes(gs) {
   const poolIds = [...(gs.alive || [])];
@@ -225,15 +233,23 @@ export function assignRolesFromPlayerVotes(gs) {
   const tally = {};
   for (const id of poolIds) {
     const t = votes[id];
-    if (!Array.isArray(t) || t.length < 2) continue;
-    const a = String(t[0]);
-    const b = String(t[1]);
-    const targets = a === b ? [a] : [a, b];
+    if (t == null) continue;
+    const arr = Array.isArray(t) ? t : [t];
+    if (arr.length === 0) continue;
+    const a = String(arr[0]);
+    const b = arr.length >= 2 ? String(arr[1]) : null;
+    const targets = b && a !== b ? [a, b] : [a];
     for (const target of targets) {
       if (!poolIds.some((x) => String(x) === target)) continue;
       if (String(target) === String(id)) continue;
       tally[target] = (tally[target] || 0) + 1;
     }
+  }
+
+  if (Object.keys(tally).length === 0) {
+    const fakePool = poolIds.map((id) => ({ id }));
+    const roleMap = buildRandomRoleMap(fakePool, extended);
+    return { roleMap, votes };
   }
 
   const mafiaTeamSize = 1 + comp.mafia;
@@ -297,24 +313,132 @@ export function getMafiaPlayers(roles) {
   return Object.entries(roles || {}).filter(([, r]) => r === 'mafia' || r === 'don').map(([id]) => id);
 }
 
-export function resolveNight(gs, players) {
-  const gsCopy = { ...gs, mafiaVotes: { ...gs.mafiaVotes }, commissionerCheck: gs.commissionerCheck, doctorSave: gs.doctorSave };
+/**
+ * Подсчёт цели мафии и эффективного убийства (с учётом доктора) — без изменения alive.
+ */
+function computeMafiaNightTarget(gs) {
   const votes = {};
   for (const id of getMafiaPlayers(gs.roles)) {
     const v = gs.mafiaVotes[id];
     if (v) votes[v] = (votes[v] || 0) + 1;
   }
-  let max = 0, target = null;
-  for (const [id, c] of Object.entries(votes)) if (c > max) { max = c; target = id; }
+  let max = 0;
+  let target = null;
+  for (const [id, c] of Object.entries(votes)) if (c > max) {
+    max = c;
+    target = id;
+  }
   const aliveSet = new Set(gs.alive);
   if (!target && !gs.settings.mafiaCanSkipKill) {
     const mafiaIds = getMafiaPlayers(gs.roles);
     const aliveMafia = mafiaIds.filter((id) => aliveSet.has(id));
     if (aliveMafia.length) target = aliveMafia[Math.floor(Math.random() * aliveMafia.length)];
   }
-  const killed = target && target !== gs.doctorSave ? target : null;
+  const doctorSave = gs.doctorSave != null ? gs.doctorSave : null;
+  const effectiveKill = target && String(target) !== String(doctorSave) ? target : null;
+  return { mafiaTargetId: target, effectiveKillId: effectiveKill, doctorSaveId: doctorSave };
+}
+
+/**
+ * После ночи мафии/комиссара: считает итог, приват комиссара, очищает ночные поля.
+ * Жертва остаётся в alive до «Огласить» (dawn_kill).
+ */
+export function prepareDawn(gs) {
+  const { mafiaTargetId, effectiveKillId, doctorSaveId } = computeMafiaNightTarget(gs);
+
+  gs.commissionerPrivate = null;
+  if (gs.commissionerCheck) {
+    const targetId = gs.commissionerCheck;
+    const mafiaIds = getMafiaPlayers(gs.roles);
+    const isMafia = mafiaIds.some((id) => String(id) === String(targetId));
+    gs.commissionerPrivate = { targetId, isMafia };
+  }
+
+  gs.pendingNight = {
+    mafiaTargetId: mafiaTargetId || null,
+    effectiveKillId: effectiveKillId || null,
+    doctorSaveId: doctorSaveId || null,
+    prostituteVisitId: gs.prostituteVisit || null,
+    killAnnounced: false,
+    doctorAnnounced: false,
+    prostituteAnnounced: false,
+  };
+  gs.publicDawn = {};
+  gs.killedTonight = [];
+  gs.mafiaVotes = {};
+  gs.commissionerCheck = null;
+  gs.doctorSave = null;
+  gs.prostituteVisit = null;
+  gs.nightKill = effectiveKillId || null;
+  return gs;
+}
+
+/** Применить убийство после оглашения ведущим (dawn_kill). */
+export function applyDawnKillAnnounce(gs) {
+  const pn = gs.pendingNight;
+  if (!pn || pn.killAnnounced) return gs;
+  pn.killAnnounced = true;
+  const killed = pn.effectiveKillId;
+  gs.killedTonight = killed ? [killed] : [];
+  if (killed) {
+    const aliveSet = new Set(gs.alive);
+    aliveSet.delete(killed);
+    gs.alive = [...aliveSet];
+    if (gs.settings.revealRoleOnDeath) gs.revealed = [...(gs.revealed || []), { id: killed, role: gs.roles[killed] }];
+  }
+  return gs;
+}
+
+export function applyDawnDoctorAnnounce(gs, getPlayerName) {
+  const pn = gs.pendingNight;
+  if (!pn || pn.doctorAnnounced) return gs;
+  pn.doctorAnnounced = true;
+  const id = pn.doctorSaveId;
+  if (id) {
+    gs.publicDawn = { ...(gs.publicDawn || {}), doctor: { id, name: getPlayerName(id) } };
+  }
+  return gs;
+}
+
+export function applyDawnProstituteAnnounce(gs, getPlayerName) {
+  const pn = gs.pendingNight;
+  if (!pn || pn.prostituteAnnounced) return gs;
+  pn.prostituteAnnounced = true;
+  const id = pn.prostituteVisitId;
+  if (id) {
+    gs.publicDawn = { ...(gs.publicDawn || {}), prostituteVisit: { id, name: getPlayerName(id) } };
+  }
+  return gs;
+}
+
+export function nextDawnPhaseAfterKill(gs) {
+  const pn = gs.pendingNight;
+  const ext = !!gs.settings?.extended;
+  if (ext && pn?.doctorSaveId && !pn.doctorAnnounced) return 'dawn_doctor';
+  if (ext && pn?.prostituteVisitId && !pn.prostituteAnnounced) return 'dawn_prostitute';
+  return 'day';
+}
+
+export function nextDawnPhaseAfterDoctor(gs) {
+  const pn = gs.pendingNight;
+  const ext = !!gs.settings?.extended;
+  if (ext && pn?.prostituteVisitId && !pn.prostituteAnnounced) return 'dawn_prostitute';
+  return 'day';
+}
+
+export function clearDawnPending(gs) {
+  gs.pendingNight = null;
+  return gs;
+}
+
+/** @deprecated — используйте prepareDawn + фазы dawn_*; оставлено для совместимости тестов */
+export function resolveNight(gs) {
+  const gsCopy = { ...gs, mafiaVotes: { ...gs.mafiaVotes }, commissionerCheck: gs.commissionerCheck, doctorSave: gs.doctorSave };
+  const { effectiveKillId } = computeMafiaNightTarget(gs);
+  const killed = effectiveKillId;
   gsCopy.nightKill = killed;
   gsCopy.killedTonight = killed ? [killed] : [];
+  const aliveSet = new Set(gs.alive);
   if (killed) {
     aliveSet.delete(killed);
     gsCopy.alive = [...aliveSet];
@@ -333,9 +457,23 @@ export function resolveDayVote(gs) {
   for (const [voter, target] of Object.entries(gs.dayVotes || {})) {
     if (aliveSet.has(voter) && aliveSet.has(target)) votes[target] = (votes[target] || 0) + 1;
   }
-  let max = 0, out = null;
-  for (const [id, c] of Object.entries(votes)) if (c > max) { max = c; out = id; }
-  const gsCopy = { ...gs, dayVotes: {}, eliminatedToday: out ? [out] : [] };
+  const entries = Object.entries(votes).filter(([, c]) => c > 0);
+  let out = null;
+  if (entries.length) {
+    const maxC = Math.max(...entries.map(([, c]) => c));
+    const topIds = entries
+      .filter(([, c]) => c === maxC)
+      .map(([id]) => id)
+      .sort((a, b) => String(a).localeCompare(String(b)));
+    out = topIds[0];
+  }
+  const gsCopy = {
+    ...gs,
+    dayVotes: {},
+    eliminatedToday: out ? [out] : [],
+    /** новая ночь — прошлые «убито ночью» сбрасываются до утренних оглашений */
+    killedTonight: [],
+  };
   if (out) {
     aliveSet.delete(out);
     gsCopy.alive = [...aliveSet];
@@ -348,6 +486,8 @@ export function resolveDayVote(gs) {
 export function checkWin(gs) {
   if (!gs.roles || Object.keys(gs.roles).length === 0) return null;
   if (String(gs.phase || '').startsWith('role_setup')) return null;
+  /** Пока ведущий не огласил убийство, состав «живых» ещё не финален для победы */
+  if (String(gs.phase || '').startsWith('dawn_')) return null;
   const aliveSet = new Set(gs.alive);
   const mafiaIds = getMafiaPlayers(gs.roles);
   const aliveMafia = mafiaIds.filter((id) => aliveSet.has(id));
@@ -381,15 +521,24 @@ export function toClientState(gs, playerId, players) {
       }
     : null;
 
+  const aliveIdsForVote = gs.alive || [];
+  const dvForComplete = gs.dayVotes && typeof gs.dayVotes === 'object' ? gs.dayVotes : {};
+  const dayVotingComplete =
+    gs.phase === 'voting' &&
+    aliveIdsForVote.length > 0 &&
+    aliveIdsForVote.every((id) => dvForComplete[id] != null || dvForComplete[String(id)] != null);
+
   const publicInfo = {
     phase: gs.phase,
     phaseStartedAt: gs.phaseStartedAt || null,
     phaseDurationSec: Number(gs.phaseDurationSec) || null,
+    /** Фаза voting: все живые отдали голос — ведущий может «Огласить результат» */
+    dayVotingComplete,
     alive: aliveList.map((p) => ({ id: p.id, name: p.name })),
     killedTonight: (gs.killedTonight || []).map((id) => ({ id, name: getPlayerName(id) })),
     eliminatedToday: (gs.eliminatedToday || []).map((id) => ({ id, name: getPlayerName(id) })),
     revealed: (gs.revealed || []).map((r) => ({ id: r.id, role: getRoleDisplayName(r.role, theme) })),
-    commissionerCheckedId: gs.commissionerCheckedId || null,
+    publicDawn: gs.publicDawn && typeof gs.publicDawn === 'object' ? gs.publicDawn : {},
     settings: gs.settings,
     rolesReady: Object.keys(gs.roles || {}).length > 0,
     roleSetupVotedCount,
@@ -406,6 +555,25 @@ export function toClientState(gs, playerId, players) {
   }
   let roleForPlayer = null;
   if (myRole) roleForPlayer = { role: myRole, roleName: getRoleDisplayName(myRole, theme) };
+  const moderatorDawn =
+    isModerator && gs.pendingNight && String(gs.phase || '').startsWith('dawn_')
+      ? {
+          step: gs.phase,
+          pendingNight: {
+            ...gs.pendingNight,
+            mafiaTargetName: gs.pendingNight.mafiaTargetId ? getPlayerName(gs.pendingNight.mafiaTargetId) : null,
+            effectiveKillName: gs.pendingNight.effectiveKillId ? getPlayerName(gs.pendingNight.effectiveKillId) : null,
+            doctorSaveName: gs.pendingNight.doctorSaveId ? getPlayerName(gs.pendingNight.doctorSaveId) : null,
+            prostituteVisitName: gs.pendingNight.prostituteVisitId ? getPlayerName(gs.pendingNight.prostituteVisitId) : null,
+          },
+        }
+      : null;
+  const commissionerPrivateCheck =
+    rawRole === 'commissioner' && gs.commissionerPrivate ? { ...gs.commissionerPrivate } : null;
+  const roleExtras = {
+    ...(moderatorDawn ? { moderatorDawn } : {}),
+    ...(commissionerPrivateCheck ? { commissionerPrivateCheck } : {}),
+  };
   if (mafiaIds.some((id) => String(id) === String(playerId))) {
     const mafiaTeammates = mafiaIds.filter((id) => String(id) !== String(playerId)).map((id) => players.find((p) => String(p.id) === String(id))).filter(Boolean);
     return {
@@ -415,9 +583,10 @@ export function toClientState(gs, playerId, players) {
       isModerator,
       dayVotes,
       voteCounts,
+      ...roleExtras,
     };
   }
-  return { ...publicInfo, myRole: roleForPlayer, isModerator, dayVotes, voteCounts };
+  return { ...publicInfo, myRole: roleForPlayer, isModerator, dayVotes, voteCounts, ...roleExtras };
 }
 
 export { ROLE_NAMES, THEMES, CLASSIC_ROLES, EXTENDED_ROLES };

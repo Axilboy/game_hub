@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, getApiErrorMessage } from '../api';
 import { socket } from '../socket';
 import BackArrow from '../components/BackArrow';
 import useSeo from '../hooks/useSeo';
@@ -9,6 +9,9 @@ import GameplayScreen from '../components/game/GameplayScreen';
 import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
+import Modal from '../components/ui/Modal';
+import Button from '../components/ui/Button';
+import { useToast } from '../components/ui/ToastProvider';
 import './mafiaRound.css';
 
 function phaseUi(phase) {
@@ -35,14 +38,32 @@ function phaseUi(phase) {
       return { title: 'Ведущий назначает роли', sub: 'Только вы видите этот экран распределения. Игроки ждут, пока вы завершите.', short: 'Подготовка' };
     case 'role_setup_vote':
       return {
-        title: 'Кто мафия?',
-        sub: 'Два голоса на игрока. По сумме голосов набирается команда мафии (дон + несколько мафий в зависимости от числа игроков). Ведущий завершает фазу, когда готово.',
-        short: 'Голосование',
+        title: 'Голосование за состав мафии',
+        sub: 'Это не игровое обсуждение — только распределение ролей. Один голос (по желанию можно выбрать двух). По сумме голосов набирается команда мафии. Когда все проголосовали или время вышло — ведущий нажимает «Дальше». Нет голосов — роли случайные.',
+        short: 'Состав',
       };
     case 'night_mafia':
       return { title: 'Ночь — мафия', sub: 'С этой ночи мафия может убить одного. Выберите жертву или дождитесь таймера.', short: 'Ночь · мафия' };
     case 'night_commissioner':
       return { title: 'Ночь — комиссар', sub: 'Проверка игрока.', short: 'Ночь · комиссар' };
+    case 'dawn_kill':
+      return {
+        title: 'Утро — оглашение',
+        sub: 'Ведущий по очереди оглашает итог ночи. Остальные ждут.',
+        short: 'Утро',
+      };
+    case 'dawn_doctor':
+      return {
+        title: 'Утро — врач',
+        sub: 'Ведущий оглашает действие врача, когда сочтёт нужным.',
+        short: 'Утро · врач',
+      };
+    case 'dawn_prostitute':
+      return {
+        title: 'Утро — путана',
+        sub: 'Ведущий оглашает ночь путаны, когда сочтёт нужным.',
+        short: 'Утро · путана',
+      };
     case 'day':
       return { title: 'День', sub: 'Обсуждение. Ведущий переводит фазу, когда будете готовы.', short: 'День' };
     case 'voting':
@@ -54,6 +75,7 @@ function phaseUi(phase) {
 
 export default function MafiaRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   useSeo({
     robots: 'noindex, nofollow',
   });
@@ -70,12 +92,12 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     doctor: '',
     prostitute: '',
   });
-  const [commissionerResult, setCommissionerResult] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
   const [setupErr, setSetupErr] = useState(null);
   const [tick, setTick] = useState(0);
   const [rolePeekVisible, setRolePeekVisible] = useState(true);
   const [friendNotes, setFriendNotes] = useState({});
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const autoAdvanceRef = useRef({ phase: null, phaseStartedAt: null, sent: false });
   const requestSeqRef = useRef(0);
 
@@ -176,8 +198,10 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       });
       refreshState({ silent: true });
       return true;
-    } catch (_) {}
-    finally {
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось перейти к следующей фазе') });
+      refreshState({ silent: true });
+    } finally {
       setActionLoading(null);
     }
     return false;
@@ -203,12 +227,11 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     if (actionLoading) return;
     try {
       setActionLoading('commissioner_check');
-      const r = await api.post(`/rooms/${roomId}/mafia/action`, {
+      await api.post(`/rooms/${roomId}/mafia/action`, {
         playerId: myId,
         action: 'commissioner_check',
         targetId,
       });
-      setCommissionerResult(r?.isMafia != null ? (r.isMafia ? 'Мафия' : 'Мирный') : null);
       refreshState({ silent: true });
     } catch (_) {}
     finally {
@@ -230,13 +253,14 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   };
 
   const sendRoleSetupVote = async () => {
-    if (actionLoading || roleSetupPick.length !== 2) return;
+    if (actionLoading || roleSetupPick.length < 1) return;
     setSetupErr(null);
     try {
       setActionLoading('role_setup');
+      const targets = roleSetupPick.length >= 2 ? [roleSetupPick[0], roleSetupPick[1]] : [roleSetupPick[0]];
       await api.post(`/rooms/${roomId}/mafia/role-setup-vote`, {
         playerId: myId,
-        targets: roleSetupPick,
+        targets,
       });
       refreshState({ silent: true });
     } catch (e) {
@@ -284,7 +308,8 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       const i = prev.findIndex((x) => String(x) === sid);
       if (i >= 0) return prev.filter((_, j) => j !== i);
       if (prev.length >= 2) return [prev[0], id];
-      return [...prev, id];
+      if (prev.length === 1) return [...prev, id];
+      return [id];
     });
   };
 
@@ -304,6 +329,10 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     if (!state?.isModerator) return;
     if (actionLoading) return;
     if (state.phase === 'role_setup_moderator') return;
+    /** Дневное голосование завершает только ведущий кнопкой «Огласить результат» */
+    if (state.phase === 'voting') return;
+    /** Утренние оглашения — только вручную */
+    if (String(state.phase || '').startsWith('dawn_')) return;
     const phaseSecondsLeft =
       state.phaseStartedAt && state.phaseDurationSec
         ? Math.max(0, Math.ceil((state.phaseStartedAt + state.phaseDurationSec * 1000 - Date.now()) / 1000))
@@ -352,16 +381,76 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
 
   if (loading) {
     return (
-      <GameplayScreen theme="mafia" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Мафия">
-        <Loader label="Загрузка Мафии..." minHeight="50vh" />
-      </GameplayScreen>
+      <>
+        <GameplayScreen
+          theme="mafia"
+          user={user}
+          onBack={() => setExitConfirmOpen(true)}
+          backTitle="Главная"
+          backIcon="⌂"
+          showHomeButton={false}
+          title="Мафия"
+        >
+          <Loader label="Загрузка Мафии..." minHeight="50vh" />
+        </GameplayScreen>
+        <Modal open={exitConfirmOpen} onClose={() => setExitConfirmOpen(false)} title="Выйти из игры?">
+          <p style={{ margin: '0 0 16px', fontSize: 15, lineHeight: 1.45 }}>
+            Вернуться на главный экран?
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Button variant="secondary" fullWidth onClick={() => setExitConfirmOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              fullWidth
+              onClick={() => {
+                setExitConfirmOpen(false);
+                navigate('/');
+                onLeave?.();
+              }}
+            >
+              На главную
+            </Button>
+          </div>
+        </Modal>
+      </>
     );
   }
   if (!state) {
     return (
-      <GameplayScreen theme="mafia" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Мафия">
-        <ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} />
-      </GameplayScreen>
+      <>
+        <GameplayScreen
+          theme="mafia"
+          user={user}
+          onBack={() => setExitConfirmOpen(true)}
+          backTitle="Главная"
+          backIcon="⌂"
+          showHomeButton={false}
+          title="Мафия"
+        >
+          <ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} />
+        </GameplayScreen>
+        <Modal open={exitConfirmOpen} onClose={() => setExitConfirmOpen(false)} title="Выйти из игры?">
+          <p style={{ margin: '0 0 16px', fontSize: 15, lineHeight: 1.45 }}>
+            Вернуться на главный экран?
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Button variant="secondary" fullWidth onClick={() => setExitConfirmOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              fullWidth
+              onClick={() => {
+                setExitConfirmOpen(false);
+                navigate('/');
+                onLeave?.();
+              }}
+            >
+              На главную
+            </Button>
+          </div>
+        </Modal>
+      </>
     );
   }
 
@@ -388,6 +477,8 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     state.phaseStartedAt && state.phaseDurationSec
       ? Math.max(0, Math.ceil((state.phaseStartedAt + state.phaseDurationSec * 1000 - Date.now()) / 1000))
       : null;
+  const showPhaseTimer =
+    String(phase || '').startsWith('dawn_') ? false : !!(state.phaseStartedAt && Number(state.phaseDurationSec) > 0);
 
   const takenModeratorIds = (exclude) => {
     const taken = new Set();
@@ -451,8 +542,17 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   );
 
   return (
-    <GameplayScreen theme="mafia" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Мафия">
-      <GameLayout top={null} center={false} padding={0} minHeight="auto" textAlign="center" bottom={null}>
+    <>
+      <GameplayScreen
+        theme="mafia"
+        user={user}
+        onBack={() => setExitConfirmOpen(true)}
+        backTitle="Главная"
+        backIcon="⌂"
+        showHomeButton={false}
+        title="Мафия"
+      >
+        <GameLayout top={null} center={false} padding={0} minHeight="auto" textAlign="center" bottom={null}>
         <div className="mafiaRound">
           {myRole && (
             <button
@@ -476,7 +576,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
             <p className="mafiaRound__phaseLabel">{phaseUiInfo.short}</p>
             <h2 className="mafiaRound__title">{phaseUiInfo.title}</h2>
             <p className="mafiaRound__sub">{phaseUiInfo.sub}</p>
-            {phaseSecondsLeft != null && (
+            {showPhaseTimer && phaseSecondsLeft != null && (
               <div className={`mafiaRound__timer${phaseSecondsLeft <= 10 ? ' mafiaRound__timer--warn' : ''}`}>
                 ⏱ {phaseSecondsLeft} сек
               </div>
@@ -492,6 +592,59 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                 </span>
               )}
             </p>
+          )}
+
+          {String(phase || '').startsWith('dawn_') && isModerator && state.moderatorDawn?.pendingNight && (
+            <div className="mafiaRound__panel mafiaRound__panel--accent">
+              <p className="mafiaRound__panelTitle">Огласить столу</p>
+              {state.moderatorDawn.step === 'dawn_kill' && (
+                <p className="mafiaRound__panelHint" style={{ marginBottom: 12, fontSize: 17, fontWeight: 700 }}>
+                  {state.moderatorDawn.pendingNight.effectiveKillName
+                    ? `Сегодня мафия убила ${state.moderatorDawn.pendingNight.effectiveKillName}.`
+                    : 'Никого не убили этой ночью.'}
+                </p>
+              )}
+              {state.moderatorDawn.step === 'dawn_doctor' && (
+                <p className="mafiaRound__panelHint" style={{ marginBottom: 12, fontSize: 17, fontWeight: 700 }}>
+                  {state.moderatorDawn.pendingNight.doctorSaveName
+                    ? `Врач излечил: ${state.moderatorDawn.pendingNight.doctorSaveName}`
+                    : 'Врач (огласите по правилам стола).'}
+                </p>
+              )}
+              {state.moderatorDawn.step === 'dawn_prostitute' && (
+                <p className="mafiaRound__panelHint" style={{ marginBottom: 12, fontSize: 17, fontWeight: 700 }}>
+                  {state.moderatorDawn.pendingNight.prostituteVisitName
+                    ? `Путана провела ночь с ${state.moderatorDawn.pendingNight.prostituteVisitName}`
+                    : 'Путана (огласите по правилам стола).'}
+                </p>
+              )}
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 0 }}>
+                Нажмите кнопку внизу — тогда все увидят этот пункт (по очереди, как вы задумали).
+              </p>
+            </div>
+          )}
+
+          {String(phase || '').startsWith('dawn_') && !isModerator && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Утро</p>
+              <p className="mafiaRound__panelHint">Ждите объявлений ведущего.</p>
+            </div>
+          )}
+
+          {(state.publicDawn?.doctor || state.publicDawn?.prostituteVisit) && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Оглашено утром</p>
+              {state.publicDawn?.doctor && (
+                <p className="mafiaRound__panelHint" style={{ marginBottom: 8 }}>
+                  Врач лечил: <strong>{state.publicDawn.doctor.name}</strong>
+                </p>
+              )}
+              {state.publicDawn?.prostituteVisit && (
+                <p className="mafiaRound__panelHint" style={{ marginBottom: 8 }}>
+                  Путана (ночь с): <strong>{state.publicDawn.prostituteVisit.name}</strong>
+                </p>
+              )}
+            </div>
           )}
 
           {(state.killedTonight?.length > 0 || state.eliminatedToday?.length > 0 || state.revealed?.length > 0) && (
@@ -560,11 +713,22 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
             </div>
           )}
 
+          {phase === 'prep_day_1' && !state.rolesReady && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Скоро роли</p>
+              <p className="mafiaRound__panelHint">
+                Сейчас только подготовка за столом. После этого дня ведущий назначит роли вручную или включится голосование за
+                состав — не путайте с игровым обсуждением.
+              </p>
+            </div>
+          )}
+
           {phase === 'role_setup_vote' && amAlive && (
             <div className="mafiaRound__panel">
               <p className="mafiaRound__panelTitle">Ваш голос</p>
               <p className="mafiaRound__panelHint" style={{ marginBottom: 12 }}>
-                Выберите двух разных игроков (не себя). Можно снять выбор, нажав ещё раз.
+                Выберите одного игрока (обязательно) или двух разных — кого считать в команду мафии. Не себя. Повторное нажатие
+                снимает выбор.
               </p>
               {setupErr && <p className="mafiaRound__err">{setupErr}</p>}
               <div className="mafiaRound__chips">
@@ -599,7 +763,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                 <button
                   type="button"
                   className="mafiaRound__btn mafiaRound__btn--accent"
-                  disabled={roleSetupPick.length !== 2 || actionLoading === 'role_setup'}
+                  disabled={roleSetupPick.length < 1 || actionLoading === 'role_setup'}
                   onClick={sendRoleSetupVote}
                 >
                   {actionLoading === 'role_setup' ? 'Отправка…' : 'Отправить голос'}
@@ -688,26 +852,94 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
           {phase === 'night_commissioner' && myRole?.role === 'commissioner' && amAlive && (
             <div className="mafiaRound__panel">
               <p className="mafiaRound__panelTitle">Проверка</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                Результат видите только вы: на карточке проверенного игрока — метка. Столу проверка не оглашается.
+              </p>
               <div className="mafiaRound__chips">
                 {alive
                   .filter((p) => String(p.id) !== myId)
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className="mafiaRound__chip"
-                      onClick={() => sendCommissionerCheck(p.id)}
-                      disabled={actionLoading === 'commissioner_check'}
-                    >
-                      {actionLoading === 'commissioner_check' ? '…' : playerLine(p)}
-                    </button>
-                  ))}
+                  .map((p) => {
+                    const chk = state.commissionerPrivateCheck;
+                    const isChecked = chk && String(chk.targetId) === String(p.id);
+                    const suspect = isChecked && chk.isMafia;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`mafiaRound__chip${isChecked ? ' mafiaRound__chip--commissionerMark' : ''}${suspect ? ' mafiaRound__chip--commissionerSuspect' : ''}`}
+                        onClick={() => sendCommissionerCheck(p.id)}
+                        disabled={actionLoading === 'commissioner_check'}
+                        title={isChecked ? (suspect ? 'По проверке: мафия (только вам)' : 'По проверке: не мафия (только вам)') : undefined}
+                      >
+                        {actionLoading === 'commissioner_check' ? (
+                          '…'
+                        ) : (
+                          <>
+                            {playerLine(p)}
+                            {isChecked ? <span className="mafiaRound__commissionerBadge">🔍</span> : null}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
               </div>
-              {commissionerResult != null && (
-                <p className="mafiaRound__voteTally" style={{ marginTop: 12, fontWeight: 700, color: 'var(--gpl-accent)' }}>
-                  Результат: {commissionerResult}
-                </p>
-              )}
+            </div>
+          )}
+
+          {phase === 'voting' && isModerator && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Ведущий</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                Кнопка внизу станет активной «Огласить результат», когда все живые проголосовали или истёк таймер. До этого
+                голосование продолжается.
+              </p>
+              <button
+                type="button"
+                className="mafiaRound__btn mafiaRound__btn--secondary"
+                disabled={!!actionLoading}
+                onClick={async () => {
+                  if (actionLoading) return;
+                  try {
+                    setActionLoading('skip_vote');
+                    await api.post(`/rooms/${roomId}/mafia/skip-voting`, { playerId: myId });
+                    refreshState({ silent: true });
+                  } catch (_) {}
+                  finally {
+                    setActionLoading(null);
+                  }
+                }}
+              >
+                {actionLoading === 'skip_vote' ? '…' : 'Пропустить голосование'}
+              </button>
+            </div>
+          )}
+
+          {phase === 'day' && myRole?.role === 'commissioner' && amAlive && state.commissionerPrivateCheck?.targetId && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Ваша ночная проверка</p>
+              <p className="mafiaRound__panelHint">
+                Метка 🔍 у игрока в списке — кого проверяли (только для вас).
+              </p>
+              <div className="mafiaRound__chips" style={{ marginTop: 10, pointerEvents: 'none', opacity: 0.95 }}>
+                {alive
+                  .filter((p) => String(p.id) !== myId)
+                  .map((p) => {
+                    const chk = state.commissionerPrivateCheck;
+                    const isChecked = chk && String(chk.targetId) === String(p.id);
+                    const suspect = isChecked && chk.isMafia;
+                    return (
+                      <div
+                        key={p.id}
+                        className={`mafiaRound__chip mafiaRound__chip--ghost${isChecked ? ' mafiaRound__chip--commissionerMark' : ''}${suspect ? ' mafiaRound__chip--commissionerSuspect' : ''}`}
+                      >
+                        <span className="mafiaRound__chipLabel">
+                          {playerLine(p)}
+                          {isChecked ? <span className="mafiaRound__commissionerBadge">🔍</span> : null}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
           )}
 
@@ -717,20 +949,27 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
               <div className="mafiaRound__chips">
                 {alive
                   .filter((p) => String(p.id) !== myId)
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`mafiaRound__chip${String(myVoteId) === String(p.id) ? ' mafiaRound__chip--on' : ''}`}
-                      onClick={() => sendVote(p.id)}
-                      disabled={!!voteTarget || actionLoading === 'vote'}
-                    >
-                      <span className="mafiaRound__chipLabel">
-                        {playerLine(p)}
-                        {String(myVoteId) === String(p.id) ? ' ✓' : ''}
-                      </span>
-                    </button>
-                  ))}
+                  .map((p) => {
+                    const chk = myRole?.role === 'commissioner' ? state.commissionerPrivateCheck : null;
+                    const isChecked = chk && String(chk.targetId) === String(p.id);
+                    const suspect = isChecked && chk.isMafia;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`mafiaRound__chip${String(myVoteId) === String(p.id) ? ' mafiaRound__chip--on' : ''}${isChecked ? ' mafiaRound__chip--commissionerMark' : ''}${suspect ? ' mafiaRound__chip--commissionerSuspect' : ''}`}
+                        onClick={() => sendVote(p.id)}
+                        disabled={!!voteTarget || actionLoading === 'vote'}
+                        title={isChecked ? (suspect ? 'Ваша проверка: мафия' : 'Ваша проверка: не мафия') : undefined}
+                      >
+                        <span className="mafiaRound__chipLabel">
+                          {playerLine(p)}
+                          {isChecked ? <span className="mafiaRound__commissionerBadge">🔍</span> : null}
+                          {String(myVoteId) === String(p.id) ? ' ✓' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
               </div>
               {myVoteId && (
                 <p className="mafiaRound__panelHint" style={{ marginTop: 12 }}>
@@ -756,22 +995,65 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
             </div>
           )}
 
-          {isModerator && phase !== 'role_setup_moderator' && (
-            <button
-              type="button"
-              className="mafiaRound__btn mafiaRound__btn--secondary"
-              disabled={!!actionLoading}
-              onClick={advancePhase}
-            >
-              {actionLoading === 'advance'
-                ? 'Идёт…'
-                : phaseSecondsLeft === 0
-                  ? 'Дальше (таймер вышел)'
-                  : 'Дальше (ведущий)'}
-            </button>
-          )}
+          {isModerator && phase !== 'role_setup_moderator' && (() => {
+            const votingPhase = phase === 'voting';
+            const allVotesIn = state.dayVotingComplete === true;
+            const timerOut = phaseSecondsLeft === 0;
+            const canAnnounceResult = votingPhase && (allVotesIn || timerOut);
+            const isDawn = String(phase || '').startsWith('dawn_');
+            const modBtnClass =
+              votingPhase && !canAnnounceResult && !isDawn
+                ? 'mafiaRound__btn mafiaRound__btn--waiting'
+                : 'mafiaRound__btn mafiaRound__btn--accent';
+            let modBtnLabel = 'Дальше (ведущий)';
+            if (actionLoading === 'advance') modBtnLabel = 'Идёт…';
+            else if (isDawn) {
+              if (phase === 'dawn_kill') modBtnLabel = 'Огласить';
+              else if (phase === 'dawn_doctor') modBtnLabel = 'Огласить (врач)';
+              else if (phase === 'dawn_prostitute') modBtnLabel = 'Огласить (путана)';
+              else modBtnLabel = 'Огласить';
+            } else if (votingPhase) {
+              modBtnLabel = canAnnounceResult ? 'Огласить результат' : 'Ждём голосов…';
+            } else if (phaseSecondsLeft === 0) modBtnLabel = 'Дальше (таймер вышел)';
+            return (
+              <button
+                type="button"
+                className={modBtnClass}
+                disabled={!!actionLoading || (votingPhase && !canAnnounceResult && !isDawn)}
+                onClick={() =>
+                  advancePhase({
+                    expectedPhase: phase,
+                    expectedPhaseStartedAt: state.phaseStartedAt,
+                  })
+                }
+              >
+                {modBtnLabel}
+              </button>
+            );
+          })()}
         </div>
       </GameLayout>
-    </GameplayScreen>
+      </GameplayScreen>
+      <Modal open={exitConfirmOpen} onClose={() => setExitConfirmOpen(false)} title="Выйти из игры?">
+        <p style={{ margin: '0 0 16px', fontSize: 15, lineHeight: 1.45 }}>
+          Вернуться на главный экран? Партия для вас на этом устройстве будет прервана.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Button variant="secondary" fullWidth onClick={() => setExitConfirmOpen(false)}>
+            Отмена
+          </Button>
+          <Button
+            fullWidth
+            onClick={() => {
+              setExitConfirmOpen(false);
+              navigate('/');
+              onLeave?.();
+            }}
+          >
+            На главную
+          </Button>
+        </div>
+      </Modal>
+    </>
   );
 }

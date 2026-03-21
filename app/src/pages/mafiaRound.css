@@ -81,6 +81,30 @@
   background: color-mix(in srgb, var(--gpl-panel-text) 6%, var(--gpl-panel));
 }
 
+.mafiaRound__panel--accent {
+  border-color: color-mix(in srgb, var(--gpl-accent) 45%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--gpl-accent) 14%, var(--gpl-panel)),
+    var(--gpl-panel)
+  );
+}
+
+.mafiaRound__commissionerBadge {
+  margin-left: 8px;
+  font-size: 1em;
+  vertical-align: middle;
+}
+
+.mafiaRound__chip--commissionerMark {
+  border-left: 4px solid color-mix(in srgb, var(--gpl-accent) 70%, transparent);
+}
+
+.mafiaRound__chip--commissionerSuspect {
+  border-color: color-mix(in srgb, #b44 40%, transparent);
+  background: color-mix(in srgb, #c44 10%, var(--gpl-panel));
+}
+
 .mafiaRound__panelTitle {
   margin: 0 0 12px;
   font-size: 15px;
@@ -218,6 +242,8 @@
   font-weight: 800;
   cursor: pointer;
   transition: opacity 0.15s ease, transform 0.12s ease;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .mafiaRound__btn:disabled {
@@ -239,6 +265,16 @@
   background: color-mix(in srgb, var(--gpl-panel-text) 12%, var(--gpl-panel));
   color: var(--gpl-panel-text);
   border: 1px solid color-mix(in srgb, var(--gpl-panel-text) 14%, transparent);
+}
+
+/* Ведущий: голосование ещё идёт — кнопка неактивна (до «Огласить результат») */
+.mafiaRound__btn--waiting {
+  background: color-mix(in srgb, var(--gpl-panel-text) 8%, var(--gpl-panel));
+  color: color-mix(in srgb, var(--gpl-panel-text) 55%, var(--gpl-panel));
+  border: 1px solid color-mix(in srgb, var(--gpl-panel-text) 12%, transparent);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.92;
 }
 
 .mafiaRound__err {

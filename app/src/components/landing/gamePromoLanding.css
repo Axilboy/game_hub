@@ -58,6 +58,29 @@ article.gpl.gh-fade-in {
   --gpl-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
 }
 
+/* Дневная тема (переключатель в шапке): светлый фон, не только тень */
+html[data-theme='light'] .gpl--mafia {
+  --gpl-bg1: #fff8f5;
+  --gpl-bg2: #fceee6;
+  --gpl-bg3: #f5e4d8;
+  --gpl-hero-text: #2a1810;
+  --gpl-accent: #a67c00;
+  --gpl-accent-text: #fffef8;
+  --gpl-pill-bg: rgba(166, 124, 0, 0.12);
+  --gpl-pill-border: rgba(166, 124, 0, 0.28);
+  --gpl-panel: #fffdfb;
+  --gpl-panel-text: #1f1610;
+  --gpl-panel-muted: rgba(31, 22, 16, 0.72);
+  --gpl-shadow: 0 16px 40px rgba(42, 24, 16, 0.12);
+}
+
+html[data-theme='light'] .gameplay.gpl--mafia::before {
+  background:
+    radial-gradient(ellipse 130% 70% at 50% -18%, rgba(212, 175, 55, 0.12), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 75%, rgba(0, 0, 0, 0.04), transparent 52%),
+    radial-gradient(ellipse 55% 45% at 0% 40%, rgba(0, 0, 0, 0.03), transparent 48%);
+}
+
 /* ——— Элиас: фиолетовый + бирюза ——— */
 .gpl--elias {
   --gpl-bg1: #1a0f2e;

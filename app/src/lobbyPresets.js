@@ -70,7 +70,7 @@ export function getDefaultGameSettings(gameId) {
         revealRoleOnDeath: true,
         mafiaCanSkipKill: false,
         hostSelection: 'random',
-        mafiaRolesMode: 'player_vote',
+        mafiaRolesMode: 'random',
         theme: 'default',
         phaseTimers: {
           prepDay: 90,
