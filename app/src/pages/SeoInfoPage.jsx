@@ -1,6 +1,10 @@
+import { useLocation } from 'react-router-dom';
 import useSeo from '../hooks/useSeo';
 import BackArrow from '../components/BackArrow';
 import SeoFooter from '../components/layout/SeoFooter';
+
+const baseUrl = (import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+const defaultOgImage = import.meta.env.VITE_OG_IMAGE || (baseUrl ? `${baseUrl}/og-share.svg` : undefined);
 
 const btnStyle = {
   padding: '12px 20px',
@@ -23,7 +27,17 @@ export default function SeoInfoPage({
   ctaLabel,
   onCta,
 }) {
-  useSeo({ title, description });
+  const { pathname } = useLocation();
+  const canonical = baseUrl ? `${baseUrl}${pathname}` : undefined;
+  useSeo({
+    title,
+    description,
+    canonical,
+    robots: 'index, follow',
+    ogImage: defaultOgImage,
+    ogType: 'website',
+    siteName: 'GameHub',
+  });
 
   return (
     <div style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>

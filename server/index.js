@@ -45,12 +45,15 @@ fastify.get('/robots.txt', async (request, reply) => {
     '/mafia',
     '/elias',
     '/truth_dare',
+    '/bunker',
+    '/profile',
     '/app',
   ];
   const lines = [
     'User-agent: *',
     ...disallow.flatMap((p) => [`Disallow: ${p}`]),
     '',
+    '# Публичные страницы: /seo, /games/*, /how-to-play, /privacy, /rules (не блокируются)',
     `Sitemap: ${origin.replace(/\/$/, '')}/sitemap.xml`,
     '',
   ];
@@ -62,14 +65,15 @@ fastify.get('/sitemap.xml', async (request, reply) => {
   const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
   const base = origin.replace(/\/$/, '');
   const urls = [
-    { loc: `${base}/seo`, changefreq: 'daily', priority: 0.7 },
-    { loc: `${base}/how-to-play`, changefreq: 'weekly', priority: 0.6 },
-    { loc: `${base}/games/spy`, changefreq: 'weekly', priority: 0.6 },
-    { loc: `${base}/games/elias`, changefreq: 'weekly', priority: 0.6 },
-    { loc: `${base}/games/mafia`, changefreq: 'weekly', priority: 0.6 },
-    { loc: `${base}/games/truth_dare`, changefreq: 'monthly', priority: 0.3 },
-    { loc: `${base}/privacy`, changefreq: 'yearly', priority: 0.4 },
-    { loc: `${base}/rules`, changefreq: 'yearly', priority: 0.4 },
+    { loc: `${base}/seo`, changefreq: 'daily', priority: 0.9 },
+    { loc: `${base}/how-to-play`, changefreq: 'weekly', priority: 0.65 },
+    { loc: `${base}/games/spy`, changefreq: 'weekly', priority: 0.75 },
+    { loc: `${base}/games/elias`, changefreq: 'weekly', priority: 0.75 },
+    { loc: `${base}/games/mafia`, changefreq: 'weekly', priority: 0.75 },
+    { loc: `${base}/games/truth_dare`, changefreq: 'weekly', priority: 0.65 },
+    { loc: `${base}/games/bunker`, changefreq: 'weekly', priority: 0.65 },
+    { loc: `${base}/privacy`, changefreq: 'yearly', priority: 0.35 },
+    { loc: `${base}/rules`, changefreq: 'yearly', priority: 0.35 },
   ];
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

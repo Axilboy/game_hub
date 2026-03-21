@@ -1,7 +1,8 @@
-export default function Chip({ children, active = false, onClick, disabled = false }) {
+export default function Chip({ children, active = false, onClick, disabled = false, title }) {
   return (
     <button
       type="button"
+      title={title}
       disabled={disabled}
       onClick={onClick}
       style={{

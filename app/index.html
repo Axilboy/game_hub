@@ -2,6 +2,10 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
+    <!-- Базовые SEO: на публичных маршрутах useSeo() переопределяет robots, title и OG -->
+    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="application-name" content="GameHub" />
+    <meta name="format-detection" content="telephone=no" />
     <style>
       /* Пока не подгрузился JS, не оставляем полностью пустой экран */
       html,
@@ -25,9 +29,10 @@
       }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="GameHub — Шпион, Элиас, Мафия и другие игры для компании онлайн в Telegram и браузере." />
-    <meta name="robots" content="noindex, nofollow" />
-    <title>Игровой хаб</title>
+    <meta name="description" content="GameHub — Шпион, Элиас, Мафия, Правда или действие, Бункер: игры для компании онлайн в Telegram и браузере." />
+    <!-- По умолчанию разрешаем индексацию оболочки; экраны приложения (лобби, игры) ставят noindex через useSeo -->
+    <meta name="robots" content="index, follow" />
+    <title>GameHub — игры для компании онлайн</title>
     <link rel="preconnect" href="https://telegram.org" crossorigin />
     <link rel="preconnect" href="https://libtl.com" crossorigin />
     <script defer src="https://telegram.org/js/telegram-web-app.js"></script>

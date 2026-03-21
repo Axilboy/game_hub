@@ -28,6 +28,7 @@ export default function SeoLanding({ navigateToApp, onNavigate }) {
     robots: 'index, follow',
     ogImage,
     ogType: 'website',
+    siteName: 'GameHub',
   });
 
   useEffect(() => {
@@ -35,9 +36,17 @@ export default function SeoLanding({ navigateToApp, onNavigate }) {
     const org = {
       '@context': 'https://schema.org',
       '@type': 'Organization',
+      '@id': baseUrl ? `${baseUrl}#organization` : undefined,
       name: 'GameHub',
       description: 'Игровой хаб: Шпион, Элиас, Мафия для компании онлайн.',
       url: baseUrl || undefined,
+    };
+    const website = {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'GameHub',
+      url: baseUrl ? `${baseUrl}/` : undefined,
+      inLanguage: 'ru-RU',
     };
     const game = {
       '@context': 'https://schema.org',
@@ -47,6 +56,8 @@ export default function SeoLanding({ navigateToApp, onNavigate }) {
         { '@type': 'Thing', name: 'Шпион', url: baseUrl ? `${baseUrl}/games/spy` : undefined },
         { '@type': 'Thing', name: 'Элиас', url: baseUrl ? `${baseUrl}/games/elias` : undefined },
         { '@type': 'Thing', name: 'Мафия', url: baseUrl ? `${baseUrl}/games/mafia` : undefined },
+        { '@type': 'Thing', name: 'Правда или действие', url: baseUrl ? `${baseUrl}/games/truth_dare` : undefined },
+        { '@type': 'Thing', name: 'Бункер', url: baseUrl ? `${baseUrl}/games/bunker` : undefined },
       ],
     };
     const faq = {
@@ -78,7 +89,7 @@ export default function SeoLanding({ navigateToApp, onNavigate }) {
       s.type = 'application/ld+json';
       document.head.appendChild(s);
     }
-    s.text = JSON.stringify([org, game, faq]);
+    s.text = JSON.stringify([org, website, game, faq]);
     return () => {
       const el = document.getElementById(scriptId);
       if (el?.parentNode) el.parentNode.removeChild(el);

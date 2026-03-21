@@ -403,6 +403,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
+  /** Быстрый старт из блока «Быстрые действия хоста» — та же логика, что у кнопки «Начать игру» в настройках режима */
+  const startSelectedGame = async () => {
+    if (!isHost || !selectedGame || startingGame) return;
+    if (selectedGame === 'spy') await startSpy();
+    else if (selectedGame === 'mafia') await startMafia();
+    else if (selectedGame === 'elias') await startElias();
+    else if (selectedGame === 'bunker') await startBunker();
+    else if (selectedGame === 'truth_dare') await startTruthDare();
+  };
+
   const getMinPlayersForSelectedGame = () => {
     if (!selectedGame) return 0;
     if (selectedGame === 'spy') return minSpyPlayers(spyCount);
@@ -623,8 +633,13 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <Chip onClick={shareInvite} active>
               Поделиться
             </Chip>
-            <Chip onClick={() => setLeaveConfirmOpen(true)}>
-              Выйти
+            <Chip
+              onClick={startSelectedGame}
+              active={Boolean(selectedGame)}
+              disabled={!selectedGame || startingGame}
+              title={!selectedGame ? 'Сначала выберите игру внизу' : startingGame ? 'Запуск…' : 'Запустить выбранную игру'}
+            >
+              {startingGame ? 'Запуск…' : 'Начать'}
             </Chip>
             <Chip onClick={() => setTransferHostOpen(true)} disabled={playersList.length < 2}>
               Передать хоста

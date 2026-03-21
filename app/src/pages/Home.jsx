@@ -44,7 +44,12 @@ function isInviteExpiredError(err) {
 
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
-  useSeo({ robots: 'noindex, nofollow' });
+  useSeo({
+    title: 'GameHub — комната и игры',
+    description: 'Создайте комнату, пригласите друзей по коду или ссылке. Шпион, Элиас, Мафия и другие игры.',
+    robots: 'noindex, nofollow',
+    siteName: 'GameHub',
+  });
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

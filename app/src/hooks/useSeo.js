@@ -22,7 +22,34 @@ function upsertPropertyMeta(property, content) {
   document.head.appendChild(m);
 }
 
-export default function useSeo({ title, description, canonical, robots, ogImage, ogType = 'website' }) {
+function upsertNameMeta(name, content) {
+  upsertMeta(
+    `meta[name="${name}"]`,
+    (v) => {
+      const m = document.createElement('meta');
+      m.setAttribute('name', name);
+      m.setAttribute('content', v);
+      return m;
+    },
+    content
+  );
+}
+
+/**
+ * SEO для SPA: обновляет title, description, canonical, robots, Open Graph и Twitter Card.
+ * Для индексируемых страниц задавайте canonical (абсолютный URL) и og:image (абсолютный).
+ */
+export default function useSeo({
+  title,
+  description,
+  canonical,
+  robots,
+  ogImage,
+  ogType = 'website',
+  siteName = 'GameHub',
+  locale = 'ru_RU',
+  twitterCard = 'summary_large_image',
+}) {
   useEffect(() => {
     if (title) document.title = title;
 
@@ -39,7 +66,6 @@ export default function useSeo({ title, description, canonical, robots, ogImage,
       );
     }
 
-    // Basic OG tags (helps when sharing links).
     if (title) {
       upsertMeta(
         'meta[property="og:title"]',
@@ -65,6 +91,13 @@ export default function useSeo({ title, description, canonical, robots, ogImage,
       );
     }
 
+    if (siteName) {
+      upsertPropertyMeta('og:site_name', siteName);
+    }
+    if (locale) {
+      upsertPropertyMeta('og:locale', locale);
+    }
+
     if (canonical) {
       const existing = document.head.querySelector('link[rel="canonical"]');
       if (existing) {
@@ -85,7 +118,20 @@ export default function useSeo({ title, description, canonical, robots, ogImage,
       upsertPropertyMeta('og:type', ogType);
     }
 
-    // Optional robots directive.
+    // Twitter / X (карточки при шаринге)
+    if (twitterCard) {
+      upsertNameMeta('twitter:card', twitterCard);
+    }
+    if (title) {
+      upsertNameMeta('twitter:title', title);
+    }
+    if (description) {
+      upsertNameMeta('twitter:description', description);
+    }
+    if (ogImage) {
+      upsertNameMeta('twitter:image', ogImage);
+    }
+
     if (robots) {
       upsertMeta(
         'meta[name="robots"]',
@@ -98,6 +144,6 @@ export default function useSeo({ title, description, canonical, robots, ogImage,
         robots
       );
     }
-  }, [title, description, canonical, robots, ogImage, ogType]);
+  }, [title, description, canonical, robots, ogImage, ogType, siteName, locale, twitterCard]);
 }
 
