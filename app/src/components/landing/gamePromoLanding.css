@@ -459,3 +459,57 @@ html[data-theme='light'] .gameplay .gpl__panel {
 .gameplay__accent {
   color: var(--gpl-accent);
 }
+
+/* Главный блок «секрет» (слово / роль): нажатие скрывает или показывает */
+.gameplay__peek-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 112px;
+  margin: 0 0 14px;
+  padding: 22px 18px;
+  border: none;
+  border-radius: var(--gpl-radius-panel);
+  background: var(--gpl-panel);
+  color: var(--gpl-panel-text);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gameplay__peek-block:active {
+  transform: scale(0.995);
+}
+
+.gameplay__peek-block__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin: 0 0 8px;
+  font-weight: 800;
+  color: var(--gpl-panel-muted);
+}
+
+.gameplay__peek-block__hidden {
+  font-size: 16px;
+  font-weight: 700;
+  opacity: 0.72;
+  line-height: 1.4;
+  max-width: 16em;
+}
+
+.gameplay__peek-block__word {
+  font-size: clamp(22px, 5.5vw, 32px);
+  font-weight: 800;
+  margin: 0;
+  color: var(--gpl-accent);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  word-break: break-word;
+}

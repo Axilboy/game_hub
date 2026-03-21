@@ -1,5 +1,5 @@
 import { roomManager } from './roomManager.js';
-import { getRandomWord, getSpyRoleHintsForLocation, getWordsByDictionaryIds } from './words.js';
+import { getRandomWord, getSpyRoleHintsForLocation, getSpyRolePoolForLocation, getWordsByDictionaryIds } from './words.js';
 import { recordPlayer, recordGameSession, recordAdImpression } from './statsManager.js';
 import { allowAction } from './rateLimit.js';
 import {
@@ -156,6 +156,13 @@ export async function roomRoutes(fastify) {
     }
     const safeSeconds = Math.min(3600, Math.max(30, Number(timerSeconds) || 60));
     const allSpiesRound = spyIds.length === players.length;
+    const rolePool = getSpyRolePoolForLocation(word);
+    const civilianRolesByPlayerId = {};
+    for (const p of players) {
+      if (!spyIds.includes(p.id)) {
+        civilianRolesByPlayerId[p.id] = rolePool[Math.floor(Math.random() * rolePool.length)];
+      }
+    }
     recordGameSession();
     roomManager.setGame(roomId, 'spy');
     roomManager.setState(roomId, 'playing', {
@@ -165,6 +172,7 @@ export async function roomRoutes(fastify) {
       spiesSeeEachOther: Boolean(spiesSeeEachOther),
       showLocationsList: Boolean(showLocationsList),
       locationPool,
+      civilianRolesByPlayerId,
       timerEnabled: Boolean(timerEnabled),
       timerSeconds: safeSeconds,
       readyIds: [],
@@ -211,6 +219,9 @@ export async function roomRoutes(fastify) {
       guessPollMyVote: gs.guessPollVotes?.[playerId] || null,
       guessPollCounts,
     };
+    const showRoleBlock = Boolean(gs.showLocationsList);
+    const myCivilianRole =
+      !isSpy && showRoleBlock ? (gs.civilianRolesByPlayerId?.[playerId] || null) : null;
     const payload = {
       role: isSpy ? 'spy' : 'civilian',
       timerEnabled: Boolean(timerEnabled),
@@ -220,6 +231,8 @@ export async function roomRoutes(fastify) {
       showLocationsList: Boolean(showLocationsList),
       locationList: Array.isArray(locationPool) ? locationPool : [],
       roleHints: getSpyRoleHintsForLocation(word),
+      myCivilianRole,
+      showRoleBlock,
       wordLength: wordChars.length,
       wordMask,
       ...guessPollBlock,
@@ -335,7 +348,9 @@ export async function roomRoutes(fastify) {
     const { playerId } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
-    if (room.hostId !== playerId) return reply.code(403).send({ error: 'Только хост может начать голосование' });
+    if (!room.players.some((p) => p.id === playerId)) {
+      return reply.code(403).send({ error: 'Только игроки в комнате могут начать голосование' });
+    }
     if (!allowAction(`spy:startvote:${roomId}:${playerId}`, 6, 20_000)) {
       return reply.code(429).send(ERR.tooMany);
     }

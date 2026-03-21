@@ -34,6 +34,8 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [startVoteLock, setStartVoteLock] = useState(false);
   const [guessPollLock, setGuessPollLock] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [wordPeekVisible, setWordPeekVisible] = useState(true);
+  const [rolePeekVisible, setRolePeekVisible] = useState(true);
   const requestSeqRef = useRef(0);
 
   const myId = user?.id != null ? String(user.id) : '';
@@ -325,43 +327,88 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
             <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 800, marginBottom: 4 }}>
               Таймер раунда
             </div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: timeUp ? '#ffb38a' : '#fff' }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: timeUp ? '#ffb38a' : 'var(--gpl-panel-text)' }}>
               {timerStartsAt == null ? 'Ожидаем готовность всех…' : timeUp ? 'Время вышло!' : formatTime(secondsLeft ?? 0)}
             </div>
           </div>
         )}
         <div className="gpl__panel">
           {allSpiesRound && <p className="spy-round__sub" style={{ marginBottom: 12 }}>В этом раунде все — шпионы</p>}
-          <p className="spy-round__word">
-            {wordDisplay}
-          </p>
-          <p className="spy-round__sub">
+
+          <button
+            type="button"
+            className="gameplay__peek-block"
+            onClick={() => setWordPeekVisible((v) => !v)}
+            aria-label={wordPeekVisible ? 'Скрыть' : 'Показать слово'}
+          >
+            <span className="gameplay__peek-block__label">
+              {isSpy ? 'Ваша подсказка' : 'Локация'}
+            </span>
+            {wordPeekVisible ? (
+              <span className="gameplay__peek-block__word">{wordDisplay}</span>
+            ) : (
+              <span className="gameplay__peek-block__hidden">Скрыто — нажмите, чтобы показать</span>
+            )}
+          </button>
+
+          <p className="spy-round__sub" style={{ marginTop: 0 }}>
             {isSpy
-              ? 'Слово не показываем — догадывайтесь по подсказкам. Не подсматривайте чужие экраны.'
-              : 'Ваше слово на этот раунд. Не показывайте экран другим.'}
+              ? 'Догадывайтесь по обсуждению. Не подсматривайте чужие экраны. Нажмите на блок выше, чтобы скрыть экран.'
+              : 'Ваше слово на этот раунд. Не показывайте экран другим. Нажмите на блок — можно временно скрыть.'}
           </p>
           {isSpy && card.otherSpyNames?.length > 0 && (
             <p className="spy-round__sub" style={{ marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
           )}
+
+          {card.showLocationsList && Array.isArray(card.locationList) && card.locationList.length > 0 && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 14,
+                borderRadius: 14,
+                background: 'color-mix(in srgb, var(--gpl-panel-text) 6%, var(--gpl-panel))',
+                textAlign: 'left',
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, opacity: 0.85, color: 'var(--gpl-panel-text)' }}>
+                Возможные локации ({card.locationList.length})
+              </p>
+              <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.45, color: 'var(--gpl-panel-text)' }}>
+                {card.locationList.join(', ')}
+              </p>
+            </div>
+          )}
+
+          {!isSpy && card.showRoleBlock && card.myCivilianRole && (
+            <button
+              type="button"
+              className="gameplay__peek-block"
+              style={{ marginTop: 14 }}
+              onClick={() => setRolePeekVisible((v) => !v)}
+              aria-label={rolePeekVisible ? 'Скрыть роль' : 'Показать роль'}
+            >
+              <span className="gameplay__peek-block__label">Ваша роль</span>
+              {rolePeekVisible ? (
+                <span className="gameplay__peek-block__word" style={{ fontSize: 'clamp(20px,4.5vw,28px)' }}>
+                  {card.myCivilianRole}
+                </span>
+              ) : (
+                <span className="gameplay__peek-block__hidden">Роль скрыта — нажмите, чтобы показать</span>
+              )}
+            </button>
+          )}
+
           <div className="spy-round__hint-block">
             <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
             <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35 }}>
               Обсуждайте вслух. В голосовании выберите подозреваемого. Шпион называет слово вслух — остальные решают, верно ли.
             </p>
-            {!isSpy && Array.isArray(card.roleHints) && card.roleHints.length > 0 && (
+            {!isSpy && !card.showRoleBlock && Array.isArray(card.roleHints) && card.roleHints.length > 0 && (
               <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35 }}>
                 Возможные роли: {card.roleHints.join(', ')}
               </p>
             )}
           </div>
-          {card.showLocationsList && Array.isArray(card.locationList) && card.locationList.length > 0 && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }}>
-              <p style={{ margin: 0, fontSize: 12, opacity: 0.9, fontWeight: 700, color: '#fff' }}>Возможные локации ({card.locationList.length})</p>
-              <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.85, lineHeight: 1.4, color: '#fff' }}>
-                {card.locationList.join(', ')}
-              </p>
-            </div>
-          )}
         </div>
 
         {guessPollActive && (
@@ -430,23 +477,18 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
           <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               type="button"
-              onClick={() => { if (isHost) startVote(); }}
-              disabled={!isHost || startVoteLock || guessPollActive}
+              onClick={() => startVote()}
+              disabled={startVoteLock || guessPollActive}
               style={{
                 ...btnStyle,
-                background: isHost ? 'var(--gpl-accent, #f5d547)' : 'rgba(255,255,255,0.14)',
-                color: isHost ? 'var(--gpl-accent-text, #1a1300)' : 'rgba(248,251,255,0.85)',
-                opacity: !isHost || startVoteLock ? 0.75 : 1,
-                cursor: isHost ? 'pointer' : 'not-allowed',
+                background: 'var(--gpl-accent, #f5d547)',
+                color: 'var(--gpl-accent-text, #1a1300)',
+                opacity: startVoteLock ? 0.75 : 1,
+                cursor: guessPollActive ? 'not-allowed' : 'pointer',
               }}
             >
-              {isHost ? (startVoteLock ? '…' : 'Начать голосование') : 'Только хост может начать голосование'}
+              {startVoteLock ? '…' : 'Начать голосование'}
             </button>
-            {!isHost && (
-              <p style={{ margin: 0, fontSize: 12, opacity: 0.8, textAlign: 'center' }}>
-                Кнопку «Голосовать» нажимает хост, когда пришло время искать шпиона.
-              </p>
-            )}
           </div>
         )}
 

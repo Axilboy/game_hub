@@ -33,6 +33,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const [commissionerResult, setCommissionerResult] = useState(null);
   const [actionLoading, setActionLoading] = useState(null); // 'kill' | 'commissioner_check' | 'vote' | 'advance'
   const [tick, setTick] = useState(0);
+  const [rolePeekVisible, setRolePeekVisible] = useState(true);
   const autoAdvanceRef = useRef({ phase: null, phaseStartedAt: null, sent: false });
   const requestSeqRef = useRef(0);
 
@@ -246,6 +247,24 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
         </div>
       }
     >
+      {myRole && (
+        <button
+          type="button"
+          className="gameplay__peek-block"
+          onClick={() => setRolePeekVisible((v) => !v)}
+          aria-label={rolePeekVisible ? 'Скрыть роль' : 'Показать роль'}
+        >
+          <span className="gameplay__peek-block__label">Ваша роль</span>
+          {rolePeekVisible ? (
+            <span className="gameplay__peek-block__word" style={{ color: 'var(--gpl-accent)' }}>
+              {myRole.roleName}
+            </span>
+          ) : (
+            <span className="gameplay__peek-block__hidden">Роль скрыта — нажмите, чтобы показать</span>
+          )}
+        </button>
+      )}
+
       <div className="gpl__panel">
         <p style={{ marginBottom: 8, opacity: 0.9 }}>Фаза: {phase === 'night_mafia' ? 'Ночь — мафия' : phase === 'night_commissioner' ? 'Ночь — комиссар' : phase === 'day' ? 'День' : 'Голосование'}</p>
         <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>{actingLabel}</p>
@@ -255,10 +274,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
           </p>
         )}
 
-        {isModerator && <p style={{ fontSize: 16, color: '#8af', marginBottom: 8 }}>Вы ведущий</p>}
-        {myRole && (
-          <p style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 0 }}>Ваша роль: {myRole.roleName}</p>
-        )}
+        {isModerator && <p style={{ fontSize: 16, color: 'var(--gpl-accent)', marginBottom: 0 }}>Вы ведущий</p>}
       </div>
 
       <div className="gpl__panel" style={{ background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, var(--gpl-panel))' }}>

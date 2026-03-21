@@ -95,3 +95,11 @@ export function getSpyRoleHintsForLocation(location) {
   if (Array.isArray(direct) && direct.length) return direct.slice(0, 3);
   return ['Работник', 'Посетитель', 'Случайный свидетель'];
 }
+
+/** Пул ролей для локации (для выдачи каждому мирному своей роли при режиме «список локаций»). */
+export function getSpyRolePoolForLocation(location) {
+  const key = String(location || '').trim();
+  const direct = LOCATION_ROLES[key];
+  if (Array.isArray(direct) && direct.length) return [...direct];
+  return getSpyRoleHintsForLocation(location);
+}
