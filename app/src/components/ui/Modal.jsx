@@ -1,6 +1,16 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-export default function Modal({ open, onClose, title, titleId, children, width = 360, className = '' }) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  titleId,
+  children,
+  width = 360,
+  className = '',
+  /** Если false — клик по фону не закрывает окно (только Escape и явные кнопки). */
+  closeOnOverlayClick = true,
+}) {
   const panelRef = useRef(null);
   const prevActive = useRef(null);
 
@@ -72,7 +82,9 @@ export default function Modal({ open, onClose, title, titleId, children, width =
         zIndex: 100,
         padding: 'var(--gh-space-6, 24px)',
       }}
-      onClick={() => onClose?.()}
+      onClick={() => {
+        if (closeOnOverlayClick !== false) onClose?.();
+      }}
       role="presentation"
     >
       <div

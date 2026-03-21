@@ -1,20 +1,29 @@
 const INV_KEY = 'gameHub_inventory';
 const TRIAL_HOURS = 24;
 const TRIAL_COOLDOWN_DAYS = 7;
+/** Бета: у всех пользователей по умолчанию активен Pro (для тестов и открытия режимов). */
+const DEFAULT_PRO_EXPIRES_AT = new Date('2099-12-31T23:59:59.000Z').getTime();
 
 export function getInventory() {
   try {
     const s = JSON.parse(localStorage.getItem(INV_KEY) || '{}');
-    const hasPro = Boolean(s.hasPro && s.proExpiresAt && s.proExpiresAt > Date.now());
+    const storedExp = typeof s.proExpiresAt === 'number' ? s.proExpiresAt : 0;
+    const proExpiresAt = Math.max(storedExp, DEFAULT_PRO_EXPIRES_AT);
     return {
       dictionaries: Array.isArray(s.dictionaries) ? s.dictionaries : ['free'],
       unlockedItems: Array.isArray(s.unlockedItems) ? s.unlockedItems : [],
       purchases: Array.isArray(s.purchases) ? s.purchases : [],
-      hasPro,
-      proExpiresAt: s.proExpiresAt || null,
+      hasPro: true,
+      proExpiresAt,
     };
   } catch {
-    return { dictionaries: ['free'], unlockedItems: [], purchases: [], hasPro: false, proExpiresAt: null };
+    return {
+      dictionaries: ['free'],
+      unlockedItems: [],
+      purchases: [],
+      hasPro: true,
+      proExpiresAt: DEFAULT_PRO_EXPIRES_AT,
+    };
   }
 }
 

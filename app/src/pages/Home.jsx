@@ -59,7 +59,12 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [displayNameState, setDisplayNameState] = useState(getDisplayName() || '');
   const [avatarState, setAvatarState] = useState(getAvatar() || '');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [showInstruction, setShowInstruction] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackContact, setFeedbackContact] = useState('');
+  const [feedbackSending, setFeedbackSending] = useState(false);
+  const [feedbackDone, setFeedbackDone] = useState(false);
+  const [showThanks, setShowThanks] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const [hasRematchRoom, setHasRematchRoom] = useState(false);
   const [inviteIssue, setInviteIssue] = useState(false);
@@ -80,6 +85,16 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       setHasRematchRoom(Boolean(sessionStorage.getItem('gameHub_rematchRoomId')));
     } catch (_) {
       setHasRematchRoom(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('gh_beta_thanks_v1')) {
+        setShowThanks(true);
+      }
+    } catch (_) {
+      setShowThanks(true);
     }
   }, []);
   const hasLastRoom = Boolean(safeSessionGet('gameHub_lastRoomId'));
@@ -420,18 +435,9 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
         <div style={{ fontWeight: 800, marginBottom: 10 }}>Сценарий за 30 секунд</div>
         <ol style={{ margin: '0 0 12px', paddingLeft: 18, lineHeight: 1.5, fontSize: 13, opacity: 0.92 }}>
-          <li>Нажмите «Создать комнату».</li>
+          <li>Нажмите «Начать игру».</li>
           <li>Отправьте ссылку в чат (кнопка «Поделиться»).</li>
           <li>Выберите игру и нажмите «Начать».</li>
-        </ol>
-      </section>
-
-      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>3 шага до игры</div>
-        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
-          <li>Создайте комнату или введите код от друзей.</li>
-          <li>Хост выбирает игру и настройки в лобби.</li>
-          <li>После старта каждый видит свою роль или карточку.</li>
         </ol>
       </section>
 
@@ -439,10 +445,14 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <button
           type="button"
           className="gh-btn gh-btn--block gh-btn--muted"
-          onClick={() => setShowInstruction(true)}
+          onClick={() => {
+            dismissThanks();
+            setShowFeedback(true);
+            setFeedbackDone(false);
+          }}
           disabled={loading}
         >
-          Инструкция
+          Обратная связь
         </button>
       </section>
 
@@ -587,21 +597,63 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       </details>
 
       <Modal
-        open={showInstruction}
-        onClose={() => setShowInstruction(false)}
-        title="Инструкция"
+        open={showThanks}
+        onClose={dismissThanks}
+        title="Спасибо!"
         width={360}
       >
-        <div style={{ lineHeight: 1.6, opacity: 0.92, fontSize: 14 }}>
-          <div>1) Нажмите «Начать игру», чтобы создать комнату.</div>
-          <div style={{ marginTop: 6 }}>2) Поделитесь ссылкой или дайте друзьям код из блока «Войти по коду».</div>
-          <div style={{ marginTop: 6 }}>3) В лобби выберите игру и настройте параметры.</div>
-          <div style={{ marginTop: 6 }}>4) Профиль открывается нажатием на карточку с аватаром и именем.</div>
-          <div style={{ marginTop: 6 }}>5) Магазин открывается с главной, покупки сохраняются локально.</div>
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <Button variant="secondary" fullWidth onClick={() => setShowInstruction(false)}>
-            Понятно
+        <p style={{ marginBottom: 12, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
+          Спасибо за поддержку и тестирование. У вас включён <strong>Про</strong>, чтобы можно было попробовать все режимы бесплатно.
+          Будем благодарны, если поделитесь проектом с друзьями и напишете отзыв через «Обратная связь».
+        </p>
+        <Button variant="primary" fullWidth onClick={dismissThanks}>
+          Обязательно
+        </Button>
+      </Modal>
+
+      <Modal
+        open={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        title="Обратная связь"
+        width={400}
+      >
+        <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+          Идеи, баги, пожелания — всё сюда. Сообщения сохраняются на сервере для команды проекта.
+        </p>
+        {feedbackDone ? (
+          <p style={{ color: '#8c8', fontSize: 14 }}>Спасибо! Сообщение отправлено.</p>
+        ) : (
+          <>
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+              Сообщение
+            </label>
+            <textarea
+              className="gh-input gh-input--full"
+              rows={5}
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Например: не хватает кнопки… или нашёл ошибку в…"
+              style={{ resize: 'vertical', minHeight: 100, marginBottom: 12 }}
+            />
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+              Контакт (необязательно)
+            </label>
+            <input
+              type="text"
+              className="gh-input gh-input--full"
+              value={feedbackContact}
+              onChange={(e) => setFeedbackContact(e.target.value)}
+              placeholder="@username или email"
+              style={{ marginBottom: 12 }}
+            />
+            <Button variant="primary" fullWidth onClick={submitFeedback} disabled={feedbackSending}>
+              {feedbackSending ? 'Отправка…' : 'Отправить'}
+            </Button>
+          </>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <Button variant="secondary" fullWidth onClick={() => setShowFeedback(false)}>
+            {feedbackDone ? 'Закрыть' : 'Отмена'}
           </Button>
         </div>
       </Modal>

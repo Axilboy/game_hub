@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { roomRoutes } from './rooms.js';
 import { adminRoutes } from './admin.js';
+import { feedbackRoutes } from './feedbackRoutes.js';
 import { roomManager } from './roomManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +33,7 @@ await fastify.register(cors, { origin: true });
 fastify.decorate('io', null);
 fastify.register(roomRoutes, { prefix: '/api' });
 fastify.register(adminRoutes, { prefix: '/api' });
+fastify.register(feedbackRoutes, { prefix: '/api' });
 
 fastify.get('/robots.txt', async (request, reply) => {
   const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';

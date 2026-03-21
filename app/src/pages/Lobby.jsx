@@ -480,8 +480,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const handleBack = () => {
-    if (selectedGame) patchLobbyGame({ selectedGame: null });
-    else setLeaveConfirmOpen(true);
+    setLeaveConfirmOpen(true);
   };
   const confirmLeaveLobby = () => {
     setLeaveConfirmOpen(false);
@@ -1449,7 +1448,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       <Modal open={leaveConfirmOpen} onClose={() => setLeaveConfirmOpen(false)} title="Выйти из комнаты?" width={400}>
-        <p style={{ marginTop: 0, lineHeight: 1.5, opacity: 0.92 }}>Вы покинете лобби. Приглашение можно будет использовать снова, если комната ещё активна.</p>
+        <p style={{ marginTop: 0, lineHeight: 1.5, opacity: 0.92 }}>
+          Вернуться на главный экран? Вы покинете лобби; приглашение снова сработает, если комната ещё активна.
+        </p>
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <Button variant="secondary" fullWidth onClick={() => setLeaveConfirmOpen(false)}>
             Остаться
@@ -1587,6 +1588,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <span style={{ display: 'block', fontSize: 11, marginTop: 4, opacity: 0.9 }}>мин. {g.minPlayers}</span>
             </button>
           ))}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Button variant="secondary" fullWidth type="button" onClick={() => setGamesPickerOpen(false)}>
+            Свернуть
+          </Button>
+          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.75, lineHeight: 1.35 }}>
+            Окно можно свернуть и открыть снова кнопкой «Выбрать игру» ниже.
+          </p>
         </div>
       </Modal>
 

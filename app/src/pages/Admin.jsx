@@ -8,6 +8,9 @@ import { useToast } from '../components/ui/ToastProvider';
 const ADMIN_PASS_KEY = 'gameHub_adminPass';
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
 const APP_LINK = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : (import.meta.env.VITE_BASE_URL || window.location.origin);
+const API_BASE = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
+  ? import.meta.env.VITE_API_URL
+  : (typeof window !== 'undefined' ? window.location.origin : '');
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -31,6 +34,42 @@ export default function Admin() {
 
   const loadStats = () => {
     api.post('/admin/stats', { password }).then(setStats).catch(() => setError('Ошибка'));
+  };
+
+  const loadFeedback = async () => {
+    setFeedbackLoading(true);
+    setError('');
+    try {
+      const r = await api.post('/admin/feedback/list', { password });
+      setFeedbackItems(Array.isArray(r.items) ? r.items : []);
+    } catch (e) {
+      setError(e.message || 'Не удалось загрузить отзывы');
+      showToast({ type: 'error', message: 'Ошибка загрузки отзывов' });
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  const exportFeedbackFile = async () => {
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/feedback/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) throw new Error('export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gamehub-feedback-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast({ type: 'success', message: 'Файл выгружен' });
+    } catch (e) {
+      showToast({ type: 'error', message: 'Не удалось выгрузить файл' });
+    }
   };
 
   const createPromo = async () => {
@@ -136,6 +175,48 @@ export default function Admin() {
       <button type="button" onClick={() => setPromoView(true)} style={btnStyle}>Создать промокод</button>
       <button type="button" onClick={loadStats} style={{ ...btnStyle, marginTop: 8, background: '#555' }}>Обновить статистику</button>
       <button type="button" onClick={exitAdmin} style={{ ...btnStyle, marginTop: 8, background: '#333' }}>Выйти из админки</button>
+
+      <section style={{ marginTop: 28, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 12 }}>Обратная связь</h3>
+        <p style={{ fontSize: 13, opacity: 0.85, marginBottom: 12, lineHeight: 1.45 }}>
+          Сообщения с главной страницы (текст, контакт, время, id игрока).
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button type="button" onClick={loadFeedback} disabled={feedbackLoading} style={{ ...btnStyle, background: '#4a6a8a' }}>
+            {feedbackLoading ? 'Загрузка…' : 'Загрузить отзывы'}
+          </button>
+          <button type="button" onClick={exportFeedbackFile} style={{ ...btnStyle, background: '#3d5c3d' }}>
+            Выгрузить JSON со всеми ответами
+          </button>
+        </div>
+        {feedbackItems != null && (
+          <div style={{ marginTop: 14, maxHeight: 280, overflow: 'auto', fontSize: 12, lineHeight: 1.45 }}>
+            <p style={{ margin: '0 0 8px', opacity: 0.85 }}>Всего: {feedbackItems.length}</p>
+            {[...feedbackItems].reverse().slice(0, 40).map((f, i) => (
+              <div
+                key={`${f.receivedAt}-${i}`}
+                style={{
+                  marginBottom: 10,
+                  padding: 10,
+                  borderRadius: 8,
+                  background: 'rgba(0,0,0,0.2)',
+                  borderLeft: '3px solid var(--tg-theme-button-color, #3a7bd5)',
+                }}
+              >
+                <div style={{ opacity: 0.8, marginBottom: 4 }}>
+                  {f.receivedAt ? new Date(f.receivedAt).toLocaleString() : '—'}
+                  {f.displayName ? ` · ${f.displayName}` : ''}
+                  {f.playerId ? ` · id:${f.playerId}` : ''}
+                  {f.contact ? ` · ${f.contact}` : ''}
+                </div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{f.message || ''}</div>
+              </div>
+            ))}
+            {feedbackItems.length > 40 ? <p style={{ opacity: 0.75 }}>…и ещё {feedbackItems.length - 40} (см. выгрузку JSON)</p> : null}
+          </div>
+        )}
+      </section>
+
       <SeoFooter style={{ marginTop: 24 }} />
     </div>
   );
