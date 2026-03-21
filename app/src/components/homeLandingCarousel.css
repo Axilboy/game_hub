@@ -18,6 +18,105 @@
   letter-spacing: 0.02em;
 }
 
+.gh-home-carousel__frame {
+  width: 100%;
+  min-width: 0;
+}
+
+.gh-home-carousel__strip {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.gh-home-carousel__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--gh-border);
+  background: color-mix(in srgb, var(--tg-theme-bg-color, #1a1a2e) 82%, transparent);
+  color: var(--tg-theme-text-color, #eee);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.gh-home-carousel__arrow:hover {
+  opacity: 0.95;
+  transform: translateY(-50%) scale(1.06);
+}
+
+.gh-home-carousel__arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.gh-home-carousel__arrow:focus-visible {
+  outline: 2px solid var(--tg-theme-button-color, #3a7bd5);
+  outline-offset: 2px;
+}
+
+.gh-home-carousel__arrow--prev {
+  left: 2px;
+}
+
+.gh-home-carousel__arrow--next {
+  right: 2px;
+}
+
+@media (max-width: 380px) {
+  .gh-home-carousel__arrow {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+}
+
+.gh-home-carousel__dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0 40px;
+}
+
+.gh-home-carousel__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.gh-home-carousel__dot:hover {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.gh-home-carousel__dot--active {
+  background: var(--tg-theme-button-color, #3a7bd5);
+  transform: scale(1.2);
+}
+
+.gh-home-carousel__dot:focus-visible {
+  outline: 2px solid var(--tg-theme-button-color, #3a7bd5);
+  outline-offset: 2px;
+}
+
 .gh-home-carousel {
   display: flex;
   gap: 12px;
@@ -37,7 +136,7 @@
   overscroll-behavior-y: none;
   touch-action: pan-x;
   scroll-snap-stop: always;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .gh-home-carousel::-webkit-scrollbar {
@@ -46,6 +145,9 @@
 
 .gh-home-carousel__slide {
   flex: 0 0 min(88%, 320px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   scroll-snap-align: center;
   text-decoration: none;
   color: inherit;
@@ -56,7 +158,6 @@
 }
 
 .gh-home-carousel__slide--hub {
-  display: block;
   background: transparent;
   padding: 0;
   font: inherit;
@@ -85,8 +186,10 @@
 .gh-home-carousel__inner {
   box-sizing: border-box;
   width: 100%;
-  min-height: 140px;
-  padding: 18px 16px 24px;
+  flex: 1 1 auto;
+  /* Единая высота ряда: все карточки тянутся по самой высокой + общий минимум */
+  min-height: 182px;
+  padding: 14px 16px;
   margin: 0;
   text-align: center;
   border-radius: inherit;
@@ -103,7 +206,7 @@
   background: linear-gradient(145deg, rgba(58, 123, 213, 0.25), rgba(40, 40, 70, 0.35));
   border: none;
   color: inherit;
-  min-height: 136px;
+  min-height: 182px;
 }
 
 .gh-home-carousel__emoji {

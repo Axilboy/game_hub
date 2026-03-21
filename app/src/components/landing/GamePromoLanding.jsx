@@ -113,14 +113,7 @@ export default function GamePromoLanding({
       ) : null}
 
       <div className="gpl__panel">
-        {sections.map((s, idx) => (
-          <section key={idx}>
-            <h2 className="gpl__section-title">{s.title}</h2>
-            <div className="gpl__section-body">{s.body}</div>
-          </section>
-        ))}
-
-        <div className="gpl__ctas">
+        <div className="gpl__ctas gpl__ctas--top">
           <button type="button" className="gpl__btn gpl__btn--primary" onClick={handleStartGame}>
             {primaryCtaLabel}
           </button>
@@ -140,6 +133,13 @@ export default function GamePromoLanding({
             </a>
           ) : null}
         </div>
+
+        {sections.map((s, idx) => (
+          <section key={idx}>
+            <h2 className="gpl__section-title">{s.title}</h2>
+            <div className="gpl__section-body">{s.body}</div>
+          </section>
+        ))}
 
         <p className="gpl__hint">
           Одна комната — настройки можно поменять в лобби.{' '}

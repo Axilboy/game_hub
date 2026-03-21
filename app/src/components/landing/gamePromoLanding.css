@@ -204,6 +204,12 @@
   margin-top: 22px;
 }
 
+/* Кнопки вверху белого блока «Как играть» / панели */
+.gpl__ctas--top {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
 .gpl__btn {
   display: flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { track } from '../analytics';
 import './homeLandingCarousel.css';
@@ -92,6 +92,31 @@ export default function HomeLandingCarousel() {
   const logicalRef = useRef(0);
   const scrollEndTimerRef = useRef(null);
   const isDraggingRef = useRef(false);
+  /** Пользователь тянул/свайпнул ленту — после остановки скролла перезапускаем таймер автолистания */
+  const userDraggedCarouselRef = useRef(false);
+  const autoIntervalRef = useRef(null);
+  const goNextAutoRef = useRef(null);
+  const [activeLogical, setActiveLogical] = useState(0);
+
+  const scheduleAutoAdvance = useCallback(() => {
+    if (autoIntervalRef.current) {
+      clearInterval(autoIntervalRef.current);
+      autoIntervalRef.current = null;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    } catch (_) {
+      return;
+    }
+    autoIntervalRef.current = setInterval(() => {
+      goNextAutoRef.current?.();
+    }, AUTO_INTERVAL_MS);
+  }, []);
+
+  const syncActiveFromRef = useCallback(() => {
+    setActiveLogical(logicalRef.current);
+  }, []);
 
   /** Всегда «приземляемся» на среднюю копию, чтобы влево/вправо был запас */
   const normalizeLoop = useCallback(() => {
@@ -107,6 +132,7 @@ export default function HomeLandingCarousel() {
       const target = slides[domIdx + MIDDLE_START];
       if (target) scrollSlideIntoViewCenter(root, target, 'auto');
       logicalRef.current = logicalIndexFromDom(domIdx);
+      syncActiveFromRef();
       return;
     }
 
@@ -115,15 +141,20 @@ export default function HomeLandingCarousel() {
       if (target) scrollSlideIntoViewCenter(root, target, 'auto');
       logicalRef.current = logicalIndexFromDom(domIdx);
     }
-  }, []);
+    syncActiveFromRef();
+  }, [syncActiveFromRef]);
 
   const onScrollDebounced = useCallback(() => {
     if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
     scrollEndTimerRef.current = setTimeout(() => {
       scrollEndTimerRef.current = null;
       normalizeLoop();
+      if (userDraggedCarouselRef.current) {
+        scheduleAutoAdvance();
+        userDraggedCarouselRef.current = false;
+      }
     }, SCROLL_END_DEBOUNCE_MS);
-  }, [normalizeLoop]);
+  }, [normalizeLoop, scheduleAutoAdvance]);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -132,6 +163,21 @@ export default function HomeLandingCarousel() {
     root.addEventListener('scroll', onScroll, { passive: true });
     return () => root.removeEventListener('scroll', onScroll);
   }, [onScrollDebounced]);
+
+  const scrollToLogical = useCallback(
+    (logical, behavior) => {
+      const root = scrollRef.current;
+      if (!root) return;
+      const slides = [...root.querySelectorAll('[data-carousel-slide]')];
+      const target = slides[MIDDLE_START + logical];
+      if (!target) return;
+      logicalRef.current = logical;
+      setActiveLogical(logical);
+      scrollSlideIntoViewCenter(root, target, behavior);
+      scheduleAutoAdvance();
+    },
+    [scheduleAutoAdvance],
+  );
 
   const goNextAuto = useCallback(() => {
     const root = scrollRef.current;
@@ -142,11 +188,11 @@ export default function HomeLandingCarousel() {
     const logical = logicalRef.current;
     const nextLogical = (logical + 1) % CYCLE_LEN;
 
-    /** Все переходы только внутри средней копии (индексы 6…11) */
     if (logical === CYCLE_LEN - 1 && nextLogical === 0) {
       const hubMid = slides[MIDDLE_START];
       if (hubMid) {
         logicalRef.current = 0;
+        setActiveLogical(0);
         scrollSlideIntoViewCenter(root, hubMid, 'smooth');
       }
       return;
@@ -156,20 +202,23 @@ export default function HomeLandingCarousel() {
     if (target) {
       scrollSlideIntoViewCenter(root, target, 'smooth');
       logicalRef.current = nextLogical;
+      setActiveLogical(nextLogical);
     }
   }, []);
 
   useEffect(() => {
-    const root = scrollRef.current;
-    if (!root) return;
-
-    const reduceMotion =
-      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) return undefined;
-
-    const id = setInterval(goNextAuto, AUTO_INTERVAL_MS);
-    return () => clearInterval(id);
+    goNextAutoRef.current = goNextAuto;
   }, [goNextAuto]);
+
+  useEffect(() => {
+    scheduleAutoAdvance();
+    return () => {
+      if (autoIntervalRef.current) {
+        clearInterval(autoIntervalRef.current);
+        autoIntervalRef.current = null;
+      }
+    };
+  }, [scheduleAutoAdvance]);
 
   useLayoutEffect(() => {
     const root = scrollRef.current;
@@ -182,6 +231,7 @@ export default function HomeLandingCarousel() {
         scrollSlideIntoViewCenter(r, hubMid, 'auto');
       }
       logicalRef.current = 0;
+      setActiveLogical(0);
     });
   }, []);
 
@@ -191,6 +241,7 @@ export default function HomeLandingCarousel() {
 
     const onDown = () => {
       isDraggingRef.current = true;
+      userDraggedCarouselRef.current = true;
     };
     const onUp = () => {
       isDraggingRef.current = false;
@@ -209,51 +260,103 @@ export default function HomeLandingCarousel() {
     };
   }, []);
 
+  const handlePrev = () => {
+    const prev = (logicalRef.current - 1 + CYCLE_LEN) % CYCLE_LEN;
+    track('home_carousel_nav', { action: 'prev', logical: prev });
+    scrollToLogical(prev, 'smooth');
+  };
+
+  const handleNext = () => {
+    const next = (logicalRef.current + 1) % CYCLE_LEN;
+    track('home_carousel_nav', { action: 'next', logical: next });
+    scrollToLogical(next, 'smooth');
+  };
+
+  const handleDot = (i) => {
+    track('home_carousel_nav', { action: 'dot', logical: i });
+    scrollToLogical(i, 'smooth');
+  };
+
   const baseSlides = [{ kind: 'hub', key: 'hub' }, ...GAME_SLIDES.map((g) => ({ kind: 'game', ...g }))];
   const renderedSlides = [...baseSlides, ...baseSlides, ...baseSlides];
+
+  const dotLabels = ['GameHub', 'Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер'];
 
   return (
     <section className="gh-home-carousel-wrap" aria-label="GameHub и игры">
       <p className="gh-home-carousel__label">Листайте — GameHub или страница игры</p>
-      <div className="gh-home-carousel" ref={scrollRef}>
-        {renderedSlides.map((s, idx) => {
-          if (s.kind === 'hub') {
-            return (
-              <div
-                key={`hub-${idx}`}
-                data-carousel-slide
-                className="gh-home-carousel__slide gh-home-carousel__slide--hub"
-                role="group"
-                aria-label="GameHub Party — общий вход"
-              >
-                <div className="gh-home-carousel__inner gh-home-carousel__inner--hub">
-                  <div className="gh-home-carousel__hub-line1">GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
-                  <div className="gh-home-carousel__hub-line2">Играй с друзьями прямо в браузере</div>
-                  <div className="gh-home-carousel__hub-line3">Без регистрации</div>
+      <div className="gh-home-carousel__frame">
+        <div className="gh-home-carousel__strip">
+          <button
+            type="button"
+            className="gh-home-carousel__arrow gh-home-carousel__arrow--prev"
+            aria-label="Предыдущий слайд"
+            onClick={handlePrev}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="gh-home-carousel__arrow gh-home-carousel__arrow--next"
+            aria-label="Следующий слайд"
+            onClick={handleNext}
+          >
+            ›
+          </button>
+          <div className="gh-home-carousel" ref={scrollRef} role="region" aria-roledescription="карусель">
+          {renderedSlides.map((s, idx) => {
+            if (s.kind === 'hub') {
+              return (
+                <div
+                  key={`hub-${idx}`}
+                  data-carousel-slide
+                  className="gh-home-carousel__slide gh-home-carousel__slide--hub"
+                  role="group"
+                  aria-label="GameHub Party — общий вход"
+                >
+                  <div className="gh-home-carousel__inner gh-home-carousel__inner--hub">
+                    <div className="gh-home-carousel__hub-line1">GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
+                    <div className="gh-home-carousel__hub-line2">Играй с друзьями прямо в браузере</div>
+                    <div className="gh-home-carousel__hub-line3">Без регистрации</div>
+                  </div>
                 </div>
-              </div>
-            );
-          }
+              );
+            }
 
-          return (
-            <Link
-              key={`${s.key}-${idx}`}
-              to={s.to}
-              data-carousel-slide
-              className={`gh-home-carousel__slide gpl gpl--${s.theme}`}
-              onClick={() => track('home_carousel_landing', { path: s.to, theme: s.theme })}
-            >
-              <div className="gh-home-carousel__inner">
-                <div className="gh-home-carousel__emoji" aria-hidden>
-                  {s.emoji}
+            return (
+              <Link
+                key={`${s.key}-${idx}`}
+                to={s.to}
+                data-carousel-slide
+                className={`gh-home-carousel__slide gpl gpl--${s.theme}`}
+                onClick={() => track('home_carousel_landing', { path: s.to, theme: s.theme })}
+              >
+                <div className="gh-home-carousel__inner">
+                  <div className="gh-home-carousel__emoji" aria-hidden>
+                    {s.emoji}
+                  </div>
+                  <p className="gh-home-carousel__eyebrow">{s.eyebrow}</p>
+                  <h3 className="gh-home-carousel__title">{s.title}</h3>
+                  <p className="gh-home-carousel__subtitle">{s.subtitle}</p>
                 </div>
-                <p className="gh-home-carousel__eyebrow">{s.eyebrow}</p>
-                <h3 className="gh-home-carousel__title">{s.title}</h3>
-                <p className="gh-home-carousel__subtitle">{s.subtitle}</p>
-              </div>
-            </Link>
-          );
-        })}
+              </Link>
+            );
+          })}
+          </div>
+        </div>
+        <div className="gh-home-carousel__dots" role="tablist" aria-label="Выбор слайда">
+          {Array.from({ length: CYCLE_LEN }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              aria-selected={activeLogical === i}
+              aria-label={`${dotLabels[i] || `Слайд ${i + 1}`}, ${i + 1} из ${CYCLE_LEN}`}
+              className={`gh-home-carousel__dot${activeLogical === i ? ' gh-home-carousel__dot--active' : ''}`}
+              onClick={() => handleDot(i)}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
