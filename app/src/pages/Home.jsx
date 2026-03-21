@@ -11,6 +11,7 @@ import { buildInviteLinks, shareInviteSmart } from '../invite';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import PageLayout from '../components/layout/PageLayout';
+import HomeLandingCarousel from '../components/HomeLandingCarousel';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
@@ -298,13 +299,24 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
   return (
     <PageLayout title="GameHub" onBack={() => window.history.back()}>
-      <section className="gh-hero" style={{ marginBottom: 18 }}>
+      <button
+        type="button"
+        className="gh-hero gh-hero--clickable"
+        onClick={() => {
+          track('home_hero_create_lobby', {});
+          handleCreate();
+        }}
+        disabled={loading}
+        aria-label="Создать комнату — обычное лобби, играть на выбор в лобби"
+      >
         <div style={{ fontSize: 18, opacity: 0.9 }}>GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
         <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, lineHeight: 1.2 }}>
           Играй с друзьями прямо в браузере
         </div>
         <div style={{ fontSize: 16, opacity: 0.85, marginTop: 6 }}>Без регистрации</div>
-      </section>
+      </button>
+
+      <HomeLandingCarousel />
 
       <header
         className="gh-card"

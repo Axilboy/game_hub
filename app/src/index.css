@@ -145,6 +145,35 @@ html[data-density='compact'] {
   border: 1px solid var(--gh-border);
 }
 
+.gh-hero--clickable {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gh-hero--clickable:not(:disabled):hover {
+  box-shadow: 0 4px 20px rgba(58, 123, 213, 0.2);
+}
+
+.gh-hero--clickable:not(:disabled):active {
+  transform: scale(0.99);
+  opacity: 0.96;
+}
+
+.gh-hero--clickable:focus-visible {
+  outline: 2px solid var(--tg-theme-button-color, #3a7bd5);
+  outline-offset: 2px;
+}
+
+.gh-hero--clickable:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
 @media (max-width: 420px) {
   .gh-page {
     padding: 16px;
