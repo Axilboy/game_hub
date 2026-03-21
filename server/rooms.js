@@ -735,24 +735,44 @@ export async function roomRoutes(fastify) {
     if (room.hostId !== hostId) return reply.code(403).send({ error: 'Only host can start' });
     const players = room.players;
     if (players.length < 2) return reply.code(400).send({ error: 'Need at least 2 players' });
-    const playerIdSet = new Set(players.map((p) => p.id));
+    /** id из комнаты (канонический), чтобы не терять игроков из‑за number vs string в JSON */
+    function resolveIdsInRoom(rawIds) {
+      if (!Array.isArray(rawIds)) return [];
+      const out = [];
+      for (const id of rawIds) {
+        const p = players.find((x) => String(x.id) === String(id));
+        if (p && !out.some((x) => String(x) === String(p.id))) out.push(p.id);
+      }
+      return out;
+    }
     let teams;
     if (Array.isArray(teamsInput) && teamsInput.length >= 2) {
       teams = teamsInput.map((t) => ({
         name: t.name || 'Команда',
-        players: (t.playerIds || t.players || []).filter((id) => playerIdSet.has(id)),
+        players: resolveIdsInRoom(t.playerIds || t.players || []),
         score: 0,
       }));
-      const totalPlaying = teams.reduce((sum, t) => sum + t.players.length, 0);
-      const teamsWithPlayers = teams.filter((t) => t.players.length > 0).length;
+      let totalPlaying = teams.reduce((sum, t) => sum + t.players.length, 0);
+      let teamsWithPlayers = teams.filter((t) => t.players.length > 0).length;
+      /** Пустые/битые id в теле запроса — как будто команд не прислали: авто 50/50 */
+      if (totalPlaying === 0 && players.length >= 2) {
+        const team1 = players.slice(0, Math.ceil(players.length / 2)).map((p) => p.id);
+        const team2 = players.slice(Math.ceil(players.length / 2)).map((p) => p.id);
+        teams = [
+          { name: teamsInput[0]?.name || 'Команда 1', players: team1, score: 0 },
+          { name: teamsInput[1]?.name || 'Команда 2', players: team2, score: 0 },
+        ];
+        totalPlaying = teams.reduce((sum, t) => sum + t.players.length, 0);
+        teamsWithPlayers = teams.filter((t) => t.players.length > 0).length;
+      }
       if (totalPlaying > 0 && totalPlaying < 2) return reply.code(400).send({ error: 'В игре должно быть минимум 2 игрока' });
       if (totalPlaying >= 2 && teamsWithPlayers < 2) return reply.code(400).send({ error: 'Игроки должны быть минимум в двух разных командах' });
     } else {
       let team1 = [];
       let team2 = [];
       if (Array.isArray(team1Ids) && Array.isArray(team2Ids) && (team1Ids.length > 0 || team2Ids.length > 0)) {
-        team1 = team1Ids.filter((id) => playerIdSet.has(id));
-        team2 = team2Ids.filter((id) => playerIdSet.has(id));
+        team1 = resolveIdsInRoom(team1Ids);
+        team2 = resolveIdsInRoom(team2Ids);
         if (team1.length + team2.length < 2) return reply.code(400).send({ error: 'В игре должно быть минимум 2 игрока (в двух командах вместе)' });
       }
       if (team1.length === 0 && team2.length === 0) {
@@ -1596,6 +1616,21 @@ export async function roomRoutes(fastify) {
     io.to(roomId).emit('elias_update', {});
   }
 
+  function incrementEliasLobbyWin(roomId, winnerTeamIndex) {
+    const room = roomManager.get(roomId);
+    if (!room) return;
+    const gs = room.gameSettings || {};
+    const n = Math.max(
+      Array.isArray(gs.eliasTeams) ? gs.eliasTeams.length : 0,
+      winnerTeamIndex + 1,
+      2,
+    );
+    let wins = Array.isArray(gs.eliasLobbyWins) ? [...gs.eliasLobbyWins] : [];
+    while (wins.length < n) wins.push(0);
+    wins[winnerTeamIndex] = (Number(wins[winnerTeamIndex]) || 0) + 1;
+    room.gameSettings = { ...gs, eliasLobbyWins: wins };
+  }
+
   function eliasCheckWin(roomId, io) {
     const room = roomManager.get(roomId);
     if (!room || room.game !== 'elias' || !room.gameState) return;
@@ -1603,13 +1638,51 @@ export async function roomRoutes(fastify) {
     for (let i = 0; i < gs.teams.length; i++) {
       if (gs.teams[i].score >= gs.scoreLimit) {
         gs.winner = i;
+        incrementEliasLobbyWin(roomId, i);
         roomManager.endGame(roomId);
         io.to(roomId).emit('elias_ended', { winnerTeamIndex: i, teams: gs.teams });
         io.to(roomId).emit('game_ended');
+        io.to(roomId).emit('room_updated');
         return;
       }
     }
   }
+
+  /** Переименование команды в лобби (только участники этой команды). */
+  fastify.post('/rooms/:roomId/lobby/party-team-name', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, teamIndex, name, scope } = request.body || {};
+    if (!playerId || teamIndex === undefined || teamIndex === null) {
+      return reply.code(400).send({ error: 'Нужны playerId и teamIndex' });
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.state !== 'lobby') {
+      return reply.code(400).send({ error: 'Доступно только в лобби' });
+    }
+    if (!room.players.some((p) => String(p.id) === String(playerId))) {
+      return reply.code(403).send({ error: 'Вы не в комнате' });
+    }
+    const ti = parseInt(teamIndex, 10);
+    if (Number.isNaN(ti) || ti < 0) return reply.code(400).send({ error: 'Некорректная команда' });
+    const key = scope === 'truth_dare' ? 'truthDareTeams' : 'eliasTeams';
+    const gs = room.gameSettings || {};
+    const teams = gs[key];
+    if (!Array.isArray(teams) || ti >= teams.length) {
+      return reply.code(400).send({ error: 'Некорректные команды' });
+    }
+    const pids = teams[ti].playerIds || [];
+    if (!pids.some((id) => String(id) === String(playerId))) {
+      return reply.code(403).send({ error: 'Переименовать может только участник команды' });
+    }
+    const trimmed = String(name || '').trim().slice(0, 48);
+    if (!trimmed) return reply.code(400).send({ error: 'Пустое название' });
+    const nextTeams = teams.map((t, i) => (i === ti ? { ...t, name: trimmed } : t));
+    room.gameSettings = { ...gs, [key]: nextTeams };
+    const io = fastify.io;
+    if (io) io.to(roomId).emit('room_updated');
+    const updated = roomManager.get(roomId);
+    return { ok: true, room: roomManager.toSafe(updated) };
+  });
 
   function playersToMvp(playerStats, roomPlayers) {
     let bestId = null;
@@ -1645,7 +1718,7 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
     const gs = room.gameState;
     const team = gs.teams[gs.currentTeamIndex];
-    if (!team?.players?.includes(playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
+    if (!idInPlayerList(team?.players, playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
     if (gs.awaitingExplainerStart || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Раунд ещё не начат' });
     }

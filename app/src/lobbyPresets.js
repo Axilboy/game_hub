@@ -1,5 +1,7 @@
 /** Единый источник дефолтных настроек лобби при выборе игры (как в модалке Lobby). */
 
+import { generateTwoTeamNames } from './teamNames';
+
 export const VALID_LOBBY_PRESET_IDS = new Set(['spy', 'mafia', 'elias', 'truth_dare', 'bunker']);
 
 export const BUNKER_DEFAULT_PHASE_TIMERS = {
@@ -71,15 +73,22 @@ export function getDefaultGameSettings(gameId) {
         theme: 'default',
         phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 },
       };
-    case 'elias':
+    case 'elias': {
+      const [e1, e2] = generateTwoTeamNames();
       return {
         timerSeconds: 60,
         scoreLimit: 10,
         skipPenalty: 1,
         dictionaryIds: ['basic', 'animals', 'memes'],
-        eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }],
+        eliasTeams: [
+          { name: e1, playerIds: [] },
+          { name: e2, playerIds: [] },
+        ],
+        eliasLobbyWins: [0, 0],
       };
-    case 'truth_dare':
+    }
+    case 'truth_dare': {
+      const [t1, t2] = generateTwoTeamNames();
       return {
         mode: 'mixed',
         show18Plus: false,
@@ -87,10 +96,11 @@ export function getDefaultGameSettings(gameId) {
         roundsCount: 5,
         categorySlugs: ['classic', 'friends'],
         truthDareTeams: [
-          { name: 'Команда 1', playerIds: [] },
-          { name: 'Команда 2', playerIds: [] },
+          { name: t1, playerIds: [] },
+          { name: t2, playerIds: [] },
         ],
       };
+    }
     case 'bunker':
       return {
         maxRounds: 3,

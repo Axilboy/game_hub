@@ -1,5 +1,15 @@
 const ZONE_ID = import.meta.env.VITE_MONETAG_ZONE_ID || '10744376';
 
+/**
+ * Пауза рекламы на время отладки. Поставьте `false`, когда снова нужны показы.
+ * Дополнительно: `VITE_ADS_DISABLED=true` в .env (блоки вызовов не удаляются).
+ */
+const ADS_PAUSED_FOR_TESTING = true;
+const ADS_DISABLED_BY_ENV =
+  import.meta.env.VITE_ADS_DISABLED === 'true' ||
+  import.meta.env.VITE_ADS_DISABLED === '1';
+const ADS_DISABLED = ADS_PAUSED_FOR_TESTING || ADS_DISABLED_BY_ENV;
+
 function getShowFn() {
   const fnName = `show_${ZONE_ID}`;
   return typeof window !== 'undefined' && typeof window[fnName] === 'function' ? window[fnName] : null;
@@ -12,6 +22,7 @@ const AD_WAIT_MS = 12000;
  * @returns {Promise<{ adSdkShown: boolean }>} adSdkShown — SDK был и вызван (успех/ошибка показа не различаем).
  */
 export function showAdIfNeeded() {
+  if (ADS_DISABLED) return Promise.resolve({ adSdkShown: false });
   const showFn = getShowFn();
   if (!showFn) return Promise.resolve({ adSdkShown: false });
   const p = showFn();

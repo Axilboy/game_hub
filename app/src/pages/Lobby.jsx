@@ -27,8 +27,9 @@ import {
   buildAutoPartyTeams,
   playersIdsKey,
   shufflePartyTeams,
-  teamsEqual,
+  teamsStructureEqual,
 } from '../lobbyTeamUtils';
+import { generateOneTeamName } from '../teamNames';
 import LobbyGameSummaryCard from '../components/lobby/LobbyGameSummaryCard';
 import LobbySettingsSheet from '../components/lobby/LobbySettingsSheet';
 import './lobbyPage.css';
@@ -155,6 +156,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   /** Выбранный в списке участников игрок (меню: хост / кик / друзья) */
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
+  /** Переименование команды: { scope: 'elias'|'truth_dare', teamIndex, name } */
+  const [teamRename, setTeamRename] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
   /** Элиас / П/Д: последний ключ состава — авто только при смене игроков (ручная расстановка не затирается) */
   const prevEliasRosterRef = useRef('');
@@ -310,9 +313,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const patchLobbyGame = async (updates) => {
     try {
+      let payload = { ...updates };
+      if (updates.gameSettings && room) {
+        const mergedGs = { ...room.gameSettings, ...updates.gameSettings };
+        if (Array.isArray(mergedGs.eliasTeams)) {
+          const n = mergedGs.eliasTeams.length;
+          let wins = [...(mergedGs.eliasLobbyWins || [])];
+          while (wins.length < n) wins.push(0);
+          if (wins.length > n) wins = wins.slice(0, n);
+          mergedGs.eliasLobbyWins = wins;
+        }
+        payload = { ...payload, gameSettings: mergedGs };
+      }
       const { room: r } = await api.patch(`/rooms/${roomId}`, {
         hostId: String(user?.id),
-        ...updates,
+        ...payload,
       });
       if (r) onRoomUpdate(r);
     } catch (_) {}
@@ -346,7 +361,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     const gs = room.gameSettings || {};
     const cur = gs[settingsKey];
     const auto = buildAutoPartyTeams(players);
-    if (auto && !teamsEqual(cur, auto)) {
+    if (auto && !teamsStructureEqual(cur, auto)) {
       patchLobbyGame({ gameSettings: { ...gs, [settingsKey]: auto } });
     }
   }, [isHost, selectedGame, room?.players]);
@@ -442,7 +457,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       return;
     }
     const teams = gs.eliasTeams;
-    const hasTeams = Array.isArray(teams) && teams.length >= 2;
+    /** Две пустые команды в настройках ≠ готовые команды: иначе сервер получает пустые массивы и ломает раскладку. */
+    const eliasAssigned =
+      Array.isArray(teams) && teams.reduce((sum, t) => sum + (t.playerIds?.length || 0), 0);
+    const hasTeams = Array.isArray(teams) && teams.length >= 2 && eliasAssigned >= 2;
     if (hasTeams) {
       const totalPlaying = teams.reduce((sum, t) => sum + (t.playerIds?.length || 0), 0);
       const teamsWithPlayers = teams.filter((t) => (t.playerIds || []).length > 0).length;
@@ -703,6 +721,101 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const playerMenuIsSelf = Boolean(pp && pp.id === String(user?.id));
   const playerMenuCanHostActions = Boolean(isHost && pp && !playerMenuIsSelf && !pp.isHost);
 
+  const partyTeams =
+    selectedGame === 'elias'
+      ? room?.gameSettings?.eliasTeams
+      : selectedGame === 'truth_dare'
+        ? room?.gameSettings?.truthDareTeams
+        : null;
+  const showPartyTeamsLayout =
+    (selectedGame === 'elias' || selectedGame === 'truth_dare') &&
+    Array.isArray(partyTeams) &&
+    partyTeams.length >= 2;
+  const eliasLobbyWins = room?.gameSettings?.eliasLobbyWins;
+  const myIdStr = user?.id != null ? String(user.id) : '';
+
+  const submitTeamRename = async () => {
+    if (!teamRename?.name?.trim()) return;
+    try {
+      await api.post(`/rooms/${roomId}/lobby/party-team-name`, {
+        playerId: myIdStr,
+        teamIndex: teamRename.teamIndex,
+        name: teamRename.name.trim(),
+        scope: teamRename.scope,
+      });
+      setTeamRename(null);
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      if (r) onRoomUpdate(r);
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось сохранить название') });
+    }
+  };
+
+  const renderLobbyPlayerCard = (p) => {
+    const offlineLeftSec =
+      p.online === false && !p.isHost && offlineSince[p.id] != null
+        ? Math.max(0, Math.ceil((OFFLINE_KICK_MS - (Date.now() - offlineSince[p.id])) / 1000))
+        : null;
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        className="gh-card lobby-player-card"
+        onClick={() => setPlayerMenuPlayer(p)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setPlayerMenuPlayer(p);
+          }
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {p.avatar_emoji ? (
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                {p.avatar_emoji}
+              </div>
+            ) : p.photo_url ? (
+              <img src={p.photo_url} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
+                {(p.name || '?')[0]}
+              </div>
+            )}
+            {p.hasPro && !p.isHost && (
+              <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 14 }} title="Премиум">
+                👑
+              </span>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.name}
+              <span style={{ marginLeft: 6 }}>
+                {p.isHost ? <Badge tone="info">Хост</Badge> : null}
+                {p.hasPro && !p.isHost ? (
+                  <span style={{ marginLeft: 4 }}>
+                    <Badge tone="warning">Премиум</Badge>
+                  </span>
+                ) : null}
+                {p.online === false ? (
+                  <span style={{ marginLeft: 4 }}>
+                    <Badge tone="danger">Офлайн</Badge>
+                  </span>
+                ) : null}
+              </span>
+            </span>
+            {offlineLeftSec != null ? (
+              <span className="lobby-player-offline-countdown" aria-live="polite">
+                Исключение через <strong className="lobby-player-offline-countdown__sec">{offlineLeftSec}</strong> с
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <PageLayout
       title={roomName}
@@ -792,67 +905,93 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       <section className="lobby-section" aria-label="Участники">
         <h3 className="lobby-section__title">Участники</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
         {playersList.length === 0 ? (
           <EmptyState title="Игроков пока нет" message="Поделитесь кодом комнаты или ссылкой-приглашением." />
-        ) : playersList.map((p) => {
-          const offlineLeftSec =
-            p.online === false && !p.isHost && offlineSince[p.id] != null
-              ? Math.max(0, Math.ceil((OFFLINE_KICK_MS - (Date.now() - offlineSince[p.id])) / 1000))
-              : null;
-          return (
-            <div
-              key={p.id}
-              role="button"
-              tabIndex={0}
-              className="gh-card lobby-player-card"
-              onClick={() => setPlayerMenuPlayer(p)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setPlayerMenuPlayer(p);
-                }
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  {p.avatar_emoji ? (
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                      {p.avatar_emoji}
+        ) : showPartyTeamsLayout ? (
+          <>
+            <div className="lobby-party-teams">
+              {partyTeams.map((team, ti) => {
+                const wins =
+                  selectedGame === 'elias' && Array.isArray(eliasLobbyWins) ? eliasLobbyWins[ti] ?? 0 : null;
+                const members = (team.playerIds || [])
+                  .map((id) => playersList.find((pl) => String(pl.id) === String(id)))
+                  .filter(Boolean);
+                const canRename = (team.playerIds || []).some((id) => String(id) === myIdStr);
+                const winWord =
+                  wins == null
+                    ? null
+                    : (() => {
+                        const n = wins;
+                        const m = n % 10;
+                        const h = n % 100;
+                        if (h >= 11 && h <= 14) return 'побед';
+                        if (m === 1) return 'победа';
+                        if (m >= 2 && m <= 4) return 'победы';
+                        return 'побед';
+                      })();
+                return (
+                  <div key={`team-${ti}`} className="lobby-team-card gh-card">
+                    <div className="lobby-team-card__head">
+                      <button
+                        type="button"
+                        className={`lobby-team-card__title${canRename ? ' lobby-team-card__title--editable' : ''}`}
+                        onClick={() =>
+                          canRename &&
+                          setTeamRename({
+                            scope: selectedGame === 'truth_dare' ? 'truth_dare' : 'elias',
+                            teamIndex: ti,
+                            name: team.name || `Команда ${ti + 1}`,
+                          })
+                        }
+                        title={canRename ? 'Нажмите, чтобы изменить название (только для своей команды)' : ''}
+                        disabled={!canRename}
+                      >
+                        {team.name || `Команда ${ti + 1}`}
+                      </button>
+                      {wins != null ? (
+                        <span className="lobby-team-card__wins" title="Побед в Элиасе в этом лобби">
+                          {wins} {winWord}
+                        </span>
+                      ) : (
+                        <span className="lobby-team-card__wins lobby-team-card__wins--muted" title="Счёт побед — для Элиаса">
+                          —
+                        </span>
+                      )}
                     </div>
-                  ) : p.photo_url ? (
-                    <img src={p.photo_url} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
-                      {(p.name || '?')[0]}
-                    </div>
-                  )}
-                  {p.hasPro && !p.isHost && (
-                    <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 14 }} title="Премиум">👑</span>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.name}
-                    <span style={{ marginLeft: 6 }}>
-                      {p.isHost ? <Badge tone="info">Хост</Badge> : null}
-                      {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Премиум</Badge></span> : null}
-                      {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : null}
-                    </span>
-                  </span>
-                  {offlineLeftSec != null ? (
-                    <span className="lobby-player-offline-countdown" aria-live="polite">
-                      Исключение через{' '}
-                      <strong className="lobby-player-offline-countdown__sec">{offlineLeftSec}</strong>
-                      с
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+                    <ul className="lobby-team-card__members">
+                      {members.map((p) => (
+                        <li key={p.id}>{renderLobbyPlayerCard(p)}</li>
+                      ))}
+                      {members.length === 0 ? <li className="lobby-team-card__empty">Пока никого</li> : null}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-        </div>
+            {(() => {
+              const assigned = new Set();
+              partyTeams.forEach((t) => (t.playerIds || []).forEach((id) => assigned.add(String(id))));
+              const loose = playersList.filter((p) => !assigned.has(String(p.id)));
+              if (!loose.length) return null;
+              return (
+                <div className="lobby-party-unassigned">
+                  <p className="lobby-party-unassigned__label">Без команды</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {loose.map((p) => (
+                      <div key={p.id}>{renderLobbyPlayerCard(p)}</div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
+            {playersList.map((p) => (
+              <div key={p.id}>{renderLobbyPlayerCard(p)}</div>
+            ))}
+          </div>
+        )}
       </section>
 
       {isHost && !selectedGame ? (
@@ -1500,7 +1639,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 type="button"
                 onClick={() => {
                   const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
-                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: [...teams, { name: `Команда ${teams.length + 1}`, playerIds: [] }] } });
+                  patchLobbyGame({
+                    gameSettings: {
+                      ...room?.gameSettings,
+                      eliasTeams: [...teams, { name: generateOneTeamName(), playerIds: [] }],
+                    },
+                  });
                 }}
                 style={{ ...btnStyleToggleMid, width: 'auto', padding: '6px 12px', fontSize: 13 }}
               >
@@ -1522,11 +1666,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <div>
               {(room?.players || []).map((p) => {
                 const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
-                const playerTeamIndex = teams.findIndex((t) => (t.playerIds || []).includes(p.id));
+                const playerTeamIndex = teams.findIndex((t) =>
+                  (t.playerIds || []).some((id) => String(id) === String(p.id)),
+                );
                 const setTeam = (teamIndex) => {
                   const next = teams.map((t, i) => ({
                     ...t,
-                    playerIds: (t.playerIds || []).filter((id) => id !== p.id).concat(teamIndex === i ? [p.id] : []),
+                    playerIds: (t.playerIds || [])
+                      .filter((id) => String(id) !== String(p.id))
+                      .concat(teamIndex === i ? [p.id] : []),
                   }));
                   patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: next } });
                 };
@@ -1749,7 +1897,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   patchLobbyGame({
                     gameSettings: {
                       ...room?.gameSettings,
-                      truthDareTeams: [...teams, { name: `Команда ${teams.length + 1}`, playerIds: [] }],
+                      truthDareTeams: [...teams, { name: generateOneTeamName(), playerIds: [] }],
                     },
                   });
                 }}
@@ -1776,11 +1924,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   { name: 'Команда 1', playerIds: [] },
                   { name: 'Команда 2', playerIds: [] },
                 ];
-                const playerTeamIndex = teams.findIndex((t) => (t.playerIds || []).includes(p.id));
+                const playerTeamIndex = teams.findIndex((t) =>
+                  (t.playerIds || []).some((id) => String(id) === String(p.id)),
+                );
                 const setTeam = (teamIndex) => {
                   const next = teams.map((t, i) => ({
                     ...t,
-                    playerIds: (t.playerIds || []).filter((id) => id !== p.id).concat(teamIndex === i ? [p.id] : []),
+                    playerIds: (t.playerIds || [])
+                      .filter((id) => String(id) !== String(p.id))
+                      .concat(teamIndex === i ? [p.id] : []),
                   }));
                   patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: next } });
                 };
@@ -1789,7 +1941,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     <span style={{ minWidth: 72 }}>{p.name}</span>
                     {teams.map((t, i) => (
                       <button
-                        key={t.name + i}
+                        key={`${t.name}-${i}`}
                         type="button"
                         onClick={() => setTeam(i)}
                         style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
@@ -1939,6 +2091,32 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             Выйти
           </Button>
         </div>
+      </Modal>
+
+      <Modal open={Boolean(teamRename)} onClose={() => setTeamRename(null)} title="Название команды" width={400}>
+        {teamRename ? (
+          <>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+              Видят все в лобби. До 48 символов.
+            </p>
+            <input
+              type="text"
+              value={teamRename.name}
+              onChange={(e) => setTeamRename((r) => (r ? { ...r, name: e.target.value } : null))}
+              maxLength={48}
+              className="lobby-team-rename-input"
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <Button variant="secondary" fullWidth onClick={() => setTeamRename(null)}>
+                Отмена
+              </Button>
+              <Button variant="primary" fullWidth onClick={submitTeamRename}>
+                Сохранить
+              </Button>
+            </div>
+          </>
+        ) : null}
       </Modal>
 
       <Modal open={Boolean(playerMenuPlayer)} onClose={() => setPlayerMenuPlayer(null)} title={pp ? pp.name : 'Игрок'} width={400}>

@@ -4,18 +4,30 @@
  * — хост вручную перетаскивает по кнопкам команд; «Случайно» и «Авто по списку» — как у конкурентов.
  */
 
+import { generateTwoTeamNames } from './teamNames';
+
 /** Ключ состава для сравнения «тот же набор игроков» */
 export function playersIdsKey(players) {
   if (!players?.length) return '';
-  return players.map((p) => p.id).sort().join(',');
+  return players.map((p) => String(p.id)).sort().join(',');
 }
 
 export function teamsEqual(a, b) {
   if (!a || !b || a.length !== b.length) return false;
   return a.every((t, i) => {
-    const ta = [...(t.playerIds || [])].sort().join(',');
-    const tb = [...(b[i]?.playerIds || [])].sort().join(',');
+    const ta = [...(t.playerIds || [])].map(String).sort().join(',');
+    const tb = [...(b[i]?.playerIds || [])].map(String).sort().join(',');
     return (t.name || '') === (b[i]?.name || '') && ta === tb;
+  });
+}
+
+/** Только состав (id по командам) — для авто-патча при смене ростера без сброса имён при ручном переименовании */
+export function teamsStructureEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((t, i) => {
+    const ta = [...(t.playerIds || [])].map(String).sort().join(',');
+    const tb = [...(b[i]?.playerIds || [])].map(String).sort().join(',');
+    return ta === tb;
   });
 }
 
@@ -35,17 +47,19 @@ export function buildTwoTeamsRoundRobin(players) {
 
 /** 3 игрока: две команды 2 + 1 (как в онлайн-Alias / «две команды из троих»). */
 export function buildTwoTeamsThreePlayers(players) {
+  const [n1, n2] = generateTwoTeamNames();
   const ids = players.map((p) => p.id);
   return [
-    { name: 'Команда 1', playerIds: ids.slice(0, 2) },
-    { name: 'Команда 2', playerIds: ids.slice(2) },
+    { name: n1, playerIds: ids.slice(0, 2) },
+    { name: n2, playerIds: ids.slice(2) },
   ];
 }
 
 /** 2 игрока: по одному в команде (дуэль). */
 export function buildTwoSoloTeams(players) {
+  const [n1, n2] = generateTwoTeamNames();
   return players.map((p, i) => ({
-    name: `Команда ${i + 1}`,
+    name: i === 0 ? n1 : n2,
     playerIds: [p.id],
   }));
 }

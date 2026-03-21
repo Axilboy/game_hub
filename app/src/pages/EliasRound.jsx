@@ -299,6 +299,9 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const winner = state.winner != null ? state.winner : winnerTeamIndex;
   const explainingTeamIndex = state.currentTeamIndex ?? 0;
   const explainingTeamName = teams[explainingTeamIndex]?.name || 'Команда';
+  const myTeamIndex = typeof state.myTeamIndex === 'number' ? state.myTeamIndex : -1;
+  const myTeamName =
+    myTeamIndex >= 0 && teams[myTeamIndex] ? teams[myTeamIndex].name : null;
   const roundPtsPreview = explainingTeamRoundDelta(editLog.length ? editLog : state.roundLog, explainingTeamIndex, state.skipPenalty);
   const canPlayActions = state.isExplainer && phase === 'playing' && !awaitingStart && state.word;
   const sub = `(Все наборы: ${dictSubtitle(state.dictionaryIds)})`;
@@ -362,11 +365,19 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
       <GameLayout top={null} center={false} padding={0} minHeight="auto" textAlign="center" bottom={null}>
         <div className="elias-round">
-          <p className="elias-round__meta">
-            Объясняет: <strong>{state.explainerName}</strong>
-            {' · '}
-            {explainingTeamName}
-          </p>
+          <div className="elias-round__meta-card gpl__panel">
+            <p className="elias-round__meta-card-kicker">Текущий раунд</p>
+            <p className="elias-round__meta-card-main">
+              Объясняет <strong>{state.explainerName}</strong>
+            </p>
+            <p className="elias-round__meta-card-sub">Ход команды «{explainingTeamName}»</p>
+            {myTeamName ? (
+              <div className="elias-round__meta-pill">
+                <span className="elias-round__meta-pill-label">Ваша команда</span>
+                <span className="elias-round__meta-pill-value">{myTeamName}</span>
+              </div>
+            ) : null}
+          </div>
 
           {phase === 'review' ? (
             <div className="elias-round__review">
@@ -457,27 +468,36 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
               </div>
 
               {awaitingStart && state.isCurrentExplainer && (
-                <div className="gpl__panel elias-round__start-panel" style={{ marginBottom: 12 }}>
-                  <p style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--gpl-panel-text)' }}>
-                    Когда будете готовы, нажмите «Начать» — появится слово и запустится таймер.
-                  </p>
-                  <button type="button" className="elias-round__start-btn" onClick={beginRound}>
-                    Начать
-                  </button>
+                <div className="elias-round__phase-stack">
+                  <div className="gpl__panel elias-round__phase-card elias-round__start-panel">
+                    <p className="elias-round__phase-card-kicker">Старт раунда</p>
+                    <p className="elias-round__phase-card-text">
+                      Когда будете готовы, нажмите «Начать» — появится слово и запустится таймер.
+                    </p>
+                    <button type="button" className="elias-round__start-btn" onClick={beginRound}>
+                      Начать
+                    </button>
+                  </div>
                 </div>
               )}
               {awaitingStart && state.isExplainer && !state.isCurrentExplainer && (
-                <div className="gpl__panel" style={{ marginBottom: 12 }}>
-                  <p style={{ margin: 0, fontSize: 15, color: 'var(--gpl-panel-text)' }}>
-                    Ожидайте: раунд начнёт <strong>{state.explainerName}</strong> — только он запускает таймер.
-                  </p>
+                <div className="elias-round__phase-stack">
+                  <div className="gpl__panel elias-round__phase-card elias-round__phase-card--wait">
+                    <p className="elias-round__phase-card-kicker">Ожидание</p>
+                    <p className="elias-round__phase-card-text">
+                      Раунд начнёт <strong>{state.explainerName}</strong> — только он запускает таймер.
+                    </p>
+                  </div>
                 </div>
               )}
               {awaitingStart && !state.isExplainer && (
-                <div className="gpl__panel" style={{ marginBottom: 12 }}>
-                  <p style={{ margin: 0, fontSize: 15, color: 'var(--gpl-panel-text)' }}>
-                    Готовится раунд команды «{explainingTeamName}». Слова и таймер увидят только они.
-                  </p>
+                <div className="elias-round__phase-stack">
+                  <div className="gpl__panel elias-round__phase-card elias-round__phase-card--spectator">
+                    <p className="elias-round__phase-card-kicker">Другая команда</p>
+                    <p className="elias-round__phase-card-text">
+                      Готовится раунд «{explainingTeamName}». Слово и таймер видят только они.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -533,9 +553,14 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
               )}
 
               {phase === 'playing' && !awaitingStart && !state.isExplainer && (
-                <div className="elias-round__wait">
-                  <p>Команда <strong>{explainingTeamName}</strong> объясняет слово.</p>
-                  <p style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>Слово видно только объясняющей команде.</p>
+                <div className="elias-round__phase-stack">
+                  <div className="gpl__panel elias-round__phase-card elias-round__phase-card--spectator">
+                    <p className="elias-round__phase-card-kicker">Идёт раунд</p>
+                    <p className="elias-round__phase-card-text">
+                      Команда «{explainingTeamName}» объясняет слово.
+                    </p>
+                    <p className="elias-round__phase-card-hint">Слово видно только объясняющей команде.</p>
+                  </div>
                 </div>
               )}
             </>

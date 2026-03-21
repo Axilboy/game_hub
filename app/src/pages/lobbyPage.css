@@ -313,3 +313,122 @@
   font-size: 1.05rem;
   font-weight: 800;
 }
+
+/* Команды в лобби (Элиас / Правда или действие) */
+.lobby-party-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.lobby-team-card {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in srgb, var(--tg-theme-bg-color, #1a1a2e) 92%, var(--tg-theme-button-color, #3a7bd5) 8%);
+}
+
+.lobby-team-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.14);
+  border-bottom: 1px solid var(--gh-border, rgba(255, 255, 255, 0.08));
+}
+
+.lobby-team-card__title {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  cursor: default;
+  flex: 1;
+  min-width: 0;
+}
+
+.lobby-team-card__title--editable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+.lobby-team-card__title:disabled {
+  opacity: 0.95;
+  text-decoration: none;
+  cursor: default;
+}
+
+.lobby-team-card__wins {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.88;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 22%, transparent);
+}
+
+.lobby-team-card__wins--muted {
+  opacity: 0.4;
+  background: transparent;
+}
+
+.lobby-team-card__members {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.lobby-team-card__members li {
+  padding: 0 8px 6px;
+}
+
+.lobby-team-card__members .lobby-player-card {
+  border-radius: 12px;
+}
+
+.lobby-team-card__empty {
+  padding: 0 14px 12px;
+  font-size: 13px;
+  opacity: 0.65;
+  margin: 0;
+  list-style: none;
+}
+
+.lobby-party-unassigned {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--gh-border, rgba(255, 255, 255, 0.12));
+}
+
+.lobby-party-unassigned__label {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.lobby-team-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 12px 14px;
+  font-size: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.15));
+  background: var(--gh-surface, rgba(255, 255, 255, 0.06));
+  color: inherit;
+}
