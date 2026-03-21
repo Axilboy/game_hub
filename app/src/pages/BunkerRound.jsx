@@ -197,13 +197,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       center={false}
       padding={0}
       minHeight="auto"
-      bottom={
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button type="button" className="gameplay__btn gameplay__btn--secondary" onClick={leaveToLobby}>
-            В лобби
-          </button>
-        </div>
-      }
+      bottom={null}
     >
       <div className="gpl__panel">
         <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>

@@ -354,11 +354,27 @@ html[data-theme='light'] .gpl .gpl__panel {
 .gameplay {
   min-height: 100vh;
   box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
   background: linear-gradient(165deg, var(--gpl-bg1) 0%, var(--gpl-bg2) 48%, var(--gpl-bg3) 100%);
   color: var(--gpl-hero-text);
 }
 
+.gameplay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 130% 70% at 50% -18%, rgba(255, 255, 255, 0.09), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 75%, rgba(0, 0, 0, 0.18), transparent 52%),
+    radial-gradient(ellipse 55% 45% at 0% 40%, rgba(0, 0, 0, 0.12), transparent 48%);
+}
+
 .gameplay__inner {
+  position: relative;
+  z-index: 1;
   max-width: 520px;
   margin: 0 auto;
   padding: 0 16px 28px;
@@ -407,6 +423,12 @@ html[data-theme='light'] .gpl .gpl__panel {
 
 .gameplay .gpl__panel {
   margin-bottom: 16px;
+  border-radius: var(--gpl-radius-panel);
+  background: var(--gpl-panel);
+  color: var(--gpl-panel-text);
+  padding: 22px 18px 20px;
+  border: 1px solid color-mix(in srgb, var(--gpl-accent) 16%, rgba(255, 255, 255, 0.06));
+  box-shadow: var(--gpl-shadow), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
 .gameplay .gpl__panel:last-child {
@@ -419,7 +441,18 @@ html[data-theme='light'] .gameplay .gpl__panel {
 }
 
 .gameplay.gpl--truth_dare .gpl__panel {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--gpl-shadow), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.gameplay.gpl--elias .gpl__panel {
+  background: linear-gradient(165deg, #faf9ff 0%, #f3f0ff 100%);
+  border-color: color-mix(in srgb, var(--gpl-accent) 35%, rgba(255, 255, 255, 0.12));
+}
+
+html[data-theme='light'] .gameplay.gpl--elias .gpl__panel {
+  background: var(--gpl-panel);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .gameplay__btn {

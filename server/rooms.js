@@ -48,6 +48,13 @@ export async function roomRoutes(fastify) {
     notVotingPhase: { error: 'Сейчас не фаза голосования' },
   };
 
+  /** Telegram id может приходить числом или строкой — для includes/поиска команды сравниваем как строки. */
+  function idInPlayerList(list, playerId) {
+    if (!Array.isArray(list) || playerId == null) return false;
+    const s = String(playerId);
+    return list.some((id) => String(id) === s);
+  }
+
   fastify.post('/stats/ad-shown', async (request, reply) => {
     const { playerId } = request.body || {};
     if (!playerId) return reply.code(400).send({ error: 'Нужен playerId' });
@@ -1489,12 +1496,12 @@ export async function roomRoutes(fastify) {
     const room = roomManager.get(roomId);
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Game not found' });
     const gs = room.gameState;
-    const teamIndex = gs.teams.findIndex((t) => t.players.includes(playerId));
+    const teamIndex = gs.teams.findIndex((t) => idInPlayerList(t.players, playerId));
     const team = gs.teams[teamIndex];
     // Show word + action buttons to the whole "explaining team", not only one player.
     const isExplainer = teamIndex === gs.currentTeamIndex;
     const explainerId = team ? team.players[gs.currentExplainerIndex % team.players.length] : null;
-    const explainer = room.players.find((p) => p.id === explainerId);
+    const explainer = room.players.find((p) => String(p.id) === String(explainerId));
     const playerStats = gs.playerStats && typeof gs.playerStats === 'object' ? gs.playerStats : {};
     const mvp = playersToMvp(playerStats, room.players);
     const roundPhase = gs.roundPhase || null;
@@ -1518,7 +1525,8 @@ export async function roomRoutes(fastify) {
       winner: gs.winner,
       myTeamIndex: teamIndex,
       isExplainer,
-      isCurrentExplainer: playerId === explainerId,
+      isCurrentExplainer:
+        explainerId != null && String(playerId) === String(explainerId),
       currentExplainerId: explainerId,
       explainerName: explainer?.name || 'Игрок',
       playerStats,
@@ -1667,7 +1675,7 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
     const gs = room.gameState;
     const team = gs.teams[gs.currentTeamIndex];
-    if (!team?.players?.includes(playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
+    if (!idInPlayerList(team?.players, playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
     if (gs.awaitingExplainerStart || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Раунд ещё не начат' });
     }
@@ -1699,7 +1707,7 @@ export async function roomRoutes(fastify) {
     const explainerId = team?.players?.length
       ? team.players[gs.currentExplainerIndex % team.players.length]
       : null;
-    if (playerId !== explainerId) {
+    if (String(playerId) !== String(explainerId)) {
       return reply.code(403).send({ error: 'Смену хода завершает только текущий объясняющий' });
     }
     eliasNextTurn(roomId, fastify.io);
@@ -1722,7 +1730,7 @@ export async function roomRoutes(fastify) {
     const explainerId = team?.players?.length
       ? team.players[gs.currentExplainerIndex % team.players.length]
       : null;
-    if (playerId !== explainerId) {
+    if (String(playerId) !== String(explainerId)) {
       return reply.code(403).send({ error: 'Начать раунд может только текущий объясняющий' });
     }
     gs.currentWord = pickEliasWord(gs);
@@ -1747,7 +1755,7 @@ export async function roomRoutes(fastify) {
     }
     const room = roomManager.get(roomId);
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
-    if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    if (!room.players.some((p) => String(p.id) === String(playerId))) return reply.code(403).send({ error: 'Вы не в комнате' });
     const gs = room.gameState;
     if (gs.roundPhase !== 'playing') {
       return { ok: true, already: true };
@@ -1772,7 +1780,7 @@ export async function roomRoutes(fastify) {
     }
     const room = roomManager.get(roomId);
     if (!room || room.game !== 'elias' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
-    if (!room.players.some((p) => p.id === playerId)) return reply.code(403).send({ error: 'Вы не в комнате' });
+    if (!room.players.some((p) => String(p.id) === String(playerId))) return reply.code(403).send({ error: 'Вы не в комнате' });
     const gs = room.gameState;
     if (gs.roundPhase !== 'last_word' || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Нет фазы последнего слова' });
@@ -1830,7 +1838,7 @@ export async function roomRoutes(fastify) {
     const explainerId = team?.players?.length
       ? team.players[gs.currentExplainerIndex % team.players.length]
       : null;
-    if (playerId !== explainerId) {
+    if (String(playerId) !== String(explainerId)) {
       return reply.code(403).send({ error: 'Подтвердить может только текущий объясняющий' });
     }
     if (!Array.isArray(clientLog) || clientLog.length === 0) {

@@ -240,12 +240,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       padding={0}
       minHeight="auto"
       textAlign="center"
-      bottom={
-        <div style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 14, marginBottom: 8, opacity: 0.92 }}>В игре: {alive.map((p) => p.name).join(', ')}</p>
-          <button type="button" onClick={() => navigate('/lobby')} className="gameplay__btn gameplay__btn--secondary">В лобби</button>
-        </div>
-      }
+      bottom={null}
     >
       {myRole && (
         <button
@@ -266,6 +261,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       )}
 
       <div className="gpl__panel">
+        <p style={{ marginBottom: 8, fontSize: 14, opacity: 0.88 }}>В игре: {alive.map((p) => p.name).join(', ')}</p>
         <p style={{ marginBottom: 8, opacity: 0.9 }}>Фаза: {phase === 'night_mafia' ? 'Ночь — мафия' : phase === 'night_commissioner' ? 'Ночь — комиссар' : phase === 'day' ? 'День' : 'Голосование'}</p>
         <p style={{ marginTop: 0, marginBottom: 8, fontSize: 13, opacity: 0.85 }}>{actingLabel}</p>
         {phaseSecondsLeft != null && (

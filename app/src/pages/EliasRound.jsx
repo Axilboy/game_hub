@@ -360,18 +360,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   return (
     <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
-      <GameLayout
-        top={null}
-        center={false}
-        padding={0}
-        minHeight="auto"
-        textAlign="center"
-        bottom={
-          <button type="button" onClick={() => navigate('/lobby')} className="gameplay__btn gameplay__btn--secondary">
-            В лобби
-          </button>
-        }
-      >
+      <GameLayout top={null} center={false} padding={0} minHeight="auto" textAlign="center" bottom={null}>
         <div className="elias-round">
           <p className="elias-round__meta">
             Объясняет: <strong>{state.explainerName}</strong>
@@ -467,20 +456,28 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                 </div>
               </div>
 
-              {awaitingStart && (
+              {awaitingStart && state.isCurrentExplainer && (
+                <div className="gpl__panel elias-round__start-panel" style={{ marginBottom: 12 }}>
+                  <p style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--gpl-panel-text)' }}>
+                    Когда будете готовы, нажмите «Начать» — появится слово и запустится таймер.
+                  </p>
+                  <button type="button" className="elias-round__start-btn" onClick={beginRound}>
+                    Начать
+                  </button>
+                </div>
+              )}
+              {awaitingStart && state.isExplainer && !state.isCurrentExplainer && (
                 <div className="gpl__panel" style={{ marginBottom: 12 }}>
-                  {state.isCurrentExplainer ? (
-                    <>
-                      <p style={{ margin: '0 0 12px', fontSize: 15 }}>Когда будете готовы, нажмите «Начать» — появится слово и запустится таймер.</p>
-                      <button type="button" className="elias-round__start-btn" onClick={beginRound}>
-                        Начать
-                      </button>
-                    </>
-                  ) : (
-                    <p style={{ margin: 0, fontSize: 15 }}>
-                      Ожидайте: раунд начнёт <strong>{state.explainerName}</strong>
-                    </p>
-                  )}
+                  <p style={{ margin: 0, fontSize: 15, color: 'var(--gpl-panel-text)' }}>
+                    Ожидайте: раунд начнёт <strong>{state.explainerName}</strong> — только он запускает таймер.
+                  </p>
+                </div>
+              )}
+              {awaitingStart && !state.isExplainer && (
+                <div className="gpl__panel" style={{ marginBottom: 12 }}>
+                  <p style={{ margin: 0, fontSize: 15, color: 'var(--gpl-panel-text)' }}>
+                    Готовится раунд команды «{explainingTeamName}». Слова и таймер увидят только они.
+                  </p>
                 </div>
               )}
 
