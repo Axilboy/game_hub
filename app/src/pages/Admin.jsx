@@ -167,7 +167,23 @@ export default function Admin() {
         <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Каждый запуск игры в комнате (+1 за сутки / сумма за месяц)</p>
         <div>Сегодня: <strong>{stats?.gamesStartedDay ?? 0}</strong></div>
         <div>За 30 дней: <strong>{stats?.gamesStartedMonth ?? 0}</strong></div>
+        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Всего стартов (накопительно): <strong>{stats?.gamesStartedLifetime ?? 0}</strong></div>
       </section>
+      {stats?.gamesByGame && Object.keys(stats.gamesByGame).length > 0 ? (
+        <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+          <p style={{ marginBottom: 12 }}>Старты по играм (всего за всё время)</p>
+          <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>
+            Счётчик в файле stats.json на сервере; не сбрасывается при деплое, если задан постоянный каталог данных (GAMEHUB_DATA_DIR).
+          </p>
+          {Object.entries(stats.gamesByGame)
+            .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+            .map(([k, n]) => (
+              <div key={k} style={{ fontSize: 14, marginBottom: 4 }}>
+                <strong>{k}</strong>: {n}
+              </div>
+            ))}
+        </section>
+      ) : null}
       <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
         <p style={{ marginBottom: 12 }}>Завершённые показы рекламы</p>
         <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Клиент подтверждает после вызова рекламного SDK (честный минимум, без умножения на число игроков)</p>
@@ -212,6 +228,8 @@ export default function Admin() {
                   {f.displayName ? ` · ${f.displayName}` : ''}
                   {f.playerId ? ` · id:${f.playerId}` : ''}
                   {f.contact ? ` · ${f.contact}` : ''}
+                  {f.game ? ` · игра:${f.game}` : ''}
+                  {f.source ? ` · ${f.source}` : ''}
                 </div>
                 <div style={{ whiteSpace: 'pre-wrap' }}>{f.message || ''}</div>
               </div>

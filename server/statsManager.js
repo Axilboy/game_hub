@@ -1,11 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { getGameHubDataDir } from './dataPaths.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const ADMIN_PASSWORD = '1973';
-/** Путь к файлу статистики. В продекшене задайте STATS_FILE в env (например /var/data/gamehub/stats.json), чтобы счётчики не сбрасывались при деплое. */
-const STATS_FILE = process.env.STATS_FILE || join(__dirname, '..', 'data', 'stats.json');
+const DATA_DIR = getGameHubDataDir();
+/** Явный путь к stats.json (перекрывает расположение по GAMEHUB_DATA_DIR) */
+const STATS_FILE = process.env.STATS_FILE || join(DATA_DIR, 'stats.json');
 
 function todayKey() {
   const d = new Date();
@@ -13,10 +13,10 @@ function todayKey() {
 }
 
 let byDate = new Map();
-/** Завершённые показы рекламы (клиент подтвердил после rewarded). */
 let adImpressionsByDate = new Map();
-/** Сколько раз был старт игры (сессия) за день — без привязки к рекламе. */
 let gamesStartedByDate = new Map();
+/** Сколько раз начата игра по типу (за всё время, накопительно) */
+let gamesByGameTotal = new Map();
 
 function load() {
   try {
@@ -25,6 +25,7 @@ function load() {
       byDate = new Map(Object.entries(data.players || {}).map(([k, arr]) => [k, new Set(arr)]));
       adImpressionsByDate = new Map(Object.entries(data.adImpressions || {}));
       gamesStartedByDate = new Map(Object.entries(data.gamesStarted || {}));
+      gamesByGameTotal = new Map(Object.entries(data.gamesByGame || {}));
     }
   } catch (_) {}
 }
@@ -37,6 +38,7 @@ function save() {
       players: Object.fromEntries([...byDate.entries()].map(([k, set]) => [k, [...set]])),
       adImpressions: Object.fromEntries(adImpressionsByDate),
       gamesStarted: Object.fromEntries(gamesStartedByDate),
+      gamesByGame: Object.fromEntries(gamesByGameTotal),
     };
     writeFileSync(STATS_FILE, JSON.stringify(data, null, 0));
   } catch (_) {}
@@ -55,14 +57,18 @@ export function recordPlayer(playerId) {
   save();
 }
 
-/** Один факт старта игры в комнате (без завышения «показов рекламы»). */
-export function recordGameSession() {
+/**
+ * Старт игры в комнате.
+ * @param {string} [gameId] — spy | mafia | elias | truth_dare | bunker
+ */
+export function recordGameSession(gameId) {
   const key = todayKey();
   gamesStartedByDate.set(key, (gamesStartedByDate.get(key) || 0) + 1);
+  const g = String(gameId || 'unknown').slice(0, 32);
+  gamesByGameTotal.set(g, (gamesByGameTotal.get(g) || 0) + 1);
   save();
 }
 
-/** Учитывается только после успешного показа рекламы на клиенте (см. POST /api/stats/ad-shown). */
 export function recordAdImpression() {
   const key = todayKey();
   adImpressionsByDate.set(key, (adImpressionsByDate.get(key) || 0) + 1);
@@ -121,6 +127,9 @@ export function getStats() {
     gamesMonth += gamesStartedByDate.get(k) || 0;
   }
 
+  let gamesStartedLifetime = 0;
+  for (const n of gamesByGameTotal.values()) gamesStartedLifetime += n;
+
   return {
     day: daySet.size,
     week: weekCount,
@@ -131,10 +140,11 @@ export function getStats() {
     adImpressionsTotal: adTotal,
     gamesStartedDay: gamesDay,
     gamesStartedMonth: gamesMonth,
+    gamesStartedLifetime,
+    gamesByGame: Object.fromEntries(gamesByGameTotal),
   };
 }
 
-/** Без чувствительных данных — для лидерборда/«сообщества». */
 export function getPublicStats() {
   const s = getStats();
   return {

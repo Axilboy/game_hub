@@ -1,13 +1,12 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { getGameHubDataDir } from './dataPaths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, 'data');
-const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.jsonl');
+const DATA_DIR = getGameHubDataDir();
+const FEEDBACK_FILE = process.env.FEEDBACK_FILE || path.join(DATA_DIR, 'feedback.jsonl');
 
 async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.mkdir(path.dirname(FEEDBACK_FILE), { recursive: true });
 }
 
 export async function appendFeedback(entry) {

@@ -284,6 +284,7 @@ GAME_HUB/
 
 | Дата | Что сделано |
 |------|-------------|
+| 2026-03-17 | **Игры:** внизу `GameplayScreen` кнопка «Сообщить об ошибке» → `POST /feedback` с `game`, `source: in_game`. **Статистика:** `GAMEHUB_DATA_DIR`, `server/dataPaths.js`; учёт стартов по типам игры (`gamesByGame`); админка показывает накопительные старты. |
 | 2026-03-17 | **Бункер:** поочерёдное раскрытие полей (`POST /bunker/reveal`), базовые + премиум-характеристики (Pro / `bunker_extended_profile`), UI в `BunkerRound.jsx`; паспорт §9.1. |
 | 2026-03-17 | **Мафия:** состав как у конкурентов — **⌈n/4⌉** «чёрных» (дон + мафии), комиссар, мирные; минимум **6** за столом (`MIN_MAFIA_PLAYERS_*`, лобби `MIN_PLAYERS.mafia`). |
 | 2026-03-17 | **Мафия:** минимум игроков за столом снижен до **5** (сервер `MIN_MAFIA_PLAYERS_CLASSIC` / `EXTENDED`, `rooms.js` `/mafia/start`, лобби `MIN_PLAYERS.mafia`). |

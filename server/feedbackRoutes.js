@@ -21,7 +21,7 @@ export async function feedbackRoutes(fastify) {
     if (!rateLimitOk(ip)) {
       return reply.code(429).send({ error: 'Слишком много сообщений. Попробуйте позже.' });
     }
-    const { message, contact, playerId, displayName, category } = request.body || {};
+    const { message, contact, playerId, displayName, category, game, source } = request.body || {};
     const text = String(message || '').trim();
     let cat = String(category || '')
       .trim()
@@ -33,12 +33,20 @@ export async function feedbackRoutes(fastify) {
     if (text.length > 4000) {
       return reply.code(400).send({ error: 'Сообщение слишком длинное.' });
     }
+    const gameTag = String(game || '')
+      .trim()
+      .slice(0, 32);
+    const sourceTag = String(source || '')
+      .trim()
+      .slice(0, 32);
     await appendFeedback({
       message: text,
       contact: String(contact || '').trim().slice(0, 240),
       playerId: playerId != null ? String(playerId).slice(0, 80) : '',
       displayName: String(displayName || '').trim().slice(0, 120),
       ...(cat ? { category: cat } : {}),
+      ...(gameTag ? { game: gameTag } : {}),
+      ...(sourceTag ? { source: sourceTag } : {}),
       ip: String(ip).slice(0, 64),
       userAgent: String(request.headers['user-agent'] || '').slice(0, 400),
     });

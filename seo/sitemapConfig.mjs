@@ -12,6 +12,7 @@ export const ROBOTS_DISALLOW_PREFIXES = [
   '/elias',
   '/truth_dare',
   '/bunker',
+  '/friends',
   '/profile',
   '/app',
 ];

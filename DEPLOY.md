@@ -26,6 +26,7 @@
 | `BASE_URL` | **да для продакшена** | Публичный URL сайта **без** слэша в конце, например `https://gamehubparty.ru` — для sitemap, роботов, CORS socket |
 | `PORT` | обычно нет | Порт HTTP (по умолчанию `3000`) |
 | `VITE_BASE_URL` | **желательно при сборке фронта** | Тот же URL, что `BASE_URL` — для canonical, OG, `dist/sitemap.xml` / `dist/robots.txt` |
+| `GAMEHUB_DATA_DIR` | **рекомендуется на проде** | Каталог на **постоянном диске** для `stats.json` и `feedback.jsonl`. Без него при каждом пересборке контейнера статистика и отзывы теряются. Пример: `/var/data/gamehub` + volume в Docker. См. `server/dataPaths.js`. |
 
 Если фронт собираешь **на сервере** перед копированием в `server/public`, передай:
 
@@ -53,6 +54,8 @@ docker build -f Dockerfile.web \
 docker run -d --restart unless-stopped -p 3000:3000 \
   -e BOT_TOKEN=... \
   -e BASE_URL=https://ТВОЙ_ДОМЕН.ru \
+  -e GAMEHUB_DATA_DIR=/data/gamehub \
+  -v gamehub-data:/data/gamehub \
   gamehub-web
 ```
 

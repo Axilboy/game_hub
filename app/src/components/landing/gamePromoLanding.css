@@ -405,6 +405,29 @@ html[data-theme='light'] .gpl .gpl__panel {
   box-sizing: border-box;
 }
 
+.gameplay__report {
+  margin-top: 24px;
+  padding-top: 14px;
+  text-align: center;
+  border-top: 1px solid color-mix(in srgb, var(--gpl-hero-text) 14%, transparent);
+}
+
+.gameplay__reportBtn {
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--gpl-hero-text) 68%, transparent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 10px 8px;
+  font-family: inherit;
+}
+
+.gameplay__reportBtn:hover {
+  color: color-mix(in srgb, var(--gpl-hero-text) 88%, transparent);
+}
+
 .gameplay__inner--post {
   min-height: 100vh;
   display: flex;

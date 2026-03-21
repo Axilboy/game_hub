@@ -194,7 +194,7 @@ export async function roomRoutes(fastify) {
         civilianRolesByPlayerId[p.id] = rolePool[Math.floor(Math.random() * rolePool.length)];
       }
     }
-    recordGameSession();
+    recordGameSession('spy');
     roomManager.setGame(roomId, 'spy');
     roomManager.setState(roomId, 'playing', {
       word,
@@ -741,7 +741,7 @@ export async function roomRoutes(fastify) {
       prostituteNightMode: prostituteNightModeRaw,
     });
     markMafiaPhase(gs, gs.phase);
-    recordGameSession();
+    recordGameSession('mafia');
     roomManager.setGame(roomId, 'mafia');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
@@ -1213,7 +1213,7 @@ export async function roomRoutes(fastify) {
     for (const p of players) {
       gs.playerStats[p.id] = { guessed: 0, skipped: 0 };
     }
-    recordGameSession();
+    recordGameSession('elias');
     roomManager.setGame(roomId, 'elias');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
@@ -1272,7 +1272,7 @@ export async function roomRoutes(fastify) {
     if (!gs?.currentCard) {
       return reply.code(400).send({ error: 'Не удалось подобрать карточку для старта. Проверьте режим, Safe/18+ и выбранные категории (учитывается Pro у текущего игрока).' });
     }
-    recordGameSession();
+    recordGameSession('truth_dare');
     roomManager.setGame(roomId, 'truth_dare');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;
@@ -1831,7 +1831,7 @@ export async function roomRoutes(fastify) {
     const gs = createBunkerState(room, { maxRounds, phaseTimers, scenarioId });
     gs.characters = gs.characters || {};
 
-    recordGameSession();
+    recordGameSession('bunker');
     roomManager.setGame(roomId, 'bunker');
     roomManager.setState(roomId, 'playing', gs);
     const io = fastify.io;

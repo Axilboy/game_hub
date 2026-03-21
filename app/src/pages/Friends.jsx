@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api';
 import { useToast } from '../components/ui/ToastProvider';
+import useSeo from '../hooks/useSeo';
 import PageLayout from '../components/layout/PageLayout';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Button from '../components/ui/Button';
@@ -16,6 +17,7 @@ function sortFriends(arr) {
 }
 
 export default function FriendsPage({ user, onJoinByInvite }) {
+  useSeo({ title: 'Друзья — GameHub', robots: 'noindex, nofollow', siteName: 'GameHub' });
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [friends, setFriends] = useState([]);
