@@ -21,6 +21,8 @@ export default function Admin() {
   const [promoView, setPromoView] = useState(false);
   const [promoType, setPromoType] = useState('day');
   const [createdPromo, setCreatedPromo] = useState(null);
+  const [feedbackItems, setFeedbackItems] = useState(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   useEffect(() => {
     if (!password) {
