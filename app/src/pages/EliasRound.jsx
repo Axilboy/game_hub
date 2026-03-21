@@ -445,9 +445,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
           ) : (
             <>
               <div className="elias-round__top">
-                <div className="elias-round__pause" aria-hidden title="Пауза">
-                  ⏸
-                </div>
+                <div className="elias-round__top-spacer" aria-hidden />
                 <div className="elias-round__timer-wrap">
                   {phase === 'playing' && state.roundEndsAt ? (
                     <div

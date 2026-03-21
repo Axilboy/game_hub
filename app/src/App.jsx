@@ -402,8 +402,8 @@ function AppRoutes() {
   }, [navigate, refreshRoom]);
 
   /**
-   * Не-хост в лобби при старте игры: переход в раунд по актуальному room (не только по socket game_start).
-   * Хост сам вызывает navigate из Lobby после start — иначе здесь сработала бы реклама у хоста дважды.
+   * Игроки (не хост) в лобби при старте игры: реклама и переход в раунд.
+   * Хост получает рекламу в Lobby.showAdBeforeGameEnter перед navigate; здесь хост пропускаем, чтобы не дублировать.
    */
   useEffect(() => {
     if (!roomId || !room) return;
