@@ -26,26 +26,35 @@ export function useTelegram() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      const u = tg.initDataUnsafe?.user;
-      if (u) {
-        setUser({
-          id: u.id,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          username: u.username,
-          photo_url: u.photo_url,
-        });
+    try {
+      const tg = window.Telegram?.WebApp;
+      if (tg) {
+        try {
+          tg.ready();
+        } catch (_) {}
+        try {
+          tg.expand();
+        } catch (_) {}
+        const u = tg.initDataUnsafe?.user;
+        if (u) {
+          setUser({
+            id: u.id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            username: u.username,
+            photo_url: u.photo_url,
+          });
+        } else {
+          setUser({ id: `web_${Math.random().toString(36).slice(2, 9)}`, first_name: pickWebName() });
+        }
       } else {
         setUser({ id: `web_${Math.random().toString(36).slice(2, 9)}`, first_name: pickWebName() });
       }
-    } else {
+    } catch (_) {
       setUser({ id: `web_${Math.random().toString(36).slice(2, 9)}`, first_name: pickWebName() });
+    } finally {
+      setReady(true);
     }
-    setReady(true);
   }, []);
 
   return { user, ready };

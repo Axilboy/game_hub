@@ -29,8 +29,6 @@ const SeoHowToPlay = lazy(() => import('./pages/SeoHowToPlay'));
 const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 function AppRoutes() {
   const { user, ready } = useTelegram();
   const [room, setRoom] = useState(null);

@@ -2,6 +2,25 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
+    <style>
+      /* Пока не подгрузился JS, не оставляем полностью пустой экран */
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #1a1a2e;
+        color: #eee;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      #root:empty::before {
+        content: 'Загрузка GameHub…';
+        display: block;
+        padding: 40px 24px;
+        text-align: center;
+        opacity: 0.85;
+        font-size: 15px;
+      }
+    </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="GameHub — Шпион, Элиас, Мафия и другие игры для компании онлайн в Telegram и браузере." />
     <meta name="robots" content="noindex, nofollow" />

@@ -4,7 +4,7 @@ WORKDIR /app
 COPY app/package*.json ./
 RUN npm install
 COPY app/ ./
-ENV VITE_API_URL=
+# Не задавать VITE_API_URL пустой строкой — клиент сам возьмёт window.location.origin (см. api.js / socket.js).
 RUN npm run build
 
 # Stage 2: server + static
