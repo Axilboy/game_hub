@@ -137,6 +137,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [mafiaClassicPopup, setMafiaClassicPopup] = useState(false);
   const [spyDictLockPopup, setSpyDictLockPopup] = useState(null);
   const [spyLocationsModalOpen, setSpyLocationsModalOpen] = useState(false);
+  /** Черновик словарей в модалке «Локации» (Шпион): можно снять все, сохранение по «Готово») */
+  const [spyDictDraft, setSpyDictDraft] = useState(null);
+  /** Черновик словарей Элиас в модалке выбора */
+  const [eliasDictDraft, setEliasDictDraft] = useState(null);
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
   const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
   const [eliasCustomModalOpen, setEliasCustomModalOpen] = useState(false);
@@ -144,6 +148,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [eliasImportText, setEliasImportText] = useState('');
   const [gamesPickerOpen, setGamesPickerOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [transferHostOpen, setTransferHostOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
 
   const roomName = room?.name || 'Лобби';
@@ -482,6 +487,49 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     onLeave();
   };
 
+  const closeSpyLocationsModal = () => {
+    setSpyLocationsModalOpen(false);
+    setSpyDictDraft(null);
+  };
+
+  const confirmSpyDictDraft = () => {
+    const d = Array.isArray(spyDictDraft) ? spyDictDraft : [];
+    if (d.length === 0) {
+      showToast({ type: 'error', message: 'Словари не выбраны. Отметьте хотя бы один набор локаций и снова нажмите «Готово».' });
+      return;
+    }
+    setDictionaryIds(d);
+    patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds: d } });
+    closeSpyLocationsModal();
+  };
+
+  const closeEliasDictModal = () => {
+    setEliasDictModalOpen(false);
+    setEliasDictDraft(null);
+  };
+
+  const confirmEliasDictDraft = () => {
+    const d = Array.isArray(eliasDictDraft) ? eliasDictDraft : [];
+    if (d.length === 0) {
+      showToast({ type: 'error', message: 'Словари не выбраны. Отметьте хотя бы один словарь для Элиас и снова нажмите «Готово».' });
+      return;
+    }
+    patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: d } });
+    closeEliasDictModal();
+  };
+
+  const transferHostTo = async (newHostId) => {
+    try {
+      await api.post(`/rooms/${roomId}/transfer-host`, { playerId: String(user?.id), newHostId });
+      showToast({ type: 'success', message: 'Хост передан' });
+      setTransferHostOpen(false);
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось передать хоста') });
+    }
+  };
+
   const playersList = room.players || [];
   const onlineCount = playersList.filter((p) => p.online !== false).length;
   return (
@@ -558,7 +606,13 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <Chip onClick={() => setLeaveConfirmOpen(true)}>
               Выйти
             </Chip>
+            <Chip onClick={() => setTransferHostOpen(true)} disabled={playersList.length < 2}>
+              Передать хоста
+            </Chip>
           </div>
+          <p style={{ margin: '10px 0 0', fontSize: 12, opacity: 0.82, lineHeight: 1.4 }}>
+            Если хост отключился от сети, права хоста автоматически передаются другому игроку (предпочтительно онлайн).
+          </p>
         </div>
       )}
 
@@ -753,8 +807,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     <span>Показывать всем список возможных локаций</span>
                   </label>
                   <p style={{ marginBottom: 8 }}>Локации</p>
-                  <button type="button" onClick={() => setSpyLocationsModalOpen(true)} style={{ ...btnStyle, marginBottom: 16, background: '#555' }}>
-                    Локации (выбрано: {dictionaryIds.length})
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free'];
+                      setSpyDictDraft([...cur]);
+                      setSpyLocationsModalOpen(true);
+                    }}
+                    style={{ ...btnStyle, marginBottom: 16, background: '#555' }}
+                  >
+                    Локации (выбрано: {(room?.gameSettings?.dictionaryIds || dictionaryIds || []).length})
                   </button>
                   <p style={{ marginBottom: 8 }}>Таймер раунда</p>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -1039,8 +1101,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               </button>
               {eliasAccordions.dicts && (
                 <div style={{ marginBottom: 16 }}>
-                  <button type="button" onClick={() => setEliasDictModalOpen(true)} style={{ ...btnStyle, background: '#555' }}>
-                    Выбрать словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals']).length})
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes'];
+                      setEliasDictDraft([...cur]);
+                      setEliasDictModalOpen(true);
+                    }}
+                    style={{ ...btnStyle, background: '#555' }}
+                  >
+                    Выбрать словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
                   </button>
                   <button type="button" onClick={() => setEliasCustomModalOpen(true)} style={{ ...btnStyle, background: '#444', marginTop: 8 }}>
                     Пользовательский словарь
@@ -1440,6 +1510,31 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       </Modal>
 
+      <Modal open={transferHostOpen} onClose={() => setTransferHostOpen(false)} title="Передать хоста" width={400}>
+        <p style={{ marginTop: 0, lineHeight: 1.45, opacity: 0.92, fontSize: 14 }}>
+          Выберите игрока, которому передать права хоста (старт игр, настройки, кик).
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+          {playersList
+            .filter((p) => p.id !== String(user?.id))
+            .map((p) => (
+              <Button
+                key={p.id}
+                variant="secondary"
+                fullWidth
+                onClick={() => transferHostTo(p.id)}
+                style={{ justifyContent: 'flex-start' }}
+              >
+                {p.name}
+                {p.online === false ? ' — офлайн' : ''}
+              </Button>
+            ))}
+        </div>
+        <Button variant="ghost" fullWidth onClick={() => setTransferHostOpen(false)} style={{ marginTop: 12 }}>
+          Отмена
+        </Button>
+      </Modal>
+
       {mafiaClassicPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaClassicPopup(false)}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
@@ -1475,21 +1570,23 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       {spyLocationsModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={() => setSpyLocationsModalOpen(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={closeSpyLocationsModal}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: 12 }}>Локации</h3>
-            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>Выберите один или несколько наборов. Хотя бы один должен быть включён.</p>
+            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>
+              Можно снять все наборы и выбрать заново. Нажмите «Готово» — если ничего не выбрано, появится предупреждение (нужен хотя бы один словарь, чтобы начать игру).
+            </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).map((id) => {
                 const card = SPY_DICT_CARDS.find((c) => c.id === id) || { id, name: DICT_NAMES[id] || id, description: '', emoji: '📍', free: id === 'free' };
                 const available = availableDictionaries.includes(id);
-                const selected = dictionaryIds.includes(id);
+                const draft = Array.isArray(spyDictDraft) ? spyDictDraft : (room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free']);
+                const selected = draft.includes(id);
                 const handleClick = () => {
                   if (!available) { setSpyLocationsModalOpen(false); setSpyDictLockPopup(id); return; }
-                  const next = selected ? dictionaryIds.filter((x) => x !== id) : [...dictionaryIds, id];
-                  if (next.length === 0) return;
-                  setDictionaryIds(next);
-                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds: next } });
+                  const cur = Array.isArray(spyDictDraft) ? spyDictDraft : (room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free']);
+                  const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
+                  setSpyDictDraft(next);
                 };
                 return (
                   <div
@@ -1520,7 +1617,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 );
               })}
             </div>
-            <button type="button" onClick={() => setSpyLocationsModalOpen(false)} style={{ ...btnStyle, marginTop: 16 }}>Готово</button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button type="button" onClick={closeSpyLocationsModal} style={{ ...btnStyle, flex: 1, background: '#555' }}>
+                Отмена
+              </button>
+              <button type="button" onClick={confirmSpyDictDraft} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>
+                Готово
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1588,18 +1692,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       {eliasDictModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={() => setEliasDictModalOpen(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={closeEliasDictModal}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: 16 }}>Выбор словарей</h3>
-            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>Выберите один или несколько. Хотя бы один должен быть включён.</p>
+            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>
+              Можно временно снять все словари и выбрать другие. Нажмите «Готово» — если ничего не выбрано, появится предупреждение.
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {(room?.availableEliasDictionaries || ['basic', 'animals']).map((id) => {
                 const card = ELIAS_DICT_CARDS.find((c) => c.id === id) || { id, name: id, description: '', emoji: '📖', free: false };
-                const selected = (room?.gameSettings?.dictionaryIds || ['basic', 'animals']).includes(id);
+                const draft = eliasDictDraft ?? (room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']);
+                const selected = draft.includes(id);
                 const toggle = () => {
-                  const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals'];
+                  const cur = Array.isArray(eliasDictDraft) ? eliasDictDraft : (room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']);
                   const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
-                  if (next.length) patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: next } });
+                  setEliasDictDraft(next);
                 };
                 return (
                   <div
@@ -1631,7 +1738,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 );
               })}
             </div>
-            <button type="button" onClick={() => setEliasDictModalOpen(false)} style={{ ...btnStyle, marginTop: 16 }}>Готово</button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button type="button" onClick={closeEliasDictModal} style={{ ...btnStyle, flex: 1, background: '#555' }}>
+                Отмена
+              </button>
+              <button type="button" onClick={confirmEliasDictDraft} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>
+                Готово
+              </button>
+            </div>
           </div>
         </div>
       )}

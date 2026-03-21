@@ -154,6 +154,8 @@ export async function roomRoutes(fastify) {
       timerSeconds: safeSeconds,
       readyIds: [],
       timerStartsAt: null,
+      guessPollActive: false,
+      guessPollVotes: {},
     });
     const io = fastify.io;
     io.to(roomId).emit('game_start', { game: 'spy', allSpiesRound });
@@ -168,8 +170,32 @@ export async function roomRoutes(fastify) {
     if (!room || room.game !== 'spy' || !room.gameState) {
       return reply.code(404).send({ error: 'Game not found' });
     }
-    const { word, spyIds, timerEnabled, timerSeconds, allSpiesRound, timerStartsAt, spiesSeeEachOther, showLocationsList, locationPool } = room.gameState;
+    const gs = room.gameState;
+    const { word, spyIds, timerEnabled, timerSeconds, allSpiesRound, timerStartsAt, spiesSeeEachOther, showLocationsList, locationPool } = gs;
     const isSpy = spyIds.includes(playerId);
+    const wStr = String(word || '');
+    const wordChars = [...wStr];
+    const wordMask = wordChars.map(() => '•').join(' ');
+    const civs = spyCivilianPlayers(room, gs);
+    let guessPollCounts = { correct: 0, wrong: 0, answered: 0, expected: civs.length };
+    if (gs.guessPollActive) {
+      const votes = gs.guessPollVotes || {};
+      for (const p of civs) {
+        const v = votes[p.id];
+        if (v === 'correct') {
+          guessPollCounts.correct++;
+          guessPollCounts.answered++;
+        } else if (v === 'wrong') {
+          guessPollCounts.wrong++;
+          guessPollCounts.answered++;
+        }
+      }
+    }
+    const guessPollBlock = {
+      guessPollActive: Boolean(gs.guessPollActive),
+      guessPollMyVote: gs.guessPollVotes?.[playerId] || null,
+      guessPollCounts,
+    };
     const payload = {
       role: isSpy ? 'spy' : 'civilian',
       timerEnabled: Boolean(timerEnabled),
@@ -179,6 +205,9 @@ export async function roomRoutes(fastify) {
       showLocationsList: Boolean(showLocationsList),
       locationList: Array.isArray(locationPool) ? locationPool : [],
       roleHints: getSpyRoleHintsForLocation(word),
+      wordLength: wordChars.length,
+      wordMask,
+      ...guessPollBlock,
     };
     if (isSpy) {
       if (spiesSeeEachOther && spyIds.length > 1) {
@@ -217,6 +246,58 @@ export async function roomRoutes(fastify) {
     return { ok: true, timerStarted: allReady };
   });
 
+  function spyCivilianPlayers(room, gs) {
+    const spySet = new Set(gs.spyIds || []);
+    return (room.players || []).filter((p) => !spySet.has(p.id));
+  }
+
+  function resolveGuessPoll(roomId, io, { force = false } = {}) {
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return;
+    const gs = room.gameState;
+    if (!gs.guessPollActive) return;
+    const civs = spyCivilianPlayers(room, gs);
+    if (civs.length === 0) {
+      gs.guessPollActive = false;
+      gs.guessPollVotes = {};
+      return;
+    }
+    const votes = gs.guessPollVotes || {};
+    let correct = 0;
+    let wrong = 0;
+    let answered = 0;
+    for (const p of civs) {
+      const v = votes[p.id];
+      if (v === 'correct') {
+        correct++;
+        answered++;
+      } else if (v === 'wrong') {
+        wrong++;
+        answered++;
+      }
+    }
+    if (!force && answered < civs.length) return;
+    gs.guessPollActive = false;
+    gs.guessPollVotes = {};
+    const spyIds = gs.spyIds || [];
+    const spyId = spyIds[0];
+    const spyPlayer = spyId ? room.players.find((p) => p.id === spyId) : null;
+    if (correct > wrong) {
+      roomManager.endGame(roomId);
+      io.to(roomId).emit('game_guess_result', {
+        guessedById: spyId,
+        guessedByName: spyPlayer?.name || 'Шпион',
+        guessedLocation: gs.word,
+        correct: true,
+        actualLocation: gs.word,
+        verbalPoll: true,
+      });
+      io.to(roomId).emit('game_ended');
+    } else {
+      io.to(roomId).emit('game_guess_poll_result', { accepted: false });
+    }
+  }
+
   function endVote(roomId, io) {
     const r = roomManager.get(roomId);
     if (!r || r.game !== 'spy' || !r.gameState) return;
@@ -249,6 +330,10 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     const now = Date.now();
     if (gs.votingEndsAt && gs.votingEndsAt > now) return reply.send({ votingEndsAt: gs.votingEndsAt });
+    if (gs.guessPollActive) {
+      gs.guessPollActive = false;
+      gs.guessPollVotes = {};
+    }
     gs.votingEndsAt = now + 30000;
     gs.votes = {};
     const io = fastify.io;
@@ -355,6 +440,89 @@ export async function roomRoutes(fastify) {
       return { ok: true, correct: true, ended: true };
     }
     return { ok: true, correct: false };
+  });
+
+  fastify.post('/rooms/:roomId/spy/start-guess-poll', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!allowAction(`spy:guesspollstart:${roomId}:${playerId}`, 6, 15_000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    const gs = room.gameState;
+    if (!gs.spyIds?.includes(playerId)) return reply.code(403).send({ error: 'Только шпион может начать проверку' });
+    if (gs.allSpiesRound) return reply.code(400).send({ error: 'В режиме «все шпионы» устная проверка недоступна' });
+    const now = Date.now();
+    if (gs.votingEndsAt && gs.votingEndsAt > now) return reply.code(400).send({ error: 'Сначала завершите голосование' });
+    const civs = spyCivilianPlayers(room, gs);
+    if (civs.length === 0) return reply.code(400).send({ error: 'Нет игроков для голосования' });
+    gs.guessPollActive = true;
+    gs.guessPollVotes = {};
+    fastify.io.to(roomId).emit('game_guess_poll_start', {});
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/spy/guess-poll-vote', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, verdict } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (verdict !== 'correct' && verdict !== 'wrong') {
+      return reply.code(400).send({ error: 'verdict: correct или wrong' });
+    }
+    if (!allowAction(`spy:guesspollvote:${roomId}:${playerId}`, 30, 8000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    const gs = room.gameState;
+    if (!gs.guessPollActive) return reply.code(400).send({ error: 'Проверка не активна' });
+    if (gs.spyIds?.includes(playerId)) return reply.code(403).send({ error: 'Шпион не голосует' });
+    gs.guessPollVotes = gs.guessPollVotes || {};
+    gs.guessPollVotes[playerId] = verdict;
+    const civs = spyCivilianPlayers(room, gs);
+    const votes = gs.guessPollVotes;
+    let answered = 0;
+    for (const p of civs) {
+      if (votes[p.id] === 'correct' || votes[p.id] === 'wrong') answered++;
+    }
+    if (answered >= civs.length) {
+      resolveGuessPoll(roomId, fastify.io, { force: true });
+    }
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/spy/end-guess-poll', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'spy' || !room.gameState) return reply.code(404).send({ error: 'Игра не найдена' });
+    if (room.hostId !== playerId) return reply.code(403).send({ error: 'Только хост может завершить проверку досрочно' });
+    const gs = room.gameState;
+    if (!gs.guessPollActive) return reply.code(400).send({ error: 'Проверка не активна' });
+    resolveGuessPoll(roomId, fastify.io, { force: true });
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/:roomId/transfer-host', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, newHostId } = request.body || {};
+    if (!playerId || !newHostId) return reply.code(400).send({ error: 'Нужны playerId и newHostId' });
+    if (!allowAction(`transferhost:${roomId}:${playerId}`, 4, 20_000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
+    if (room.hostId !== playerId) return reply.code(403).send({ error: 'Только хост может передать права' });
+    if (!room.players.some((p) => p.id === newHostId)) return reply.code(400).send({ error: 'Игрок не в комнате' });
+    const r = roomManager.transferHost(roomId, playerId, newHostId);
+    if (!r) return reply.code(400).send({ error: 'Не удалось передать хоста' });
+    const io = fastify.io;
+    io.to(roomId).emit('host_changed', { hostId: r.hostId });
+    io.to(roomId).emit('room_updated');
+    return { ok: true, room: roomManager.toSafe(r) };
   });
 
   fastify.post('/rooms/mafia/start', async (request, reply) => {

@@ -123,7 +123,19 @@ async function start() {
         return;
       }
       roomManager.setPlayerSocket(roomId, player.id, null);
+      const wasHost = roomBefore.hostId === player.id;
+      let newHostId = null;
+      if (wasHost) {
+        const after = roomManager.transferHostAfterHostDisconnect(roomId, player.id);
+        if (after && after.hostId !== player.id) {
+          newHostId = after.hostId;
+        }
+      }
       socket.to(roomId).emit('player_offline', { playerId: player.id });
+      if (newHostId) {
+        io.to(roomId).emit('host_changed', { hostId: newHostId });
+        io.to(roomId).emit('room_updated');
+      }
       const r = roomManager.get(roomId);
       if (r?.state === 'playing') {
         const connected = Object.values(r.playerSockets || {}).filter(Boolean).length;

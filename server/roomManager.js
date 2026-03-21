@@ -188,6 +188,36 @@ export const roomManager = {
     return { socketId };
   },
 
+  /** Передача хоста добровольно (текущий хост → другой игрок в комнате). */
+  transferHost(roomId, currentHostId, newHostId) {
+    const room = rooms.get(roomId);
+    if (!room || room.hostId !== currentHostId) return null;
+    if (newHostId === currentHostId) return room;
+    if (!room.players.some((p) => p.id === newHostId)) return null;
+    room.players.forEach((p) => { p.isHost = false; });
+    room.hostId = newHostId;
+    const np = room.players.find((p) => p.id === newHostId);
+    if (np) np.isHost = true;
+    return room;
+  },
+
+  /**
+   * Хост отключил сокет — передать права другому игроку (предпочтительно онлайн).
+   * Вызывается при disconnect текущего hostId.
+   */
+  transferHostAfterHostDisconnect(roomId, disconnectedHostId) {
+    const room = rooms.get(roomId);
+    if (!room || room.hostId !== disconnectedHostId) return room;
+    const others = room.players.filter((p) => p.id !== disconnectedHostId);
+    if (!others.length) return room;
+    const online = others.find((p) => room.playerSockets?.[p.id]);
+    const next = online || others[0];
+    room.players.forEach((p) => { p.isHost = false; });
+    room.hostId = next.id;
+    next.isHost = true;
+    return room;
+  },
+
   toSafe(room) {
     if (!room) return null;
     const { gameState, playerSockets, playerInventories, ...rest } = room;

@@ -257,25 +257,38 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
 
         {state.isMyTurn && (
           <div className="gh-card" style={{ padding: 16, marginTop: 12 }}>
-            <p style={{ margin: '0 0 10px', opacity: 0.9, fontSize: 14 }}>Ваш ход</p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Button
-                variant="primary"
-                fullWidth
-                disabled={actionLoading === 'done'}
-                onClick={() => submitTurn('done')}
-                style={{ flex: 1, background: '#6a5' }}
-              >
-                {actionLoading === 'done' ? 'Отправляем...' : 'Выполнено'}
-              </Button>
+            <p style={{ margin: '0 0 10px', opacity: 0.9, fontSize: 14 }}>
+              Ваш ход — отметь, что ты выполнил(а): <strong>правду</strong> или <strong>действие</strong> с карточки.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={!!actionLoading}
+                  onClick={() => submitTurn('done', 'truth')}
+                  style={{ flex: 1, background: '#4a7ab5' }}
+                >
+                  {actionLoading === 'done_truth' ? '...' : 'Сделал(а) правду'}
+                </Button>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={!!actionLoading}
+                  onClick={() => submitTurn('done', 'dare')}
+                  style={{ flex: 1, background: '#6a5' }}
+                >
+                  {actionLoading === 'done_dare' ? '...' : 'Сделал(а) действие'}
+                </Button>
+              </div>
               <Button
                 variant="secondary"
                 fullWidth
                 disabled={actionLoading === 'skip'}
                 onClick={() => submitTurn('skip')}
-                style={{ flex: 1, background: '#444' }}
+                style={{ background: '#444' }}
               >
-                {actionLoading === 'skip' ? 'Пропускаем...' : 'Пропустить'}
+                {actionLoading === 'skip' ? 'Пропускаем...' : 'Пропустить карточку'}
               </Button>
             </div>
           </div>

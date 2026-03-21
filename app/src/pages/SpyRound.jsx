@@ -16,6 +16,16 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/** Одинаковый стиль «слова» у шпиона и мирных — белый текст, чтобы не было видно разницы издалека */
+const wordLineStyle = {
+  fontSize: 28,
+  fontWeight: 800,
+  margin: 0,
+  color: '#fff',
+  letterSpacing: 0.02,
+  lineHeight: 1.2,
+};
+
 export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const navigate = useNavigate();
   useSeo({
@@ -33,6 +43,9 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const [guessText, setGuessText] = useState('');
   const [guessResult, setGuessResult] = useState(null);
   const [guessLoading, setGuessLoading] = useState(false);
+  const [showTextGuess, setShowTextGuess] = useState(false);
+  const [guessPollLock, setGuessPollLock] = useState(false);
+  const [exitConfirm, setExitConfirm] = useState(false);
   const requestSeqRef = useRef(0);
 
   const myId = user?.id != null ? String(user.id) : '';
@@ -97,15 +110,23 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
         });
       }
     };
+    const onGuessPollStart = () => fetchCard({ silent: true });
+    const onGuessPollResult = () => {
+      fetchCard({ silent: true });
+    };
     socket.on('game_vote_start', onVoteStart);
     socket.on('game_vote_end', onVoteEnd);
     socket.on('game_guess_result', onGuessResult);
+    socket.on('game_guess_poll_start', onGuessPollStart);
+    socket.on('game_guess_poll_result', onGuessPollResult);
     return () => {
       socket.off('game_vote_start', onVoteStart);
       socket.off('game_vote_end', onVoteEnd);
       socket.off('game_guess_result', onGuessResult);
+      socket.off('game_guess_poll_start', onGuessPollStart);
+      socket.off('game_guess_poll_result', onGuessPollResult);
     };
-  }, []);
+  }, [roomId, myId]);
 
   useEffect(() => {
     const resync = async () => {
@@ -153,7 +174,9 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const isHost = room?.players?.some((p) => p.id === myId && p.isHost);
 
   const submitGuess = async () => {
-    if (!canSpyGuess || guessLoading) return;
+    if (guessLoading) return;
+    if (!card || card.role !== 'spy' || voteResult || card.guessPollActive) return;
+    if (votingEndsAt && Date.now() < votingEndsAt) return;
     const val = guessText.trim();
     if (!val) return;
     setGuessLoading(true);
@@ -170,7 +193,37 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
     }
   };
 
-  const [exitConfirm, setExitConfirm] = useState(false);
+  const startGuessPoll = async () => {
+    if (guessPollLock) return;
+    try {
+      setGuessPollLock(true);
+      await api.post(`/rooms/${roomId}/spy/start-guess-poll`, { playerId: myId });
+      fetchCard({ silent: true });
+    } catch (_) {}
+    finally {
+      setGuessPollLock(false);
+    }
+  };
+
+  const sendGuessPollVote = async (verdict) => {
+    if (guessPollLock || card?.guessPollMyVote) return;
+    try {
+      setGuessPollLock(true);
+      await api.post(`/rooms/${roomId}/spy/guess-poll-vote`, { playerId: myId, verdict });
+      fetchCard({ silent: true });
+    } catch (_) {}
+    finally {
+      setGuessPollLock(false);
+    }
+  };
+
+  const endGuessPollEarly = async () => {
+    try {
+      await api.post(`/rooms/${roomId}/spy/end-guess-poll`, { playerId: myId });
+      fetchCard({ silent: true });
+    } catch (_) {}
+  };
+
   const goLobby = () => { if (onGoLobby) onGoLobby(); else navigate('/lobby'); };
   const exitToHome = () => {
     setExitConfirm(false);
@@ -185,8 +238,12 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
   const allSpiesRound = Boolean(card.allSpiesRound);
   const timeUp = card.timerEnabled && secondsLeft !== null && secondsLeft <= 0;
   const votingActive = votingEndsAt && Date.now() < votingEndsAt;
-  const canSpyGuess = isSpy && !votingActive && !voteResult;
-  const phaseLabel = voteResult ? 'Итог' : votingActive ? 'Голосование' : 'Обсуждение';
+  const guessPollActive = Boolean(card.guessPollActive);
+  const canSpyGuess = isSpy && !votingActive && !voteResult && !guessPollActive;
+  const phaseLabel = voteResult ? 'Итог' : votingActive ? 'Голосование' : guessPollActive ? 'Проверка слова' : 'Обсуждение';
+  const wordDisplay = isSpy ? (card.wordMask || '• • •') : card.word;
+  const canStartGuessPoll = isSpy && !allSpiesRound && !votingActive && !voteResult && !guessPollActive;
+  const canVoteGuessPoll = guessPollActive && !isSpy && !card.guessPollMyVote;
 
   if (voteResult) {
     return (
@@ -263,11 +320,11 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <p style={{ fontSize: 13, opacity: 0.88, textAlign: 'center', margin: '0 0 12px', lineHeight: 1.4 }}>
           {isHost
-            ? 'Вы ведущий (хост): запускайте голосование и при необходимости оглашайте результат.'
-            : 'Голосование запускает хост. Следите за таймером и выберите игрока, когда откроется этап.'}
+            ? 'Вы ведущий: запускайте голосование и при необходимости проверку устной догадки шпиона.'
+            : 'Голосование и проверку слова запускает хост. Следите за таймером.'}
         </p>
         <div style={{ margin: '0 auto 10px', width: 'fit-content' }}>
-          <Badge tone={votingActive ? 'warning' : 'info'}>{phaseLabel}</Badge>
+          <Badge tone={votingActive ? 'warning' : guessPollActive ? 'warning' : 'info'}>{phaseLabel}</Badge>
         </div>
         {card.timerEnabled && (
           <div
@@ -294,55 +351,111 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
           </div>
         )}
         <div className="gh-card" style={{ padding: 16 }}>
-          {allSpiesRound && <p style={{ fontSize: 16, color: '#8af', marginBottom: 12 }}>В этом раунде все — шпионы!</p>}
-          {isSpy ? (
-            <>
-              <p style={{ fontSize: 24, color: '#f88', margin: 0 }}>Вы шпион</p>
-              <p style={{ fontSize: 28, fontWeight: 'bold', margin: 0, opacity: 0.55 }}>Слово скрыто</p>
-              {card.otherSpyNames?.length > 0 && (
-                <p style={{ fontSize: 14, opacity: 0.9, marginTop: 8 }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
-              )}
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
-                <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
-                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что видно: слово скрыто</p>
-                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что делать: голосуй во время голосования</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 28, fontWeight: 'bold', margin: 0 }}>{card.word}</p>
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
-                <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95 }}>Подсказки</p>
-                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что видно: слово видно</p>
-                <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>Что делать: голосуй во время голосования</p>
-                {Array.isArray(card.roleHints) && card.roleHints.length > 0 && (
-                  <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.35 }}>
-                    Возможные роли: {card.roleHints.join(', ')}
-                  </p>
-                )}
-              </div>
-            </>
+          {allSpiesRound && <p style={{ fontSize: 14, opacity: 0.85, marginBottom: 12, color: '#fff' }}>В этом раунде все — шпионы</p>}
+          <p style={{ ...wordLineStyle }}>
+            {wordDisplay}
+          </p>
+          <p style={{ fontSize: 13, opacity: 0.88, marginTop: 10, marginBottom: 0, color: '#fff' }}>
+            {isSpy
+              ? 'Слово не показываем — догадывайтесь по подсказкам. Не подсматривайте чужие экраны.'
+              : 'Ваше слово на этот раунд. Не показывайте экран другим.'}
+          </p>
+          {isSpy && card.otherSpyNames?.length > 0 && (
+            <p style={{ fontSize: 13, opacity: 0.88, marginTop: 8, color: '#fff' }}>Сообщники: {card.otherSpyNames.join(', ')}</p>
           )}
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
+            <p style={{ margin: 0, fontWeight: 800, fontSize: 13, opacity: 0.95, color: '#fff' }}>Подсказки</p>
+            <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35, color: '#fff' }}>
+              Обсуждайте вслух. В голосовании выберите подозреваемого. Шпион называет слово вслух — остальные решают, верно ли.
+            </p>
+            {!isSpy && Array.isArray(card.roleHints) && card.roleHints.length > 0 && (
+              <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.88, lineHeight: 1.35, color: '#fff' }}>
+                Возможные роли: {card.roleHints.join(', ')}
+              </p>
+            )}
+          </div>
           {card.showLocationsList && Array.isArray(card.locationList) && card.locationList.length > 0 && (
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }}>
-              <p style={{ margin: 0, fontSize: 12, opacity: 0.9, fontWeight: 700 }}>Возможные локации ({card.locationList.length})</p>
-              <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.9, fontWeight: 700, color: '#fff' }}>Возможные локации ({card.locationList.length})</p>
+              <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.85, lineHeight: 1.4, color: '#fff' }}>
                 {card.locationList.join(', ')}
               </p>
             </div>
           )}
         </div>
 
-        {canSpyGuess && (
+        {guessPollActive && (
+          <div className="gh-card" style={{ marginTop: 12, padding: 14 }}>
+            <p style={{ marginTop: 0, marginBottom: 8, fontSize: 14, fontWeight: 700 }}>Проверка устной догадки</p>
+            <p style={{ margin: '0 0 10px', fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
+              Шпион назвал слово вслух. Выберите, совпало ли оно с вашим словом.
+            </p>
+            {card.guessPollCounts && (
+              <p style={{ margin: '0 0 10px', fontSize: 12, opacity: 0.85 }}>
+                Голоса: верно {card.guessPollCounts.correct} · неверно {card.guessPollCounts.wrong} · из {card.guessPollCounts.expected}
+              </p>
+            )}
+            {isSpy && (
+              <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>Ждём голосов мирных игроков…</p>
+            )}
+            {canVoteGuessPoll && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={guessPollLock}
+                  onClick={() => sendGuessPollVote('correct')}
+                  style={{ ...btnStyle, flex: 1, background: '#6a5' }}
+                >
+                  Верно
+                </button>
+                <button
+                  type="button"
+                  disabled={guessPollLock}
+                  onClick={() => sendGuessPollVote('wrong')}
+                  style={{ ...btnStyle, flex: 1, background: '#844' }}
+                >
+                  Неверно
+                </button>
+              </div>
+            )}
+            {!isSpy && card.guessPollMyVote && (
+              <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9 }}>
+                Ваш голос: {card.guessPollMyVote === 'correct' ? 'верно' : 'неверно'}
+              </p>
+            )}
+            {isHost && (
+              <button
+                type="button"
+                onClick={endGuessPollEarly}
+                style={{ ...btnStyle, marginTop: 10, background: '#555' }}
+              >
+                Завершить проверку (подсчёт по тем, кто проголосовал)
+              </button>
+            )}
+          </div>
+        )}
+
+        {canStartGuessPoll && (
+          <button
+            type="button"
+            onClick={startGuessPoll}
+            disabled={guessPollLock}
+            style={{ ...btnStyle, marginTop: 12, background: '#5a7ab5', opacity: guessPollLock ? 0.7 : 1 }}
+          >
+            Я назвал(а) слово вслух — начать голосование «верно / неверно»
+          </button>
+        )}
+
+        {canSpyGuess && showTextGuess && (
           <div className="gh-card" style={{ marginTop: 12, padding: 12 }}>
-            <p style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>Попытка шпиона: угадать локацию</p>
+            <p style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>Попытка текстом (по желанию)</p>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 type="text"
                 value={guessText}
                 onChange={(e) => setGuessText(e.target.value)}
                 placeholder="Введите локацию"
-                style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #555', background: 'transparent', color: 'inherit' }}
+                style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #555', background: 'transparent', color: '#fff' }}
               />
               <button
                 type="button"
@@ -350,28 +463,39 @@ export default function SpyRound({ roomId, user, room, onLeave, onGoLobby }) {
                 disabled={guessLoading || !guessText.trim()}
                 style={{ ...btnStyle, width: 'auto', background: '#8a5', opacity: guessLoading ? 0.7 : 1 }}
               >
-                {guessLoading ? '...' : 'Угадать'}
+                {guessLoading ? '...' : 'Проверить'}
               </button>
             </div>
             {guessResult ? <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9 }}>{guessResult}</p> : null}
           </div>
         )}
+        {canSpyGuess && !showTextGuess && (
+          <button type="button" onClick={() => setShowTextGuess(true)} style={{ ...btnStyle, marginTop: 8, background: '#333', fontSize: 14 }}>
+            Ввести догадку текстом
+          </button>
+        )}
 
         {!votingActive && !voteResult && (
-          isHost ? (
+          <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               type="button"
-              onClick={startVote}
-              disabled={startVoteLock}
-              style={{ ...btnStyle, marginTop: 24, background: '#6a5', opacity: startVoteLock ? 0.7 : 1 }}
+              onClick={() => { if (isHost) startVote(); }}
+              disabled={!isHost || startVoteLock || guessPollActive}
+              style={{
+                ...btnStyle,
+                background: isHost ? '#6a5' : '#444',
+                opacity: !isHost || startVoteLock ? 0.75 : 1,
+                cursor: isHost ? 'pointer' : 'default',
+              }}
             >
-              Запустить голосование
+              {isHost ? (startVoteLock ? '…' : 'Голосовать') : 'Голосовать (запускает хост)'}
             </button>
-          ) : (
-            <div style={{ marginTop: 24, opacity: 0.85 }}>
-              <p style={{ margin: 0, fontSize: 14 }}>Ожидайте: хост запустит голосование</p>
-            </div>
-          )
+            {!isHost && (
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.8, textAlign: 'center' }}>
+                Кнопку «Голосовать» нажимает хост, когда пришло время искать шпиона.
+              </p>
+            )}
+          </div>
         )}
 
         {votingActive && (
