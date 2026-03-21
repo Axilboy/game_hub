@@ -1,8 +1,10 @@
 /**
- * Карусель мини-шапок промо-лендингов на главной (стили тем из gamePromoLanding.css).
+ * Карусель мини-шапок на главной (GameHub + промо игр).
  */
 .gh-home-carousel-wrap {
-  margin-bottom: 18px;
+  margin: 0 0 18px;
+  contain: layout style;
+  overflow: hidden;
 }
 
 .gh-home-carousel__label {
@@ -17,12 +19,16 @@
   display: flex;
   gap: 12px;
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  padding: 4px 2px 12px;
+  /* scroll-behavior только из JS — иначе сброс без анимации ломается */
+  padding: 4px 2px 14px;
   margin: 0 -4px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+  touch-action: pan-x;
 }
 
 .gh-home-carousel::-webkit-scrollbar {
@@ -36,8 +42,25 @@
   color: inherit;
   border-radius: var(--gpl-radius-hero, 24px);
   overflow: hidden;
-  box-shadow: var(--gpl-shadow);
+  box-shadow: var(--gpl-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gh-home-carousel__slide--hub {
+  display: block;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  box-shadow: var(--gh-shadow);
+  border: 1px solid var(--gh-border);
+  cursor: pointer;
+}
+
+.gh-home-carousel__slide--hub:disabled {
+  cursor: wait;
+  opacity: 0.85;
 }
 
 .gh-home-carousel__slide:active {
@@ -67,6 +90,13 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.gh-home-carousel__inner--hub {
+  background: linear-gradient(145deg, rgba(58, 123, 213, 0.25), rgba(40, 40, 70, 0.35));
+  border: none;
+  color: inherit;
+  min-height: 128px;
 }
 
 .gh-home-carousel__emoji {
@@ -100,4 +130,22 @@
   font-weight: 500;
   opacity: 0.9;
   max-width: 22em;
+}
+
+.gh-home-carousel__hub-line1 {
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+.gh-home-carousel__hub-line2 {
+  font-size: 20px;
+  font-weight: 800;
+  margin-top: 6px;
+  line-height: 1.2;
+}
+
+.gh-home-carousel__hub-line3 {
+  font-size: 16px;
+  opacity: 0.85;
+  margin-top: 6px;
 }
