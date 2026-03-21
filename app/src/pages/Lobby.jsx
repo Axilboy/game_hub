@@ -598,7 +598,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <button
             type="button"
             onClick={shareInvite}
-            style={{ ...btnStyleSuccess, marginTop: 8 }}
+            style={{ ...btnStyle, marginTop: 8 }}
           >
             Поделиться
           </button>
@@ -962,7 +962,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         phaseTimers: { nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
                       },
                     })}
-                    style={{ ...btnStyleSuccess, marginBottom: 12 }}
+                    style={{ ...btnStyle, marginBottom: 12 }}
                     title="Компактная партия около 10 минут"
                   >
                     Режим 10 минут
@@ -1332,7 +1332,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     categorySlugs: ['classic', 'friends'],
                   },
                 })}
-                style={{ ...btnStyleSuccess, marginBottom: 12 }}
+                style={{ ...btnStyle, marginBottom: 12 }}
               >
                 Быстрая партия (3 раунда)
               </button>
@@ -1454,7 +1454,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      <button type="button" onClick={() => setShopOpen(true)} style={{ ...btnStyleShop, marginTop: 16 }}>
+      <button type="button" onClick={() => setShopOpen(true)} style={{ ...btnStyleToggleMid, marginTop: 16 }}>
         Магазин
       </button>
 
@@ -1594,7 +1594,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button type="button" onClick={closeSpyLocationsModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
                 Отмена
               </button>
-              <button type="button" onClick={confirmSpyDictDraft} style={{ ...btnStyleSuccess, flex: 1 }}>
+              <button type="button" onClick={confirmSpyDictDraft} style={{ ...btnStyle, flex: 1 }}>
                 Готово
               </button>
             </div>
@@ -1716,7 +1716,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button type="button" onClick={closeTdCategoryModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
                 Отмена
               </button>
-              <button type="button" onClick={confirmTdCategoryDraft} style={{ ...btnStyleSuccess, flex: 1 }}>
+              <button type="button" onClick={confirmTdCategoryDraft} style={{ ...btnStyle, flex: 1 }}>
                 Готово
               </button>
             </div>
@@ -1775,7 +1775,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button type="button" onClick={closeEliasDictModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
                 Отмена
               </button>
-              <button type="button" onClick={confirmEliasDictDraft} style={{ ...btnStyleSuccess, flex: 1 }}>
+              <button type="button" onClick={confirmEliasDictDraft} style={{ ...btnStyle, flex: 1 }}>
                 Готово
               </button>
             </div>
@@ -1798,7 +1798,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button
                 type="button"
-                style={{ ...btnStyleSuccess }}
+                style={{ ...btnStyle }}
                 onClick={() => {
                   const words = eliasCustomWordsText.split('\n').map((x) => x.trim()).filter(Boolean);
                   const saved = saveCustomEliasWords(words);
@@ -1869,60 +1869,40 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 const btnStyle = {
   padding: '12px 20px',
   fontSize: 16,
-  borderRadius: 'var(--gh-btn-radius)',
-  border: '1px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, rgba(255, 255, 255, 0.2))',
-  background: 'var(--gh-btn-primary-fill)',
+  borderRadius: '12px',
+  border: 'none',
+  background: 'var(--tg-theme-button-color, #3a7bd5)',
   color: 'var(--tg-theme-button-text-color, #fff)',
   cursor: 'pointer',
   width: '100%',
-  boxShadow: 'var(--gh-btn-shadow)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.14)',
   fontWeight: 600,
-  transition:
-    'transform 0.14s cubic-bezier(0.2,0,0,1), box-shadow 0.14s cubic-bezier(0.2,0,0,1), filter 0.14s cubic-bezier(0.2,0,0,1)',
 };
 
-/** Неактивный сегмент / «выкл» — как на промо: градиент + мягкая тень */
 const btnStyleToggleOff = {
   ...btnStyle,
-  background: 'var(--gh-toggle-off-gradient)',
-  boxShadow: 'var(--gh-btn-toggle-shadow)',
+  background: 'var(--gh-toggle-off)',
+  boxShadow: 'none',
   border: '1px solid var(--gh-border)',
   color: 'var(--tg-theme-text-color)',
 };
 
-/** Заголовок секции в развёрнутом аккордеоне — чуть светлее */
 const btnStyleToggleMid = {
   ...btnStyleToggleOff,
-  background: 'var(--gh-toggle-mid-gradient)',
+  background: 'var(--gh-toggle-mid)',
 };
 
 const btnStyleToggleInk = {
   ...btnStyleToggleOff,
-  background: 'var(--gh-toggle-ink-gradient)',
-};
-
-const btnStyleSuccess = {
-  ...btnStyle,
-  background: 'var(--gh-btn-success-gradient)',
-  border: '1px solid rgba(100, 130, 70, 0.45)',
-  color: '#fff',
-  boxShadow: '0 1px 0 rgba(255,255,255,0.2) inset, 0 6px 18px rgba(60,90,40,0.35)',
-};
-
-const btnStyleShop = {
-  ...btnStyle,
-  background: 'var(--gh-btn-shop-gradient)',
-  border: '1px solid rgba(120, 100, 200, 0.4)',
-  color: '#fff',
-  boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset, 0 6px 20px rgba(60,40,120,0.4)',
+  background: 'var(--gh-toggle-deep)',
 };
 
 const btnStyleWarn = {
   ...btnStyleToggleOff,
-  background: 'var(--gh-btn-warn-gradient)',
+  background: 'var(--gh-color-danger)',
   color: '#fff',
-  border: '1px solid rgba(160, 80, 80, 0.4)',
-  boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 14px rgba(80,30,30,0.35)',
+  border: '1px solid color-mix(in srgb, var(--gh-color-danger) 70%, #000)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
 };
 
 const settingsBox = {

@@ -8,16 +8,6 @@ import Select from './ui/Select';
 import Tooltip from './ui/Tooltip';
 import './shopModal.css';
 
-const btnStyle = {
-  padding: 'var(--gh-space-3, 12px) var(--gh-space-5, 20px)',
-  fontSize: 'var(--gh-font-size-md, 16px)',
-  borderRadius: 'var(--gh-radius-sm, 8px)',
-  border: 'none',
-  background: 'var(--gh-color-primary, var(--tg-theme-button-color, #3a7bd5))',
-  color: 'var(--gh-color-primary-text, var(--tg-theme-button-text-color, #fff))',
-  cursor: 'pointer',
-};
-
 export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) {
   const [shopGameFilter, setShopGameFilter] = useState(initialGameFilter);
   const [shopCategoryFilter, setShopCategoryFilter] = useState('all');
@@ -108,7 +98,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
         role="button"
         tabIndex={0}
         className="shop-modal__item"
-        style={{ marginBottom: 12, padding: 14, background: locked ? 'rgba(80,60,60,0.2)' : 'rgba(255,255,255,0.06)', borderRadius: 10, position: 'relative' }}
+        style={{ marginBottom: 12, padding: 14, background: locked ? 'var(--gh-surface)' : 'var(--gh-surface-strong)', borderRadius: 10, position: 'relative', border: locked ? '1px dashed var(--gh-border)' : '1px solid var(--gh-border)' }}
         onClick={() => openDetail(item)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -140,7 +130,8 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                   track('store_item_click', { itemId: item.id, game: item.game, category: item.category });
                   buyItem(item);
                 }}
-                style={{ ...btnStyle, width: 'auto', marginTop: 8, padding: '6px 10px', fontSize: 12, background: '#555' }}
+                className="gh-btn gh-btn--muted gh-btn--compact"
+                style={{ width: 'auto', marginTop: 8 }}
               >
                 Купить / открыть
               </button>
@@ -159,9 +150,6 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
     <div className="shop-modal-overlay" onClick={onClose}>
       <div className="shop-modal__panel" onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин и словари</h3>
-        <p style={{ fontSize: 13, marginBottom: 12, opacity: 0.9, lineHeight: 1.45 }}>
-          Витрина: тематические наборы слов и фичи по играм. С <strong>Премиум</strong> открываются премиальные словари и режимы для <strong>всех</strong> в вашей комнате.
-        </p>
         <p style={{ fontSize: 13, marginBottom: 8 }}>Игра</p>
         <Select
           value={shopGameFilter}
@@ -189,7 +177,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                     role="button"
                     tabIndex={0}
                     className="shop-modal__item"
-                    style={{ padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.05)', fontSize: 12 }}
+                    style={{ padding: 10, borderRadius: 8, background: 'var(--gh-surface-strong)', border: '1px solid var(--gh-border)', fontSize: 12 }}
                     onClick={() => openDetail(item)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -237,19 +225,14 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
             ) : (
               <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Покупок пока нет.</p>
             )}
-            <button
-              type="button"
-              onClick={restore}
-              style={{ ...btnStyle, width: 'auto', marginTop: 8, padding: '6px 10px', fontSize: 12, background: '#444' }}
-            >
+            <button type="button" onClick={restore} className="gh-btn gh-btn--muted gh-btn--compact" style={{ width: 'auto', marginTop: 8 }}>
               Восстановить покупки
             </button>
           </div>
         </div>
-        <p style={{ fontSize: 12, opacity: 0.85, marginTop: 12, lineHeight: 1.45 }}>
-          Отдельная покупка карточек пока в разработке. Сейчас самый быстрый путь — <strong>Премиум</strong>: все премиальные словари, расширенная Мафия и без рекламы перед стартом для всей группы.
-        </p>
-        <button type="button" onClick={onClose} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
+        <button type="button" onClick={onClose} className="gh-btn gh-btn--block" style={{ marginTop: 16 }}>
+          Закрыть
+        </button>
 
         {detailItem && detailMarketing ? (
           <div
@@ -279,7 +262,7 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
                       buyItem(detailItem);
                       setDetailItem(null);
                     }}
-                    style={{ ...btnStyle, width: '100%' }}
+                    className="gh-btn gh-btn--block"
                   >
                     Купить / открыть
                   </button>

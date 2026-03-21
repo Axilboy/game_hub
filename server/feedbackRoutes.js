@@ -21,8 +21,12 @@ export async function feedbackRoutes(fastify) {
     if (!rateLimitOk(ip)) {
       return reply.code(429).send({ error: 'Слишком много сообщений. Попробуйте позже.' });
     }
-    const { message, contact, playerId, displayName } = request.body || {};
+    const { message, contact, playerId, displayName, category } = request.body || {};
     const text = String(message || '').trim();
+    let cat = String(category || '')
+      .trim()
+      .toLowerCase();
+    if (!['bug', 'suggestion'].includes(cat)) cat = '';
     if (text.length < 3) {
       return reply.code(400).send({ error: 'Напишите хотя бы пару слов.' });
     }
@@ -34,6 +38,7 @@ export async function feedbackRoutes(fastify) {
       contact: String(contact || '').trim().slice(0, 240),
       playerId: playerId != null ? String(playerId).slice(0, 80) : '',
       displayName: String(displayName || '').trim().slice(0, 120),
+      ...(cat ? { category: cat } : {}),
       ip: String(ip).slice(0, 64),
       userAgent: String(request.headers['user-agent'] || '').slice(0, 400),
     });

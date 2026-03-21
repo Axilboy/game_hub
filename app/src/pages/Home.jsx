@@ -71,6 +71,8 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const [feedbackContact, setFeedbackContact] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState(false);
+  /** @type {null | 'bug' | 'suggestion'} */
+  const [feedbackCategory, setFeedbackCategory] = useState(null);
   const [showThanks, setShowThanks] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const [hasRematchRoom, setHasRematchRoom] = useState(false);
@@ -284,11 +286,13 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         contact: feedbackContact.trim(),
         playerId: user?.id != null ? String(user.id) : '',
         displayName: shownName,
+        ...(feedbackCategory ? { category: feedbackCategory } : {}),
       });
       track('feedback_submit', { ok: true, len: text.length });
       setFeedbackDone(true);
       setFeedbackText('');
       setFeedbackContact('');
+      setFeedbackCategory(null);
     } catch (e) {
       track('feedback_submit', { ok: false });
       setError(getApiErrorMessage(e, 'Не удалось отправить'));
@@ -450,33 +454,20 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
         <section className="home-panel gh-fade-in">
           <div className="home-panel__title">Сценарий за 30 секунд</div>
-          <ul className="home-steps">
-            <li className="home-step">Нажмите «Начать игру»</li>
-            <li className="home-step">Отправьте ссылку в чат («Поделиться»)</li>
-            <li className="home-step">Выберите игру в лобби и нажмите «Начать»</li>
-          </ul>
-        </section>
-
-        <section style={{ marginBottom: 16 }}>
-          <button
-            type="button"
-            className="home-btn home-btn--ghost"
-            onClick={() => {
-              dismissThanks();
-              setShowFeedback(true);
-              setFeedbackDone(false);
-            }}
-            disabled={loading}
-          >
-            Обратная связь
-          </button>
+          <ol className="home-scenario">
+            <li className="home-scenario__item">Нажми «Начать игру» и создай комнату.</li>
+            <li className="home-scenario__item">
+              Поделись ссылкой · покажи QR · продиктуй ID комнаты друзьям.
+            </li>
+            <li className="home-scenario__item">Выбери и настрой игру в лобби.</li>
+          </ol>
         </section>
 
         <section className="home-panel home-row" style={{ padding: 14 }}>
-          <button type="button" className="home-btn home-btn--flex home-btn--green" onClick={() => { track('paywall_open', { source: 'home' }); setShowSubStub(true); }}>
-            Купить подписку
+          <button type="button" className="home-btn home-btn--flex home-btn--primary" onClick={() => { track('paywall_open', { source: 'home' }); setShowSubStub(true); }}>
+            Купить премиум
           </button>
-          <button type="button" className="home-btn home-btn--flex home-btn--purple" onClick={() => setShowShopStub(true)}>
+          <button type="button" className="home-btn home-btn--flex home-btn--secondary" onClick={() => setShowShopStub(true)}>
             Магазин
           </button>
         </section>
@@ -492,7 +483,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
               </ul>
               <button
                 type="button"
-                className="home-btn home-btn--green home-btn--mb"
+                className="home-btn home-btn--primary home-btn--mb"
                 onClick={() => {
                   setPro(Date.now() + 30 * 24 * 3600 * 1000);
                   track('paywall_buy_click', { source: 'home', plan: 'pro_30d' });
@@ -500,7 +491,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
                   setShowSubStub(false);
                 }}
               >
-                Купить подписку
+                Купить премиум
               </button>
               <button
                 type="button"
@@ -590,11 +581,27 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <section className="home-panel" style={{ marginTop: 8 }}>
           <div className="home-panel__title">Поддержать проект</div>
           <p className="home-panel__text">
-            Реклама запускается по требованию. Перед игрой показ может быть чаще — это настраивается площадкой, не чаще нескольких раз подряд без паузы.
+            Помочь можно просто: посмотреть короткую рекламу по кнопке ниже — так проект получает поддержку от площадки.
+            Или напишите обратную связь: идеи, замечания или баги — нам важно знать, что улучшить.
           </p>
-          <button type="button" className="home-btn home-btn--primary" onClick={handleShowAd} disabled={adLoading}>
-            {adLoading ? 'Загрузка…' : 'Показать рекламу'}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button type="button" className="home-btn home-btn--primary" onClick={handleShowAd} disabled={adLoading}>
+              {adLoading ? 'Загрузка…' : 'Показать рекламу'}
+            </button>
+            <button
+              type="button"
+              className="home-btn home-btn--secondary"
+              onClick={() => {
+                dismissThanks();
+                setFeedbackCategory(null);
+                setShowFeedback(true);
+                setFeedbackDone(false);
+              }}
+              disabled={loading}
+            >
+              Обратная связь
+            </button>
+          </div>
         </section>
 
         <Modal
@@ -605,7 +612,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         >
           <p style={{ marginBottom: 12, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
             Спасибо за поддержку и тестирование. У вас включён <strong>Премиум</strong>, чтобы можно было попробовать все режимы бесплатно.
-            Будем благодарны, если поделитесь проектом с друзьями и напишете отзыв через «Обратная связь».
+            Будем благодарны, если поделитесь проектом с друзьями и заглянете в блок «Поддержать проект» — там можно посмотреть рекламу или написать отзыв.
           </p>
           <button type="button" className="home-btn home-btn--primary" onClick={dismissThanks}>
             Обязательно
@@ -614,18 +621,40 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
         <Modal
           open={showFeedback}
-          onClose={() => setShowFeedback(false)}
+          onClose={() => {
+            setShowFeedback(false);
+            setFeedbackCategory(null);
+          }}
           title="Обратная связь"
           width={400}
         >
           <>
             <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
-              Идеи, баги, пожелания — всё сюда. Сообщения сохраняются на сервере для команды проекта.
+              Сообщения сохраняются на сервере для команды проекта. Категория по желанию.
             </p>
             {feedbackDone ? (
               <p style={{ color: '#22c55e', fontSize: 14 }}>Спасибо! Сообщение отправлено.</p>
             ) : (
               <>
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ display: 'block', fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Категория (необязательно)</span>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className={`home-btn home-btn--inline ${feedbackCategory === 'bug' ? 'home-btn--primary' : 'home-btn--secondary'}`}
+                      onClick={() => setFeedbackCategory((c) => (c === 'bug' ? null : 'bug'))}
+                    >
+                      Баг
+                    </button>
+                    <button
+                      type="button"
+                      className={`home-btn home-btn--inline ${feedbackCategory === 'suggestion' ? 'home-btn--primary' : 'home-btn--secondary'}`}
+                      onClick={() => setFeedbackCategory((c) => (c === 'suggestion' ? null : 'suggestion'))}
+                    >
+                      Предложение
+                    </button>
+                  </div>
+                </div>
                 <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
                   Сообщение
                 </label>
