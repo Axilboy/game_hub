@@ -15,16 +15,16 @@
 ## Что уже настроено в коде
 
 - **`/robots.txt`** — отдаёт сервер; закрыты служебные маршруты (`/lobby`, игровые экраны, `/admin`, `/profile` и т.д.).
-- **`/sitemap.xml`** — список публичных URL: `/seo`, `/games/*`, `/how-to-play`, `/privacy`, `/rules`.
-- **Отдельные промо-лендинги игр** (`/games/spy`, `/games/mafia`, …) — своя визуальная тема, тексты под точечную рекламу, CTA «Играть», JSON-LD `WebApplication`.
-- **Публичные страницы** (`/seo`, лендинги игр, правила) — `useSeo`: title, description, **canonical**, **Open Graph**, **Twitter Card**, `index, follow`.
-- **Экран входа и комнаты** — `noindex, nofollow` (не дублируем игровые сессии в поиске).
-- **JSON-LD** на `/seo`: Organization, WebSite, Game, FAQPage.
+- **`/sitemap.xml`** — публичные URL: `/games/*`, `/privacy`, `/rules` (главная в приложении с `noindex` в выдачу не целим).
+- **Старые URL** `/seo` и `/how-to-play` → **редирект на `/`** (закладки и внешние ссылки не ломаются).
+- **Отдельные промо-лендинги игр** (`/games/spy`, `/games/mafia`, …) — своя тема, CTA, JSON-LD `WebApplication`.
+- **Публичные страницы** (лендинги игр, правила, приватность) — `useSeo`: canonical, Open Graph, Twitter.
+- **Экран входа и комнаты** — `noindex, nofollow`.
 
 ## Проверка после деплоя
 
 1. Откройте `https://ВАШ_ДОМЕН/robots.txt` и `https://ВАШ_ДОМЕН/sitemap.xml`.
-2. [Google Rich Results Test](https://search.google.com/test/rich-results) — URL `/seo` или любой `/games/...`.
+2. [Google Rich Results Test](https://search.google.com/test/rich-results) — любой URL `/games/...`.
 3. [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) — превью по ссылке (кэш обновляется кнопкой «Scrape Again»).
 
 ## Вебмастеры

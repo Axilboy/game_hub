@@ -53,7 +53,7 @@ fastify.get('/robots.txt', async (request, reply) => {
     'User-agent: *',
     ...disallow.flatMap((p) => [`Disallow: ${p}`]),
     '',
-    '# Публичные страницы: /seo, /games/*, /how-to-play, /privacy, /rules (не блокируются)',
+    '# Публичные страницы: /games/*, /privacy, /rules; /seo и /how-to-play редирект на главную',
     `Sitemap: ${origin.replace(/\/$/, '')}/sitemap.xml`,
     '',
   ];
@@ -65,8 +65,6 @@ fastify.get('/sitemap.xml', async (request, reply) => {
   const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
   const base = origin.replace(/\/$/, '');
   const urls = [
-    { loc: `${base}/seo`, changefreq: 'daily', priority: 0.9 },
-    { loc: `${base}/how-to-play`, changefreq: 'weekly', priority: 0.65 },
     { loc: `${base}/games/spy`, changefreq: 'weekly', priority: 0.75 },
     { loc: `${base}/games/elias`, changefreq: 'weekly', priority: 0.75 },
     { loc: `${base}/games/mafia`, changefreq: 'weekly', priority: 0.75 },

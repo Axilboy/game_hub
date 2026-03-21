@@ -59,7 +59,7 @@ Pre-release checklist for critical flows, realtime stability, and rollback readi
 
 ## 5) SEO Surface
 
-- Verify `/seo`, `/games/spy`, `/games/elias`, `/games/mafia`, `/games/truth_dare`, `/games/bunker`.
+- Verify `/games/spy`, `/games/elias`, `/games/mafia`, `/games/truth_dare`, `/games/bunker`; `/seo` and `/how-to-play` redirect to `/`.
 - Verify internal links and back-navigation work.
 - Verify title/description render and no blank content sections.
 

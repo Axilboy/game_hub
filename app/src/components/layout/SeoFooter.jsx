@@ -13,8 +13,7 @@ export default function SeoFooter({ style }) {
   return (
     <footer style={wrapStyle}>
       <nav aria-label="Дополнительные страницы" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', lineHeight: 1.4 }}>
-        <a href="/seo" style={linkStyle}>SEO</a>
-        <a href="/how-to-play" style={linkStyle}>Как играть</a>
+        <a href="/" style={linkStyle}>Главная</a>
         <a href="/games/spy" style={linkStyle}>Шпион</a>
         <a href="/games/mafia" style={linkStyle}>Мафия</a>
         <a href="/games/elias" style={linkStyle}>Элиас</a>

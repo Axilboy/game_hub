@@ -105,8 +105,8 @@ export default function GamePromoLanding({
           <button type="button" className="gpl__btn gpl__btn--primary" onClick={() => navigate('/')}>
             {primaryCtaLabel}
           </button>
-          <button type="button" className="gpl__btn gpl__btn--secondary" onClick={() => navigate('/how-to-play')}>
-            Как играть
+          <button type="button" className="gpl__btn gpl__btn--secondary" onClick={() => navigate('/rules')}>
+            Правила сервиса
           </button>
           {showTelegramCta && tgUrl ? (
             <a href={tgUrl} className="gpl__btn gpl__btn--ghost" target="_blank" rel="noopener noreferrer">

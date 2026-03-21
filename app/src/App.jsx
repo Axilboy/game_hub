@@ -20,13 +20,11 @@ const EliasRound = lazy(() => import('./pages/EliasRound'));
 const TruthDareRound = lazy(() => import('./pages/TruthDareRound'));
 const BunkerRound = lazy(() => import('./pages/BunkerRound'));
 const Admin = lazy(() => import('./pages/Admin'));
-const SeoLanding = lazy(() => import('./pages/SeoLanding'));
 const SeoGameSpy = lazy(() => import('./pages/SeoGameSpy'));
 const SeoGameElias = lazy(() => import('./pages/SeoGameElias'));
 const SeoGameMafia = lazy(() => import('./pages/SeoGameMafia'));
 const SeoGameTruthDare = lazy(() => import('./pages/SeoGameTruthDare'));
 const SeoGameBunker = lazy(() => import('./pages/SeoGameBunker'));
-const SeoHowToPlay = lazy(() => import('./pages/SeoHowToPlay'));
 const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
 
@@ -394,41 +392,35 @@ function AppRoutes() {
             />
           }
         />
-        <Route
-          path="/seo"
-          element={<SeoLanding navigateToApp={() => navigate('/')} onNavigate={(p) => navigate(p)} />}
-        />
+        <Route path="/seo" element={<Navigate to="/" replace />} />
+        <Route path="/how-to-play" element={<Navigate to="/" replace />} />
         <Route
           path="/games/spy"
-          element={<SeoGameSpy onBack={() => navigate('/seo')} />}
+          element={<SeoGameSpy onBack={() => navigate('/')} />}
         />
         <Route
           path="/games/elias"
-          element={<SeoGameElias onBack={() => navigate('/seo')} />}
+          element={<SeoGameElias onBack={() => navigate('/')} />}
         />
         <Route
           path="/games/mafia"
-          element={<SeoGameMafia onBack={() => navigate('/seo')} />}
+          element={<SeoGameMafia onBack={() => navigate('/')} />}
         />
         <Route
           path="/games/truth_dare"
-          element={<SeoGameTruthDare onBack={() => navigate('/seo')} />}
+          element={<SeoGameTruthDare onBack={() => navigate('/')} />}
         />
         <Route
           path="/games/bunker"
-          element={<SeoGameBunker onBack={() => navigate('/seo')} />}
-        />
-        <Route
-          path="/how-to-play"
-          element={<SeoHowToPlay onBack={() => navigate('/seo')} />}
+          element={<SeoGameBunker onBack={() => navigate('/')} />}
         />
         <Route
           path="/privacy"
-          element={<SeoPrivacy onBack={() => navigate('/seo')} />}
+          element={<SeoPrivacy onBack={() => navigate('/')} />}
         />
         <Route
           path="/rules"
-          element={<SeoRules onBack={() => navigate('/seo')} />}
+          element={<SeoRules onBack={() => navigate('/')} />}
         />
         <Route
           path="/lobby"

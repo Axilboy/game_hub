@@ -624,8 +624,6 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
       <details className="gh-card" style={{ marginTop: 12, padding: 12 }}>
         <summary style={{ cursor: 'pointer', fontSize: 13, opacity: 0.85 }}>Дополнительные страницы</summary>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/seo')}>SEO</button>
-          <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/how-to-play')}>Как играть</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/spy')}>Шпион</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/elias')}>Элиас</button>
           <button type="button" className="gh-btn gh-btn--compact gh-btn--charcoal" onClick={() => navigate('/games/mafia')}>Мафия</button>
