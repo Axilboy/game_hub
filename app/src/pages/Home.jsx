@@ -299,7 +299,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
   return (
     <PageLayout title="GameHub" onBack={() => window.history.back()}>
-      <HomeLandingCarousel onHubClick={handleCreate} loading={loading} />
+      <HomeLandingCarousel />
 
       <header
         className="gh-card"

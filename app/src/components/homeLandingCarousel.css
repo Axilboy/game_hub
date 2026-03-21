@@ -21,14 +21,15 @@
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  /* scroll-behavior только из JS — иначе сброс без анимации ломается */
-  padding: 4px 2px 14px;
+  /* Симметричные отступы: крайние карточки могут встать по центру как в середине ленты */
+  padding: 4px max(12px, calc((100% - min(88%, 320px)) / 2)) 14px;
   margin: 0 -4px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
   touch-action: pan-x;
+  scroll-snap-stop: always;
 }
 
 .gh-home-carousel::-webkit-scrollbar {
@@ -48,19 +49,13 @@
 
 .gh-home-carousel__slide--hub {
   display: block;
-  appearance: none;
-  -webkit-appearance: none;
   background: transparent;
   padding: 0;
   font: inherit;
   box-shadow: var(--gh-shadow);
   border: 1px solid var(--gh-border);
-  cursor: pointer;
-}
-
-.gh-home-carousel__slide--hub:disabled {
-  cursor: wait;
-  opacity: 0.85;
+  cursor: default;
+  user-select: text;
 }
 
 .gh-home-carousel__slide:active {

@@ -55,8 +55,10 @@ const GAME_SLIDES = [
   },
 ];
 
-/** Один полный круг: GameHub + 5 игр = 6 слайдов, дублируем для бесшовного цикла */
+/** GameHub + 5 игр */
 const CYCLE_LEN = 1 + GAME_SLIDES.length;
+/** Средняя копия (влево и вправо есть ещё по одной полной серии) */
+const MIDDLE_START = CYCLE_LEN;
 
 function scrollSlideIntoViewCenter(root, slideEl, behavior) {
   if (!root || !slideEl) return;
@@ -85,29 +87,33 @@ function logicalIndexFromDom(domIdx) {
   return domIdx % CYCLE_LEN;
 }
 
-export default function HomeLandingCarousel({ onHubClick, loading = false }) {
+export default function HomeLandingCarousel() {
   const scrollRef = useRef(null);
   const logicalRef = useRef(0);
   const scrollEndTimerRef = useRef(null);
   const isDraggingRef = useRef(false);
 
+  /** Всегда «приземляемся» на среднюю копию, чтобы влево/вправо был запас */
   const normalizeLoop = useCallback(() => {
     const root = scrollRef.current;
     if (!root) return;
     const slides = [...root.querySelectorAll('[data-carousel-slide]')];
-    if (!slides.length) return;
+    if (slides.length < CYCLE_LEN * 3) return;
 
     const domIdx = domIndexFromScroll(root);
     logicalRef.current = logicalIndexFromDom(domIdx);
 
-    /** Во второй копии (индексы 6–11) переносим визуально в первую без анимации */
-    if (domIdx >= CYCLE_LEN) {
-      const logical = logicalIndexFromDom(domIdx);
-      const target = slides[logical];
-      if (target) {
-        scrollSlideIntoViewCenter(root, target, 'auto');
-      }
-      logicalRef.current = logical;
+    if (domIdx < CYCLE_LEN) {
+      const target = slides[domIdx + MIDDLE_START];
+      if (target) scrollSlideIntoViewCenter(root, target, 'auto');
+      logicalRef.current = logicalIndexFromDom(domIdx);
+      return;
+    }
+
+    if (domIdx >= CYCLE_LEN * 2) {
+      const target = slides[domIdx - MIDDLE_START];
+      if (target) scrollSlideIntoViewCenter(root, target, 'auto');
+      logicalRef.current = logicalIndexFromDom(domIdx);
     }
   }, []);
 
@@ -131,22 +137,22 @@ export default function HomeLandingCarousel({ onHubClick, loading = false }) {
     const root = scrollRef.current;
     if (!root || isDraggingRef.current) return;
     const slides = [...root.querySelectorAll('[data-carousel-slide]')];
-    if (slides.length < CYCLE_LEN + 1) return;
+    if (slides.length < CYCLE_LEN * 3) return;
 
     const logical = logicalRef.current;
     const nextLogical = (logical + 1) % CYCLE_LEN;
 
+    /** Все переходы только внутри средней копии (индексы 6…11) */
     if (logical === CYCLE_LEN - 1 && nextLogical === 0) {
-      /** С последней игры → плавно к дубликату GameHub; normalizeLoop после скролла перенесёт на slides[0] */
-      const dupHub = slides[CYCLE_LEN];
-      if (dupHub) {
+      const hubMid = slides[MIDDLE_START];
+      if (hubMid) {
         logicalRef.current = 0;
-        scrollSlideIntoViewCenter(root, dupHub, 'smooth');
+        scrollSlideIntoViewCenter(root, hubMid, 'smooth');
       }
       return;
     }
 
-    const target = slides[nextLogical];
+    const target = slides[MIDDLE_START + nextLogical];
     if (target) {
       scrollSlideIntoViewCenter(root, target, 'smooth');
       logicalRef.current = nextLogical;
@@ -170,9 +176,10 @@ export default function HomeLandingCarousel({ onHubClick, loading = false }) {
     if (!root) return;
     requestAnimationFrame(() => {
       const r = scrollRef.current;
-      const first = r?.querySelector('[data-carousel-slide]');
-      if (r && first) {
-        scrollSlideIntoViewCenter(r, first, 'auto');
+      const slides = r ? [...r.querySelectorAll('[data-carousel-slide]')] : [];
+      const hubMid = slides[MIDDLE_START];
+      if (r && hubMid) {
+        scrollSlideIntoViewCenter(r, hubMid, 'auto');
       }
       logicalRef.current = 0;
     });
@@ -203,7 +210,7 @@ export default function HomeLandingCarousel({ onHubClick, loading = false }) {
   }, []);
 
   const baseSlides = [{ kind: 'hub', key: 'hub' }, ...GAME_SLIDES.map((g) => ({ kind: 'game', ...g }))];
-  const renderedSlides = [...baseSlides, ...baseSlides];
+  const renderedSlides = [...baseSlides, ...baseSlides, ...baseSlides];
 
   return (
     <section className="gh-home-carousel-wrap" aria-label="GameHub и игры">
@@ -212,24 +219,19 @@ export default function HomeLandingCarousel({ onHubClick, loading = false }) {
         {renderedSlides.map((s, idx) => {
           if (s.kind === 'hub') {
             return (
-              <button
+              <div
                 key={`hub-${idx}`}
-                type="button"
                 data-carousel-slide
                 className="gh-home-carousel__slide gh-home-carousel__slide--hub"
-                disabled={loading}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  track('home_hero_create_lobby', { source: 'carousel' });
-                  onHubClick?.();
-                }}
+                role="group"
+                aria-label="GameHub Party — общий вход"
               >
                 <div className="gh-home-carousel__inner gh-home-carousel__inner--hub">
                   <div className="gh-home-carousel__hub-line1">GAMEHUBPARTY - ИГРЫ ДЛЯ КОМПАНИИ ОНЛАЙН</div>
                   <div className="gh-home-carousel__hub-line2">Играй с друзьями прямо в браузере</div>
                   <div className="gh-home-carousel__hub-line3">Без регистрации</div>
                 </div>
-              </button>
+              </div>
             );
           }
 
