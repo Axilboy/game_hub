@@ -105,14 +105,17 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
     navigate('/lobby');
   };
 
-  const submitTurn = async (action) => {
+  const submitTurn = async (action, choice) => {
     if (actionLoading) return;
     if (!state?.turnToken) return;
     if (!state?.isMyTurn) return;
+    if (action === 'done' && choice !== 'truth' && choice !== 'dare') return;
     try {
-      setActionLoading(action);
-      await api.post(`/rooms/${roomId}/truth_dare/turn`, { playerId: myId, action, turnToken: state.turnToken });
-      track('truth_dare_turn_action', { action, category: state.currentCard?.categorySlug || 'unknown' });
+      setActionLoading(action === 'done' ? `done_${choice}` : action);
+      const body = { playerId: myId, action, turnToken: state.turnToken };
+      if (action === 'done') body.choice = choice;
+      await api.post(`/rooms/${roomId}/truth_dare/turn`, body);
+      track('truth_dare_turn_action', { action, choice: choice || null, category: state.currentCard?.categorySlug || 'unknown' });
       // server will advance via socket; refresh as backup.
       refreshState({ silent: true });
     } catch (_) {
@@ -217,11 +220,22 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
 
         <div className="gh-card" style={{ padding: 16 }}>
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
-            Режим: <strong>{card?.type === 'truth' ? 'Правда' : card?.type === 'dare' ? 'Действие' : '—'}</strong>
+            На карточке два варианта — выбери, что выполняешь: <strong>правда</strong> или <strong>действие</strong>.
           </p>
-          <p style={{ margin: '12px 0 0', fontSize: 22, fontWeight: 800, lineHeight: 1.25 }}>
-            {card?.text || 'Ожидаем карточку...'}
-          </p>
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>Правда</p>
+              <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 700, lineHeight: 1.35 }}>
+                {card?.truth || card?.text || 'Ожидаем карточку...'}
+              </p>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', paddingTop: 12 }}>
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>Действие</p>
+              <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 700, lineHeight: 1.35 }}>
+                {card?.dare || '—'}
+              </p>
+            </div>
+          </div>
           <p style={{ margin: '10px 0 0', fontSize: 12, opacity: 0.85 }}>
             Категория: {card?.categorySlug || '—'}
           </p>
@@ -275,7 +289,8 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
         <div className="gh-card" style={{ padding: 16, marginTop: 12 }}>
           <p style={{ margin: '0 0 8px', opacity: 0.9, fontSize: 14 }}>Ваши действия</p>
           <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
-            Выполнено: <strong>{myStats.done || 0}</strong> · Пропуски: <strong>{myStats.skip || 0}</strong> · Таймауты: <strong>{myStats.timeout || 0}</strong>
+            Выполнено: <strong>{myStats.done || 0}</strong> (правда {myStats.truth ?? 0} / действие {myStats.dare ?? 0}) · Пропуски:{' '}
+            <strong>{myStats.skip || 0}</strong> · Таймауты: <strong>{myStats.timeout || 0}</strong>
           </p>
           {(state.turnHistory || []).length > 0 && (
             <div style={{ marginTop: 10 }}>
@@ -283,7 +298,8 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {(state.turnHistory || []).slice(-5).map((x) => (
                   <div key={`${x.token}-${x.at}`} style={{ fontSize: 12, opacity: 0.88 }}>
-                    {x.playerName}: {x.action}
+                    {x.playerName}:{' '}
+                    {x.action === 'done' && x.choice ? `готово (${x.choice === 'truth' ? 'правда' : 'действие'})` : x.action}
                   </div>
                 ))}
               </div>

@@ -11,7 +11,14 @@ import {
   getMafiaPlayers,
 } from './mafia.js';
 import { getEliasWords, getRandomEliasWord } from './eliasWords.js';
-import { getTruthDareCatalog, createTruthDareState, pickTruthDareCard, getUnlockedTruthDareCategorySlugs, getTruthDareCardById } from './truthDare.js';
+import {
+  getTruthDareCatalog,
+  createTruthDareState,
+  pickTruthDareCard,
+  getUnlockedTruthDareCategorySlugs,
+  getTruthDareCardById,
+  getTruthDareCardSummary,
+} from './truthDare.js';
 import { createBunkerState, pickNextCrisis, canUseBunkerScenario, BUNKER_SCENARIOS } from './bunker.js';
 
 export async function roomRoutes(fastify) {
@@ -672,8 +679,8 @@ export async function roomRoutes(fastify) {
       currentCard: gs.currentCard
         ? {
           id: gs.currentCard.id,
-          text: gs.currentCard.text,
-          type: gs.currentCard.type,
+          truth: gs.currentCard.truth ?? '',
+          dare: gs.currentCard.dare ?? '',
           categorySlug: gs.currentCard.categorySlug,
           is18Plus: Boolean(gs.currentCard.is18Plus),
         }
@@ -717,7 +724,7 @@ export async function roomRoutes(fastify) {
     }
     if (gs.currentPlayerId) {
       gs.playerStats = gs.playerStats || {};
-      gs.playerStats[gs.currentPlayerId] = gs.playerStats[gs.currentPlayerId] || { done: 0, skip: 0, timeout: 0 };
+      gs.playerStats[gs.currentPlayerId] = gs.playerStats[gs.currentPlayerId] || { done: 0, skip: 0, timeout: 0, truth: 0, dare: 0 };
       gs.playerStats[gs.currentPlayerId].timeout = (gs.playerStats[gs.currentPlayerId].timeout || 0) + 1;
       gs.turnHistory = gs.turnHistory || [];
       gs.turnHistory.push({ token: expectedToken, playerId: gs.currentPlayerId, action: 'timeout', at: Date.now() });
@@ -777,7 +784,7 @@ export async function roomRoutes(fastify) {
       // If 18+ cards were not available for this player, fallback to classic free cards.
       nextCard = pickTruthDareCard({
         mode: gs.settings?.mode ?? 'mixed',
-        categorySlugs: ['classic_truth', 'classic_dare'],
+        categorySlugs: ['classic', 'friends'],
         include18Plus: false,
         safeMode: Boolean(gs.settings?.safeMode),
         playerHasPro: nextHasPro,
@@ -846,10 +853,22 @@ export async function roomRoutes(fastify) {
     // Mark processed so duplicates don't re-advance.
     gs.turnResults[turnToken] = { ...(gs.turnResults[turnToken] || {}), processed: true };
     gs.playerStats = gs.playerStats || {};
-    gs.playerStats[playerId] = gs.playerStats[playerId] || { done: 0, skip: 0, timeout: 0 };
-    gs.playerStats[playerId][action] = (gs.playerStats[playerId][action] || 0) + 1;
+    gs.playerStats[playerId] = gs.playerStats[playerId] || { done: 0, skip: 0, timeout: 0, truth: 0, dare: 0 };
+    if (action === 'done') {
+      gs.playerStats[playerId].done = (gs.playerStats[playerId].done || 0) + 1;
+      if (choice === 'truth') gs.playerStats[playerId].truth = (gs.playerStats[playerId].truth || 0) + 1;
+      if (choice === 'dare') gs.playerStats[playerId].dare = (gs.playerStats[playerId].dare || 0) + 1;
+    } else {
+      gs.playerStats[playerId].skip = (gs.playerStats[playerId].skip || 0) + 1;
+    }
     gs.turnHistory = gs.turnHistory || [];
-    gs.turnHistory.push({ token: turnToken, playerId, action, at: Date.now() });
+    gs.turnHistory.push({
+      token: turnToken,
+      playerId,
+      action,
+      choice: action === 'done' ? choice : undefined,
+      at: Date.now(),
+    });
 
     truthDareAdvanceTurn(roomId, fastify.io, { expectedTurnToken: turnToken });
     return { ok: true };
@@ -922,7 +941,7 @@ export async function roomRoutes(fastify) {
           cardId,
           reports: Number(reports) || 0,
           likes: Number(gs.cardLikes?.[cardId]) || 0,
-          text: card?.text || '—',
+          text: getTruthDareCardSummary(card) || '—',
           categorySlug: card?.categorySlug || 'unknown',
         };
       })

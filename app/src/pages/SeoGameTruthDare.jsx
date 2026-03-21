@@ -4,7 +4,7 @@ export default function SeoGameTruthDare({ onBack }) {
   return (
     <SeoInfoPage
       title="Правда или действие в GameHub — игра в Telegram"
-      description="Игра «Правда или действие» в GameHub: раунды, категории, safe/18+ режимы и быстрые партии для компании."
+      description="Игра «Правда или действие» в GameHub: одна карточка — два задания на выбор, категории, safe/18+ и быстрые партии."
       h1="Игра «Правда или действие»"
       onBack={onBack}
       sections={[
@@ -12,7 +12,7 @@ export default function SeoGameTruthDare({ onBack }) {
           title: 'Как проходит раунд',
           body: (
             <>
-              <div>Игрок получает карточку из выбранной категории: правда или действие.</div>
+              <div>Игрок получает одну карточку из выбранной темы: на ней и правда, и действие — сам решает, что выполнить.</div>
               <div style={{ marginTop: 8 }}>После хода очередь автоматически переходит дальше.</div>
             </>
           ),

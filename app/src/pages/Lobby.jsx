@@ -94,31 +94,27 @@ const SPY_DICT_CARDS = [
 ];
 
 const ELIAS_DICT_CARDS = [
-  { id: 'basic', name: 'Базовый', description: 'Простые и понятные слова для любой компании.', emoji: '📦', free: true },
-  { id: 'animals', name: 'Животные', description: 'Звери, птицы и рыбы — от домашних до экзотических.', emoji: '🦁', free: true },
-  { id: 'movies', name: 'Кино', description: 'Жанры, награды, съёмки и всё про киноиндустрию.', emoji: '🎬', free: false },
-  { id: 'science', name: 'Наука', description: 'Эксперименты, теории и научные понятия.', emoji: '🔬', free: false },
-  { id: 'sport', name: 'Спорт', description: 'Турниры, команды, рекорды и спортивный сленг.', emoji: '⚽', free: false },
+  { id: 'basic', name: 'Базовый', description: 'Быт, природа, город — универсальный микс.', emoji: '📦', free: true },
+  { id: 'animals', name: 'Животные', description: 'Звери, птицы, морские обитатели.', emoji: '🦁', free: true },
+  { id: 'memes', name: 'Интернет и мемы', description: 'Соцсети, стримы, сленг — без объяснения мемов словами мема.', emoji: '📱', free: true },
+  { id: 'movies', name: 'Кино', description: 'Жанры, премьеры, съёмочный сленг.', emoji: '🎬', free: false },
+  { id: 'science', name: 'Наука', description: 'Физика, биология, космос.', emoji: '🔬', free: false },
+  { id: 'sport', name: 'Спорт', description: 'Дисциплины, турниры, эмоции.', emoji: '⚽', free: false },
+  { id: 'travel', name: 'Путешествия', description: 'Поездки, транспорт, отдых.', emoji: '✈️', free: false },
+  { id: 'food', name: 'Еда', description: 'Блюда, кухни, ресторанный мир.', emoji: '🍽️', free: false },
+  { id: 'kids', name: 'Семейный', description: 'Мягко и понятно для детей.', emoji: '🧸', free: false },
 ];
 
 const TD_CATEGORIES = [
-  { slug: 'classic_truth', name: 'Классика — правда', premium: false, is18Plus: false, safe: true },
-  { slug: 'classic_dare', name: 'Классика — действие', premium: false, is18Plus: false, safe: true },
-  { slug: 'friends_truth', name: 'Друзья — правда', premium: false, is18Plus: false, safe: true },
-  { slug: 'friends_dare', name: 'Друзья — действие', premium: false, is18Plus: false, safe: true },
-  { slug: '18_truth', name: '18+ — правда', premium: false, is18Plus: true, safe: false },
-  { slug: '18_dare', name: '18+ — действие', premium: false, is18Plus: true, safe: false },
-  { slug: 'drunk_truth', name: 'Пьяное — правда (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
-  { slug: 'drunk_dare', name: 'Пьяное — действие (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
-  { slug: 'couples_truth', name: 'Пары — правда', premium: false, is18Plus: false, safe: true },
-  { slug: 'couples_dare', name: 'Пары — действие', premium: false, is18Plus: false, safe: true },
-  { slug: 'company_truth', name: 'Компания — правда', premium: false, is18Plus: false, safe: true },
-  { slug: 'company_dare', name: 'Компания — действие', premium: false, is18Plus: false, safe: true },
-  { slug: 'hard_truth', name: 'Жесткие вопросы (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
-  { slug: 'romance_truth', name: 'Романтика — правда (Про/Pack)', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
-  { slug: 'romance_dare', name: 'Романтика — действие (Про/Pack)', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
-  { slug: 'corporate_truth', name: 'Корпоратив SFW — правда', premium: false, is18Plus: false, safe: true },
-  { slug: 'corporate_dare', name: 'Корпоратив SFW — действие', premium: false, is18Plus: false, safe: true },
+  { slug: 'classic', name: 'Классика', premium: false, is18Plus: false, safe: true },
+  { slug: 'friends', name: 'Друзья', premium: false, is18Plus: false, safe: true },
+  { slug: '18plus', name: '18+', premium: false, is18Plus: true, safe: false },
+  { slug: 'drunk_party', name: 'Пьяная вечеринка (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'couples', name: 'Пары', premium: false, is18Plus: false, safe: true },
+  { slug: 'company', name: 'Компания', premium: false, is18Plus: false, safe: true },
+  { slug: 'hard', name: 'Без фильтра (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'romance', name: 'Романтика (Про/Pack)', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
+  { slug: 'corporate', name: 'Корпоратив SFW', premium: false, is18Plus: false, safe: true },
 ];
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
@@ -164,14 +160,13 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const tdGameSettings = room?.gameSettings || {};
-  const tdMode = tdGameSettings.mode ?? 'mixed';
   const tdSafeMode = tdGameSettings.safeMode !== false;
   const tdShow18Plus = Boolean(tdGameSettings.show18Plus);
   const tdRoundsCount = tdGameSettings.roundsCount ?? 5;
   const tdSkipLimitPerPlayer = tdGameSettings.skipLimitPerPlayer ?? 2;
   const tdCategorySlugs = Array.isArray(tdGameSettings.categorySlugs) && tdGameSettings.categorySlugs.length
     ? tdGameSettings.categorySlugs
-    : ['classic_truth', 'classic_dare'];
+    : ['classic', 'friends'];
 
   useEffect(() => {
     setEditNameValue(roomName);
@@ -323,7 +318,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       timerSeconds: gs.timerSeconds ?? 60,
       scoreLimit: gs.scoreLimit ?? 10,
       skipPenalty: gs.skipPenalty ?? 1,
-      dictionaryIds: gs.dictionaryIds?.length ? gs.dictionaryIds : ['basic', 'animals'],
+      dictionaryIds: gs.dictionaryIds?.length ? gs.dictionaryIds : ['basic', 'animals', 'memes'],
       customWords: Array.isArray(gs.eliasCustomWords) ? gs.eliasCustomWords : getCustomDictionaries().elias,
       teams: hasTeams ? teams : undefined,
       team1Ids: !hasTeams && gs.eliasTeam1Ids?.length ? gs.eliasTeam1Ids : undefined,
@@ -380,7 +375,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         roomId,
         hostId: String(user?.id),
         mode: gs.mode || 'mixed',
-        categorySlugs: Array.isArray(gs.categorySlugs) && gs.categorySlugs.length ? gs.categorySlugs : ['classic_truth', 'classic_dare'],
+        categorySlugs: Array.isArray(gs.categorySlugs) && gs.categorySlugs.length ? gs.categorySlugs : ['classic', 'friends'],
         show18Plus: !!gs.show18Plus,
         safeMode: gs.safeMode !== false,
         roundsCount: gs.roundsCount ?? 5,
@@ -1149,10 +1144,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки</p>
-              <p style={{ margin: 0, fontSize: 14 }}>
-                Режим:{' '}
-                {tdMode === 'mixed' ? 'смешанный' : tdMode === 'truth' ? 'только правда' : 'только действие'}
-              </p>
+              <p style={{ margin: 0, fontSize: 14 }}>Формат: одна карточка — на выбор правда или действие</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>Safe: {tdSafeMode ? 'да' : 'нет'}</p>
               <p style={{ margin: '4px 0 0', fontSize: 14 }}>
                 18+: {tdSafeMode ? 'нет (safe)' : tdShow18Plus ? 'да' : 'нет'}
@@ -1165,22 +1157,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
           {isHost && (
             <div style={{ ...settingsBox }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {[
-                  { id: 'truth', label: 'Правда' },
-                  { id: 'dare', label: 'Действие' },
-                  { id: 'mixed', label: 'Смешанный' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mode: opt.id } })}
-                    style={{ ...btnStyle, flex: 1, padding: 10, background: tdMode === opt.id ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444', fontSize: 14 }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+                Каждый ход — одна карточка с двумя заданиями. Игрок сам выбирает: ответить честно или выполнить действие.
+              </p>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <input
@@ -1201,7 +1180,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                         ...room?.gameSettings,
                         safeMode: nextSafeMode,
                         show18Plus: nextShow18Plus,
-                        categorySlugs: nextCats.length ? nextCats : ['classic_truth', 'classic_dare'],
+                        categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
                       },
                     });
                   }}
@@ -1227,7 +1206,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       gameSettings: {
                         ...room?.gameSettings,
                         show18Plus: nextShow18Plus,
-                        categorySlugs: nextCats.length ? nextCats : ['classic_truth', 'classic_dare'],
+                        categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
                       },
                     });
                   }}
@@ -1283,7 +1262,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     mode: 'mixed',
                     safeMode: true,
                     show18Plus: false,
-                    categorySlugs: ['classic_truth', 'classic_dare', 'friends_truth', 'friends_dare'],
+                    categorySlugs: ['classic', 'friends'],
                   },
                 })}
                 style={{ ...btnStyle, marginBottom: 12, background: '#5a4' }}
@@ -1307,7 +1286,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                       onClick={() => {
                         const isActive = tdCategorySlugs.includes(c.slug);
                         let next = isActive ? tdCategorySlugs.filter((x) => x !== c.slug) : [...tdCategorySlugs, c.slug];
-                        if (next.length === 0) next = ['classic_truth', 'classic_dare'];
+                        if (next.length === 0) next = ['classic', 'friends'];
                         patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: next } });
                         track('td_category_toggle', { category: c.slug, enabled: !isActive, source: 'lobby' });
                       }}
@@ -1576,8 +1555,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               onClick={() => {
                 const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, spiesSeeEachOther: false, showLocationsList: false, dictionaryIds: ['free'] } : null;
                 const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default', phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } } : null;
-                const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, skipPenalty: 1, dictionaryIds: ['basic', 'animals'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
-                const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic_truth', 'classic_dare'] } : null;
+                const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, skipPenalty: 1, dictionaryIds: ['basic', 'animals', 'memes'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
+                const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic', 'friends'] } : null;
                 const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard'), scenarioId: 'shelter_default' } : null;
                 patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || truthDare || bunker || undefined });
                 setGamesPickerOpen(false);

@@ -205,8 +205,8 @@ export const roomManager = {
     if (anyPro) SPY_PREMIUM_IDS.forEach((id) => availableDictionaries.push(id));
     for (const d of allDicts) if (d !== 'free' && !availableDictionaries.includes(d)) availableDictionaries.push(d);
     const allSpyDictionaryIds = ['free', ...SPY_PREMIUM_IDS];
-    const availableEliasDictionaries = ['basic', 'animals'];
-    if (anyPro) availableEliasDictionaries.push('movies', 'science', 'sport');
+    const availableEliasDictionaries = ['basic', 'animals', 'memes'];
+    if (anyPro) availableEliasDictionaries.push('movies', 'science', 'sport', 'travel', 'food', 'kids');
     const sockets = room.playerSockets || {};
     const players = (room.players || []).map((p) => ({
       ...p,
