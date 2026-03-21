@@ -6,6 +6,7 @@ export default function SeoGameElias({ onJoin }) {
       theme="elias"
       seoTitle="Элиас онлайн — объясни слово команде | GameHub"
       seoDescription="Элиас (Alias): команды, объясняющий и слова из выбранных словарей. Угадывайте без прямого названия, считайте очки и сменяйте ходы — в Telegram или браузере."
+      seoKeywords="Элиас онлайн, Alias игра, объясни слово, игра для компании, словесные игры, GameHub"
       eyebrow="Командный Alias"
       mascotEmoji="🗣️"
       heroTitle="Элиас"

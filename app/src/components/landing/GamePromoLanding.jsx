@@ -19,6 +19,8 @@ export default function GamePromoLanding({
   theme,
   seoTitle,
   seoDescription,
+  /** Ключевые слова через запятую — для Яндекса/Google */
+  seoKeywords,
   eyebrow,
   mascotEmoji = '🎮',
   heroTitle,
@@ -48,19 +50,44 @@ export default function GamePromoLanding({
     ogImage: defaultOgImage,
     ogType: 'website',
     siteName: 'GameHub',
+    keywords: seoKeywords,
   });
 
   useEffect(() => {
+    if (!canonical) return undefined;
     const scriptId = `gpl-ld-${theme}`;
+    const appName = seoTitle.split('|')[0]?.trim() || heroTitle;
     const json = {
       '@context': 'https://schema.org',
-      '@type': 'WebApplication',
-      name: seoTitle.split('|')[0]?.trim() || heroTitle,
-      description: seoDescription,
-      url: canonical,
-      applicationCategory: 'GameApplication',
-      operatingSystem: 'Web, Telegram',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'RUB' },
+      '@graph': [
+        {
+          '@type': 'WebApplication',
+          name: appName,
+          description: seoDescription,
+          url: canonical,
+          applicationCategory: 'GameApplication',
+          operatingSystem: 'Web, Telegram',
+          browserRequirements: 'Requires JavaScript. Работает в Telegram WebApp и браузере.',
+          offers: { '@type': 'Offer', price: '0', priceCurrency: 'RUB' },
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'GameHub',
+              item: baseUrl || canonical,
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: String(heroTitle || appName).replace(/^—\s*|—$/g, '').trim(),
+              item: canonical,
+            },
+          ],
+        },
+      ],
     };
     let s = document.getElementById(scriptId);
     if (!s) {

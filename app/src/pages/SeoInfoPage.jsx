@@ -23,6 +23,7 @@ export default function SeoInfoPage({
   sections = [],
   ctaLabel,
   onCta,
+  keywords,
 }) {
   const { pathname } = useLocation();
   const canonical = baseUrl ? `${baseUrl}${pathname}` : undefined;
@@ -35,6 +36,7 @@ export default function SeoInfoPage({
     ogImage: defaultOgImage,
     ogType: 'website',
     siteName: 'GameHub',
+    keywords,
   });
 
   return (

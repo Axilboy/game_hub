@@ -6,6 +6,7 @@ export default function SeoGameBunker({ onJoin }) {
       theme="bunker"
       seoTitle="Бункер онлайн — дискуссия и голосование за выживание | GameHub"
       seoDescription="Бункер в GameHub: роли, характеристики, обсуждение и голосование. Решите, кто займет места в убежище — партия для компании в Telegram или браузере."
+      seoKeywords="Бункер игра онлайн, дискуссионная игра, голосование за выживание, GameHub"
       eyebrow="Кто войдёт в бункер?"
       mascotEmoji="🛡️"
       heroTitle="Бункер"

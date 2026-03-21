@@ -5,6 +5,7 @@ export default function SeoPrivacy() {
     <SeoInfoPage
       title="Политика конфиденциальности GameHub"
       description="Короткая версия политики: мы используем Telegram user_id и данные, необходимые для работы игр в одной комнате."
+      keywords="GameHub, политика конфиденциальности, персональные данные, Telegram"
       h1="Политика конфиденциальности"
       sections={[
         {

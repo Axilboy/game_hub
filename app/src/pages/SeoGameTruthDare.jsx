@@ -6,6 +6,7 @@ export default function SeoGameTruthDare({ onJoin }) {
       theme="truth_dare"
       seoTitle="Правда или действие онлайн — для компании в Telegram | GameHub"
       seoDescription="Правда или действие в GameHub: карточки с выбором задания, категории (включая безопасный режим и 18+ по подтверждению), таймер и лимит пропусков. Играйте в одной комнате."
+      seoKeywords="Правда или действие онлайн, правда или действие для компании, карточки вопросов, GameHub"
       eyebrow="Вечеринка за столом — в телефоне"
       mascotEmoji="🎲"
       heroTitle="Правда или действие"

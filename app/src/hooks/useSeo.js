@@ -49,6 +49,8 @@ export default function useSeo({
   siteName = 'GameHub',
   locale = 'ru_RU',
   twitterCard = 'summary_large_image',
+  /** Через запятую — для лендингов и главной */
+  keywords,
 }) {
   useEffect(() => {
     if (title) document.title = title;
@@ -144,6 +146,13 @@ export default function useSeo({
         robots
       );
     }
-  }, [title, description, canonical, robots, ogImage, ogType, siteName, locale, twitterCard]);
+
+    if (keywords) {
+      upsertNameMeta('keywords', keywords);
+    } else if (robots && String(robots).includes('noindex')) {
+      const kw = document.head.querySelector('meta[name="keywords"]');
+      if (kw?.parentNode) kw.parentNode.removeChild(kw);
+    }
+  }, [title, description, canonical, robots, ogImage, ogType, siteName, locale, twitterCard, keywords]);
 }
 

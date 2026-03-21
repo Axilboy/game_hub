@@ -6,6 +6,7 @@ export default function SeoGameSpy({ onJoin }) {
       theme="spy"
       seoTitle="Шпион онлайн для компании — игра в Telegram | GameHub"
       seoDescription="Игра «Шпион»: секретное место и слово знают все, кроме шпиона. Задавайте вопросы, голосуйте и вычисляйте шпиона в одной комнате — Telegram или браузер."
+      seoKeywords="Шпион онлайн, игра Шпион, Шпион для компании, локации и словарь, GameHub, Telegram"
       eyebrow="Та самая игра =)"
       mascotEmoji="🕵️"
       heroTitle="— Шпион —"

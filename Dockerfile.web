@@ -4,6 +4,15 @@ WORKDIR /app
 COPY app/package*.json ./
 RUN npm install
 COPY app/ ./
+# Vite и сервер импортируют ../seo/sitemapConfig.mjs → в образе путь /seo
+COPY seo /seo
+# Для canonical, OG и статического sitemap в dist (опционально; иначе — window.location.origin)
+ARG VITE_BASE_URL=
+ARG VITE_BOT_USERNAME=
+ARG VITE_OG_IMAGE=
+ENV VITE_BASE_URL=$VITE_BASE_URL
+ENV VITE_BOT_USERNAME=$VITE_BOT_USERNAME
+ENV VITE_OG_IMAGE=$VITE_OG_IMAGE
 # Не задавать VITE_API_URL пустой строкой — клиент сам возьмёт window.location.origin (см. api.js / socket.js).
 RUN npm run build
 
@@ -13,6 +22,8 @@ WORKDIR /app
 COPY server/package*.json ./
 RUN npm install --omit=dev
 COPY server/ ./
+# import в index.js: ../seo/sitemapConfig.mjs → каталог /seo
+COPY seo /seo
 COPY --from=app-build /app/dist ./public
 EXPOSE 3000
 ENV NODE_ENV=production

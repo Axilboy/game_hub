@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useSeo from '../hooks/useSeo';
 import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
 import { getInventory } from '../inventory';
@@ -123,6 +124,12 @@ const EMPTY_GAME_SETTINGS_TABS = [];
 const OFFLINE_KICK_MS = 30_000;
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
+  useSeo({
+    title: 'Лобби — GameHub',
+    description: 'Игровая комната: настройки и приглашение только для участников.',
+    robots: 'noindex, nofollow',
+    siteName: 'GameHub',
+  });
   const navigate = useNavigate();
   const { showToast } = useToast();
   const isHost = String(room?.hostId) === String(user?.id);

@@ -6,6 +6,7 @@ export default function SeoGameMafia({ onJoin }) {
       theme="mafia"
       seoTitle="Мафия онлайн для компании — классика в Telegram | GameHub"
       seoDescription="Мафия в GameHub: ночь с ролями, день с обсуждением и голосованием. Мирные, мафия, комиссар и другие роли — одна комната, Telegram или браузер."
+      seoKeywords="Мафия онлайн, игра Мафия, настольная Мафия в Telegram, роли мафия, GameHub"
       eyebrow="Классика для стола — теперь онлайн"
       mascotEmoji="🎭"
       heroTitle="Мафия"

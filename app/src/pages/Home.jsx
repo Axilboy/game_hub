@@ -16,6 +16,8 @@ import AppHeaderRight from '../components/layout/AppHeaderRight';
 import HomeLandingCarousel from '../components/HomeLandingCarousel';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+const HOME_SEO_BASE = (import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+const HOME_OG_IMAGE = import.meta.env.VITE_OG_IMAGE || (HOME_SEO_BASE ? `${HOME_SEO_BASE}/og-share.svg` : undefined);
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
 
 const ADMIN_CODE = '555555';
@@ -48,11 +50,51 @@ function isInviteExpiredError(err) {
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
   const navigate = useNavigate();
   useSeo({
-    title: 'GameHub — комната и игры',
-    description: 'Создайте комнату, пригласите друзей по коду или ссылке. Шпион, Элиас, Мафия и другие игры.',
-    robots: 'noindex, nofollow',
+    title: 'GameHub — Шпион, Элиас, Мафия и игры для компании онлайн',
+    description:
+      'GameHub: комната для друзей в Telegram и браузере. Шпион, Элиас (Alias), Мафия, Правда или действие, Бункер — создайте лобби и играйте по коду или ссылке.',
+    canonical: HOME_SEO_BASE ? `${HOME_SEO_BASE}/` : undefined,
+    robots: 'index, follow',
+    ogImage: HOME_OG_IMAGE,
     siteName: 'GameHub',
+    keywords:
+      'GameHub, игры для компании онлайн, Шпион, Элиас, Alias, Мафия, Правда или действие, Бункер, Telegram, играть онлайн',
   });
+
+  useEffect(() => {
+    if (!HOME_SEO_BASE) return undefined;
+    const scriptId = 'gh-home-ld-json';
+    const json = {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebSite',
+          name: 'GameHub',
+          url: HOME_SEO_BASE,
+          description:
+            'Онлайн-комнаты для настольных и словесных игр: Шпион, Элиас, Мафия и другие режимы в Telegram и браузере.',
+          inLanguage: 'ru-RU',
+          publisher: {
+            '@type': 'Organization',
+            name: 'GameHub',
+            url: HOME_SEO_BASE,
+          },
+        },
+      ],
+    };
+    let s = document.getElementById(scriptId);
+    if (!s) {
+      s = document.createElement('script');
+      s.id = scriptId;
+      s.type = 'application/ld+json';
+      document.head.appendChild(s);
+    }
+    s.text = JSON.stringify(json);
+    return () => {
+      const el = document.getElementById(scriptId);
+      if (el?.parentNode) el.parentNode.removeChild(el);
+    };
+  }, []);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

@@ -9,6 +9,7 @@ import { roomRoutes } from './rooms.js';
 import { adminRoutes } from './admin.js';
 import { feedbackRoutes } from './feedbackRoutes.js';
 import { roomManager } from './roomManager.js';
+import { buildRobotsTxt, buildSitemapXml } from '../seo/sitemapConfig.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -38,53 +39,14 @@ fastify.register(feedbackRoutes, { prefix: '/api' });
 fastify.get('/robots.txt', async (request, reply) => {
   const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';
   const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
-  const disallow = [
-    '/admin',
-    '/lobby',
-    '/spy',
-    '/mafia',
-    '/elias',
-    '/truth_dare',
-    '/bunker',
-    '/profile',
-    '/app',
-  ];
-  const lines = [
-    'User-agent: *',
-    ...disallow.flatMap((p) => [`Disallow: ${p}`]),
-    '',
-    '# Публичные страницы: /games/*, /privacy, /rules; /seo и /how-to-play редирект на главную',
-    `Sitemap: ${origin.replace(/\/$/, '')}/sitemap.xml`,
-    '',
-  ];
-  reply.type('text/plain; charset=utf-8').send(lines.join('\n'));
+  reply.type('text/plain; charset=utf-8').send(buildRobotsTxt(origin));
 });
 
 fastify.get('/sitemap.xml', async (request, reply) => {
   const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';
   const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
-  const base = origin.replace(/\/$/, '');
-  const urls = [
-    { loc: `${base}/games/spy`, changefreq: 'weekly', priority: 0.75 },
-    { loc: `${base}/games/elias`, changefreq: 'weekly', priority: 0.75 },
-    { loc: `${base}/games/mafia`, changefreq: 'weekly', priority: 0.75 },
-    { loc: `${base}/games/truth_dare`, changefreq: 'weekly', priority: 0.65 },
-    { loc: `${base}/games/bunker`, changefreq: 'weekly', priority: 0.65 },
-    { loc: `${base}/privacy`, changefreq: 'yearly', priority: 0.35 },
-    { loc: `${base}/rules`, changefreq: 'yearly', priority: 0.35 },
-  ];
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls
-    .map(
-      (u) =>
-        `  <url>\n    <loc>${u.loc}</loc>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
-    )
-    .join('\n')}
-</urlset>`;
-
-  reply.type('application/xml; charset=utf-8').send(xml);
+  const lastmod = new Date().toISOString().slice(0, 10);
+  reply.type('application/xml; charset=utf-8').send(buildSitemapXml(origin, lastmod));
 });
 
 if (existsSync(publicDir)) {

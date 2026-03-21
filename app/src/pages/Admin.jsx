@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useSeo from '../hooks/useSeo';
 import { api } from '../api';
 import BackArrow from '../components/BackArrow';
 import SeoFooter from '../components/layout/SeoFooter';
@@ -13,6 +14,7 @@ const API_BASE = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.
   : (typeof window !== 'undefined' ? window.location.origin : '');
 
 export default function Admin() {
+  useSeo({ title: 'Админ — GameHub', robots: 'noindex, nofollow', siteName: 'GameHub' });
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [password, setPassword] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) || '');

@@ -5,6 +5,7 @@ export default function SeoRules() {
     <SeoInfoPage
       title="Правила GameHub"
       description="Сервис GameHub предназначен для игр в компании. Никаких агрессивных и запрещённых действий — только дружеское время."
+      keywords="GameHub, правила сервиса, пользовательское соглашение, игры онлайн"
       h1="Правила GameHub"
       sections={[
         {
