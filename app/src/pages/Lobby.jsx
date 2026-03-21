@@ -134,15 +134,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [mafiaExtendedPopup, setMafiaExtendedPopup] = useState(false);
   const [mafiaClassicPopup, setMafiaClassicPopup] = useState(false);
   const [spyDictLockPopup, setSpyDictLockPopup] = useState(null);
-  const [spyLocationsModalOpen, setSpyLocationsModalOpen] = useState(false);
-  /** Черновик словарей в модалке «Локации» (Шпион): можно снять все, сохранение по «Готово») */
-  const [spyDictDraft, setSpyDictDraft] = useState(null);
-  /** Черновик словарей Элиас в модалке выбора */
-  const [eliasDictDraft, setEliasDictDraft] = useState(null);
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
-  const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
-  const [tdCategoryModalOpen, setTdCategoryModalOpen] = useState(false);
-  const [tdCategoryDraft, setTdCategoryDraft] = useState(null);
   const [eliasCustomModalOpen, setEliasCustomModalOpen] = useState(false);
   const [eliasCustomWordsText, setEliasCustomWordsText] = useState('');
   const [eliasImportText, setEliasImportText] = useState('');
@@ -228,13 +220,23 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   useEffect(() => {
     setEditNameValue(roomName);
   }, [roomName]);
+  /** Синхронизация локального состояния шпиона только при изменении значений с сервера (не при каждом новом объекте gameSettings) */
   useEffect(() => {
-    setTimerEnabled(room?.gameSettings?.timerEnabled ?? false);
-    setTimerSeconds(room?.gameSettings?.timerSeconds ?? 60);
-    setSpyCount(room?.gameSettings?.spyCount ?? 1);
-    setAllSpiesChanceEnabled(!!room?.gameSettings?.allSpiesChanceEnabled);
-    setDictionaryIds(room?.gameSettings?.dictionaryIds ?? ['free']);
-  }, [room?.gameSettings]);
+    const gs = room?.gameSettings;
+    if (!gs) return;
+    setTimerEnabled(gs.timerEnabled ?? false);
+    setTimerSeconds(gs.timerSeconds ?? 60);
+    setSpyCount(gs.spyCount ?? 1);
+    setAllSpiesChanceEnabled(!!gs.allSpiesChanceEnabled);
+    const d = gs.dictionaryIds;
+    setDictionaryIds(Array.isArray(d) && d.length ? [...d] : ['free']);
+  }, [
+    room?.gameSettings?.timerEnabled,
+    room?.gameSettings?.timerSeconds,
+    room?.gameSettings?.spyCount,
+    room?.gameSettings?.allSpiesChanceEnabled,
+    (room?.gameSettings?.dictionaryIds || []).join(','),
+  ]);
 
   useEffect(() => {
     const players = room?.players || [];
@@ -517,52 +519,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [navigate]);
-
-  const closeSpyLocationsModal = () => {
-    setSpyLocationsModalOpen(false);
-    setSpyDictDraft(null);
-  };
-
-  const confirmSpyDictDraft = () => {
-    const d = Array.isArray(spyDictDraft) ? spyDictDraft : [];
-    if (d.length === 0) {
-      showToast({ type: 'error', message: 'Словари не выбраны. Отметьте хотя бы один набор локаций и снова нажмите «Готово».' });
-      return;
-    }
-    setDictionaryIds(d);
-    patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds: d } });
-    closeSpyLocationsModal();
-  };
-
-  const closeEliasDictModal = () => {
-    setEliasDictModalOpen(false);
-    setEliasDictDraft(null);
-  };
-
-  const confirmEliasDictDraft = () => {
-    const d = Array.isArray(eliasDictDraft) ? eliasDictDraft : [];
-    if (d.length === 0) {
-      showToast({ type: 'error', message: 'Словари не выбраны. Отметьте хотя бы один словарь для Элиас и снова нажмите «Готово».' });
-      return;
-    }
-    patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: d } });
-    closeEliasDictModal();
-  };
-
-  const closeTdCategoryModal = () => {
-    setTdCategoryModalOpen(false);
-    setTdCategoryDraft(null);
-  };
-
-  const confirmTdCategoryDraft = () => {
-    const d = Array.isArray(tdCategoryDraft) ? tdCategoryDraft : [];
-    if (d.length === 0) {
-      showToast({ type: 'error', message: 'Категории не выбраны. Отметьте хотя бы один набор карточек и снова нажмите «Готово».' });
-      return;
-    }
-    patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: d } });
-    closeTdCategoryModal();
-  };
 
   const transferHostTo = async (newHostId) => {
     try {
@@ -1060,7 +1016,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
               {SPY_COUNT_OPTIONS.map((n) => {
                 const enabled = n === 1 || roomHasPro;
-                const on = spyCount === n;
+                const on = (room?.gameSettings?.spyCount ?? spyCount) === n;
                 return (
                   <button
                     key={n}
@@ -1089,18 +1045,58 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         )}
         {selectedGame === 'spy' && gameSettingsTab === 'locations' && (
           <div>
-            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Выберите наборы локаций для игры.</p>
-            <button
-              type="button"
-              onClick={() => {
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
+              Выберите наборы локаций — изменения сохраняются сразу. Нужен хотя бы один набор.
+            </p>
+            <div className="lobby-settings-pick-grid">
+              {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).map((id) => {
+                const card = SPY_DICT_CARDS.find((c) => c.id === id) || { id, name: DICT_NAMES[id] || id, description: '', emoji: '📍', free: id === 'free' };
+                const available = availableDictionaries.includes(id);
                 const cur = room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free'];
-                setSpyDictDraft([...cur]);
-                setSpyLocationsModalOpen(true);
-              }}
-              style={{ ...btnStyleToggleMid, width: '100%' }}
-            >
-              Локации (выбрано: {(room?.gameSettings?.dictionaryIds || dictionaryIds || []).length})
-            </button>
+                const selected = cur.includes(id);
+                const handleClick = () => {
+                  if (!available) {
+                    setSpyDictLockPopup(id);
+                    return;
+                  }
+                  const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
+                  if (next.length === 0) {
+                    showToast({ type: 'error', message: 'Нужен хотя бы один набор локаций.' });
+                    return;
+                  }
+                  setDictionaryIds(next);
+                  patchLobbyGame({
+                    gameSettings: {
+                      ...room?.gameSettings,
+                      dictionaryIds: next,
+                      timerEnabled,
+                      timerSeconds,
+                      spyCount,
+                      allSpiesChanceEnabled,
+                    },
+                  });
+                };
+                return (
+                  <div
+                    key={card.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleClick}
+                    onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+                    className={`lobby-settings-pick-card${selected ? ' lobby-settings-pick-card--selected' : ''}${!available ? ' lobby-settings-pick-card--locked' : ''}`}
+                  >
+                    {!available && (
+                      <div className="lobby-settings-pick-card__lock" title="Только Премиум">
+                        🔒
+                      </div>
+                    )}
+                    <div className="lobby-settings-pick-card__emoji">{card.emoji}</div>
+                    <div className="lobby-settings-pick-card__name">{card.name}</div>
+                    <div className="lobby-settings-pick-card__desc">{card.description}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
         {selectedGame === 'spy' && gameSettingsTab === 'timer' && (
@@ -1109,7 +1105,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <input
                 type="checkbox"
-                checked={timerEnabled}
+                checked={room?.gameSettings?.timerEnabled ?? timerEnabled}
                 onChange={(e) => {
                   setTimerEnabled(e.target.checked);
                   patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled: e.target.checked, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds } });
@@ -1117,27 +1113,30 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               />
               <span>Включить таймер</span>
             </label>
-            {timerEnabled && (
+            {(room?.gameSettings?.timerEnabled ?? timerEnabled) && (
               <div>
                 <p style={{ marginBottom: 6 }}>Время:</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {TIMER_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        setTimerSeconds(opt.value);
-                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds: opt.value, spyCount, allSpiesChanceEnabled, dictionaryIds } });
-                      }}
-                      style={{
-                        ...(timerSeconds === opt.value ? btnStyle : btnStyleToggleOff),
-                        width: 'auto',
-                        padding: '8px 14px',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                  {TIMER_OPTIONS.map((opt) => {
+                    const activeSec = room?.gameSettings?.timerSeconds ?? timerSeconds;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setTimerSeconds(opt.value);
+                          patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled: room?.gameSettings?.timerEnabled ?? timerEnabled, timerSeconds: opt.value, spyCount, allSpiesChanceEnabled, dictionaryIds } });
+                        }}
+                        style={{
+                          ...(activeSec === opt.value ? btnStyle : btnStyleToggleOff),
+                          width: 'auto',
+                          padding: '8px 14px',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1148,7 +1147,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <input
                 type="checkbox"
-                checked={allSpiesChanceEnabled}
+                checked={room?.gameSettings?.allSpiesChanceEnabled ?? allSpiesChanceEnabled}
                 onChange={(e) => {
                   setAllSpiesChanceEnabled(e.target.checked);
                   patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled: e.target.checked, dictionaryIds } });
@@ -1335,18 +1334,64 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         )}
         {selectedGame === 'elias' && gameSettingsTab === 'dicts' && (
           <div>
-            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Наборы слов для объяснения.</p>
-            <button
-              type="button"
-              onClick={() => {
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
+              Наборы слов для объяснения — нажмите, чтобы включить или выключить. Нужен хотя бы один словарь.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(room?.availableEliasDictionaries || ['basic', 'animals']).map((id) => {
+                const card = ELIAS_DICT_CARDS.find((c) => c.id === id) || { id, name: id, description: '', emoji: '📖', free: false };
                 const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes'];
-                setEliasDictDraft([...cur]);
-                setEliasDictModalOpen(true);
-              }}
-              style={{ ...btnStyleToggleMid, width: '100%' }}
-            >
-              Словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
-            </button>
+                const selected = cur.includes(id);
+                const toggle = () => {
+                  const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
+                  if (next.length === 0) {
+                    showToast({ type: 'error', message: 'Нужен хотя бы один словарь для Элиас.' });
+                    return;
+                  }
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: next } });
+                };
+                return (
+                  <div
+                    key={card.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggle}
+                    onKeyDown={(e) => e.key === 'Enter' && toggle()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                      padding: 14,
+                      borderRadius: 10,
+                      background: selected ? 'rgba(58, 123, 213, 0.2)' : 'rgba(255,255,255,0.06)',
+                      border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent'}`,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
+                      {card.emoji}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        {card.name}
+                        {!card.free && <span style={{ fontSize: 11, marginLeft: 6, opacity: 0.8 }}>Премиум</span>}
+                      </div>
+                      <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}>{card.description}</div>
+                    </div>
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : '#666'}`,
+                        background: selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent',
+                        flexShrink: 0,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
         {selectedGame === 'elias' && gameSettingsTab === 'teams' && (
@@ -1525,20 +1570,51 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         )}
         {selectedGame === 'truth_dare' && gameSettingsTab === 'cats' && (
           <div>
-            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Выберите категории карточек.</p>
-            <button
-              type="button"
-              onClick={() => {
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
+              Выберите категории карточек — нажмите на блок. Нужна хотя бы одна категория.
+            </p>
+            <div className="lobby-settings-pick-grid">
+              {TD_CATEGORIES.map((c) => {
+                const lockedByPro = c.premium && !hasCategoryPackAccess(c);
+                const lockedBySafe = tdSafeMode && !c.safe;
+                const lockedBy18 = c.is18Plus && !tdShow18Plus;
+                const locked = lockedByPro || lockedBySafe || lockedBy18;
                 const cur = Array.isArray(room?.gameSettings?.categorySlugs) && room.gameSettings.categorySlugs.length
                   ? room.gameSettings.categorySlugs
                   : tdCategorySlugs;
-                setTdCategoryDraft([...cur]);
-                setTdCategoryModalOpen(true);
-              }}
-              style={{ ...btnStyleToggleMid, width: '100%' }}
-            >
-              Карточки (выбрано: {tdCategorySlugs.length})
-            </button>
+                const selected = cur.includes(c.slug);
+                const handleClick = () => {
+                  if (locked) return;
+                  const next = selected ? cur.filter((x) => x !== c.slug) : [...cur, c.slug];
+                  if (next.length === 0) {
+                    showToast({ type: 'error', message: 'Нужна хотя бы одна категория карточек.' });
+                    return;
+                  }
+                  track('td_category_toggle', { category: c.slug, enabled: !selected, source: 'lobby_sheet' });
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: next } });
+                };
+                return (
+                  <div
+                    key={c.slug}
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleClick}
+                    onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+                    className={`lobby-settings-pick-card${selected ? ' lobby-settings-pick-card--selected' : ''}${locked ? ' lobby-settings-pick-card--locked' : ''}`}
+                    title={lockedByPro ? `Нужен Премиум или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
+                  >
+                    {lockedByPro && (
+                      <div className="lobby-settings-pick-card__lock" title="Только Премиум / pack">
+                        🔒
+                      </div>
+                    )}
+                    <div className="lobby-settings-pick-card__emoji">{c.emoji || '📇'}</div>
+                    <div className="lobby-settings-pick-card__name">{c.name}</div>
+                    <div className="lobby-settings-pick-card__desc">{c.description}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -1745,66 +1821,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {spyLocationsModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={closeSpyLocationsModal}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Локации</h3>
-            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>
-              Можно снять все наборы и выбрать заново. Нажмите «Готово» — если ничего не выбрано, появится предупреждение (нужен хотя бы один словарь, чтобы начать игру).
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              {(room?.allSpyDictionaryIds || Object.keys(DICT_NAMES)).map((id) => {
-                const card = SPY_DICT_CARDS.find((c) => c.id === id) || { id, name: DICT_NAMES[id] || id, description: '', emoji: '📍', free: id === 'free' };
-                const available = availableDictionaries.includes(id);
-                const draft = Array.isArray(spyDictDraft) ? spyDictDraft : (room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free']);
-                const selected = draft.includes(id);
-                const handleClick = () => {
-                  if (!available) { setSpyLocationsModalOpen(false); setSpyDictLockPopup(id); return; }
-                  const cur = Array.isArray(spyDictDraft) ? spyDictDraft : (room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free']);
-                  const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
-                  setSpyDictDraft(next);
-                };
-                return (
-                  <div
-                    key={card.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={handleClick}
-                    onKeyDown={(e) => e.key === 'Enter' && handleClick()}
-                    style={{
-                      position: 'relative',
-                      padding: 14,
-                      borderRadius: 10,
-                      background: selected ? 'rgba(58, 123, 213, 0.25)' : 'rgba(255,255,255,0.06)',
-                      border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent'}`,
-                      cursor: 'pointer',
-                      minHeight: 100,
-                    }}
-                  >
-                    {!available && (
-                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Премиум">🔒</div>
-                    )}
-                    <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 8 }}>
-                      {card.emoji}
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, lineHeight: 1.2 }}>{card.name}</div>
-                    <div style={{ fontSize: 11, opacity: 0.85, lineHeight: 1.3 }}>{card.description}</div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button type="button" onClick={closeSpyLocationsModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
-                Отмена
-              </button>
-              <button type="button" onClick={confirmSpyDictDraft} style={{ ...btnStyle, flex: 1 }}>
-                Готово
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {spyDictLockPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
@@ -1820,130 +1836,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
             <p style={{ marginBottom: 16 }}>{minPlayersWarning}</p>
             <button type="button" onClick={() => setMinPlayersWarning(null)} style={btnStyle}>Ок</button>
-          </div>
-        </div>
-      )}
-
-      {tdCategoryModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={closeTdCategoryModal}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Категории карточек</h3>
-            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>
-              Можно снять все наборы и выбрать заново. Нажмите «Готово» — если ничего не выбрано, появится предупреждение (нужна хотя бы одна категория).
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              {TD_CATEGORIES.map((c) => {
-                const lockedByPro = c.premium && !hasCategoryPackAccess(c);
-                const lockedBySafe = tdSafeMode && !c.safe;
-                const lockedBy18 = c.is18Plus && !tdShow18Plus;
-                const locked = lockedByPro || lockedBySafe || lockedBy18;
-                const draft = Array.isArray(tdCategoryDraft) ? tdCategoryDraft : tdCategorySlugs;
-                const selected = draft.includes(c.slug);
-                const handleClick = () => {
-                  if (locked) return;
-                  const cur = Array.isArray(tdCategoryDraft) ? tdCategoryDraft : tdCategorySlugs;
-                  const next = selected ? cur.filter((x) => x !== c.slug) : [...cur, c.slug];
-                  setTdCategoryDraft(next);
-                  track('td_category_toggle', { category: c.slug, enabled: !selected, source: 'lobby_modal' });
-                };
-                return (
-                  <div
-                    key={c.slug}
-                    role="button"
-                    tabIndex={0}
-                    onClick={handleClick}
-                    onKeyDown={(e) => e.key === 'Enter' && handleClick()}
-                    style={{
-                      position: 'relative',
-                      padding: 14,
-                      borderRadius: 10,
-                      background: selected ? 'rgba(58, 123, 213, 0.25)' : 'rgba(255,255,255,0.06)',
-                      border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent'}`,
-                      cursor: locked ? 'not-allowed' : 'pointer',
-                      minHeight: 100,
-                      opacity: locked ? 0.55 : 1,
-                    }}
-                    title={lockedByPro ? `Нужен Премиум или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
-                  >
-                    {lockedByPro && (
-                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Премиум / pack">🔒</div>
-                    )}
-                    <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 8 }}>
-                      {c.emoji || '📇'}
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, lineHeight: 1.2 }}>{c.name}</div>
-                    <div style={{ fontSize: 11, opacity: 0.85, lineHeight: 1.3 }}>{c.description}</div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button type="button" onClick={closeTdCategoryModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
-                Отмена
-              </button>
-              <button type="button" onClick={confirmTdCategoryDraft} style={{ ...btnStyle, flex: 1 }}>
-                Готово
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {eliasDictModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={closeEliasDictModal}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Выбор словарей</h3>
-            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>
-              Можно временно снять все словари и выбрать другие. Нажмите «Готово» — если ничего не выбрано, появится предупреждение.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {(room?.availableEliasDictionaries || ['basic', 'animals']).map((id) => {
-                const card = ELIAS_DICT_CARDS.find((c) => c.id === id) || { id, name: id, description: '', emoji: '📖', free: false };
-                const draft = eliasDictDraft ?? (room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']);
-                const selected = draft.includes(id);
-                const toggle = () => {
-                  const cur = Array.isArray(eliasDictDraft) ? eliasDictDraft : (room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']);
-                  const next = selected ? cur.filter((x) => x !== id) : [...cur, id];
-                  setEliasDictDraft(next);
-                };
-                return (
-                  <div
-                    key={card.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={toggle}
-                    onKeyDown={(e) => e.key === 'Enter' && toggle()}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 12,
-                      padding: 14,
-                      borderRadius: 10,
-                      background: selected ? 'rgba(58, 123, 213, 0.2)' : 'rgba(255,255,255,0.06)',
-                      border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent'}`,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
-                      {card.emoji}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{card.name}{!card.free && <span style={{ fontSize: 11, marginLeft: 6, opacity: 0.8 }}>Премиум</span>}</div>
-                      <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}>{card.description}</div>
-                    </div>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${selected ? 'var(--tg-theme-button-color)' : '#666'}`, background: selected ? 'var(--tg-theme-button-color)' : 'transparent', flexShrink: 0 }} />
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button type="button" onClick={closeEliasDictModal} style={{ ...btnStyleToggleMid, flex: 1 }}>
-                Отмена
-              </button>
-              <button type="button" onClick={confirmEliasDictDraft} style={{ ...btnStyle, flex: 1 }}>
-                Готово
-              </button>
-            </div>
           </div>
         </div>
       )}
