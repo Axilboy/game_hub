@@ -1,0 +1,134 @@
+/* Полноэкранная / широкая шторка настроек игры */
+.lobby-settings-sheet-modal.gh-modal-overlay {
+  align-items: flex-end;
+  padding: 0;
+  z-index: 110;
+}
+
+.lobby-settings-sheet-modal .gh-modal-panel {
+  max-width: 100%;
+  width: 100%;
+  border-radius: 18px 18px 0 0;
+  max-height: min(92vh, 720px);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden !important;
+}
+
+@media (min-width: 540px) {
+  .lobby-settings-sheet-modal.gh-modal-overlay {
+    align-items: center;
+    padding: 20px;
+  }
+
+  .lobby-settings-sheet-modal .gh-modal-panel {
+    max-width: 520px;
+    border-radius: 18px;
+    max-height: 90vh;
+  }
+}
+
+.lobby-settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gh-border, rgba(255, 255, 255, 0.12));
+}
+
+.lobby-settings-tabs__btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.14));
+  background: var(--gh-toggle-off, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.88;
+}
+
+.lobby-settings-tabs__btn--active {
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 22%, transparent);
+  border-color: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 45%, transparent);
+  opacity: 1;
+}
+
+.lobby-settings-sheet-body {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.lobby-settings-sheet-footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gh-border, rgba(255, 255, 255, 0.1));
+}
+
+/* Карточка сводки настроек (хост + гости) */
+.lobby-summary-card {
+  border-radius: 16px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.12));
+  background: var(--gh-surface, rgba(255, 255, 255, 0.06));
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.lobby-summary-card__row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 1.35;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lobby-summary-card__row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.lobby-summary-card__row:first-child {
+  padding-top: 0;
+}
+
+.lobby-summary-card__icon {
+  font-size: 18px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.lobby-summary-card__label {
+  opacity: 0.82;
+}
+
+.lobby-summary-card__value {
+  font-weight: 600;
+  text-align: right;
+  max-width: 56%;
+  word-break: break-word;
+}
+
+.lobby-summary-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  opacity: 0.78;
+  line-height: 1.4;
+}
+
+.lobby-game-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.lobby-game-actions .gh-btn,
+.lobby-game-actions button {
+  flex: 1;
+}

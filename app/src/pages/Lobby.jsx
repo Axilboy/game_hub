@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
@@ -15,7 +15,15 @@ import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import IconButton from '../components/ui/IconButton';
-import { BUNKER_SPEED_PRESETS, bunkerPhaseTimersFromSpeed, getDefaultGameSettings } from '../lobbyPresets';
+import {
+  BUNKER_ROUND_OPTIONS,
+  BUNKER_SCENARIOS,
+  BUNKER_SPEED_PRESETS,
+  bunkerPhaseTimersFromSpeed,
+  getDefaultGameSettings,
+} from '../lobbyPresets';
+import LobbyGameSummaryCard from '../components/lobby/LobbyGameSummaryCard';
+import LobbySettingsSheet from '../components/lobby/LobbySettingsSheet';
 import './lobbyPage.css';
 
 /** Включить экран «Пользовательский словарь» Элиас (когда доработаем) */
@@ -32,12 +40,6 @@ const TIMER_OPTIONS = [
 ];
 
 const SPY_COUNT_OPTIONS = [1, 2, 3];
-const BUNKER_ROUND_OPTIONS = [2, 3, 4];
-const BUNKER_SCENARIOS = [
-  { id: 'shelter_default', label: 'Классический', premium: false, itemId: null },
-  { id: 'pandemic_plus', label: 'Пандемия+', premium: true, itemId: 'bunker_pandemic' },
-  { id: 'orbital_station', label: 'Орбита', premium: true, itemId: 'bunker_space' },
-];
 const DICT_NAMES = {
   free: 'Базовый',
   theme1: 'Детектив (Премиум)',
@@ -87,6 +89,8 @@ const ELIAS_DICT_CARDS = [
   { id: 'kids', name: 'Семейный', description: 'Мягко и понятно для детей.', emoji: '🧸', free: false },
 ];
 
+const ELIAS_DICT_NAMES = Object.fromEntries(ELIAS_DICT_CARDS.map((c) => [c.id, c.name]));
+
 const TD_CATEGORIES = [
   { slug: 'classic', name: 'Классика', emoji: '📗', description: 'Универсальные вопросы и задания для любой компании.', premium: false, is18Plus: false, safe: true },
   { slug: 'friends', name: 'Друзья', emoji: '👥', description: 'Про вашу тусовку, общие истории и внутренние шутки.', premium: false, is18Plus: false, safe: true },
@@ -108,14 +112,15 @@ const LOBBY_GAMES = [
   { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },
 ];
 
+const EMPTY_GAME_SETTINGS_TABS = [];
+
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const isHost = room.players?.some((p) => p.id === String(user?.id) && p.isHost);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [gameSettingsSheetOpen, setGameSettingsSheetOpen] = useState(false);
+  const [gameSettingsTab, setGameSettingsTab] = useState('presets');
   const [startingGame, setStartingGame] = useState(false);
-  const [mafiaAccordions, setMafiaAccordions] = useState({ mode: true, rules: true, host: true });
-  const [eliasAccordions, setEliasAccordions] = useState({ timer: true, goal: true, teams: false });
   const [timerEnabled, setTimerEnabled] = useState(room?.gameSettings?.timerEnabled ?? false);
   const [timerSeconds, setTimerSeconds] = useState(room?.gameSettings?.timerSeconds ?? 60);
   const [spyCount, setSpyCount] = useState(room?.gameSettings?.spyCount ?? 1);
@@ -164,6 +169,53 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const tdCategorySlugs = Array.isArray(tdGameSettings.categorySlugs) && tdGameSettings.categorySlugs.length
     ? tdGameSettings.categorySlugs
     : ['classic', 'friends'];
+
+  const gameSettingsTabs = useMemo(() => {
+    if (!selectedGame) return EMPTY_GAME_SETTINGS_TABS;
+    switch (selectedGame) {
+      case 'spy':
+        return [
+          { id: 'presets', label: 'Быстро' },
+          { id: 'locations', label: 'Локации' },
+          { id: 'timer', label: 'Таймер' },
+          { id: 'more', label: 'Ещё' },
+        ];
+      case 'mafia':
+        return [
+          { id: 'mode', label: 'Режим' },
+          { id: 'rules', label: 'Правила' },
+          { id: 'host', label: 'Ведущий' },
+        ];
+      case 'elias':
+        return [
+          { id: 'timer', label: 'Счёт и время' },
+          { id: 'dicts', label: 'Словари' },
+          { id: 'teams', label: 'Команды' },
+        ];
+      case 'truth_dare':
+        return [
+          { id: 'main', label: 'Основное' },
+          { id: 'cats', label: 'Категории' },
+        ];
+      case 'bunker':
+        return [
+          { id: 'party', label: 'Раунды и фазы' },
+          { id: 'scenario', label: 'Сценарий' },
+        ];
+      default:
+        return [];
+    }
+  }, [selectedGame]);
+
+  const gameSettingsSheetTitle = useMemo(() => {
+    const t = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', truth_dare: 'Правда или действие', bunker: 'Бункер' };
+    return selectedGame ? `Настройки: ${t[selectedGame] || selectedGame}` : 'Настройки';
+  }, [selectedGame]);
+
+  useEffect(() => {
+    if (!selectedGame || gameSettingsTabs.length === 0) return;
+    setGameSettingsTab(gameSettingsTabs[0].id);
+  }, [selectedGame, gameSettingsTabs]);
 
   useEffect(() => {
     setEditNameValue(roomName);
@@ -718,134 +770,28 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Шпион</h3>
           </div>
-          {(room?.gameSettings && !isHost) && (
-            <div style={{ ...settingsBox, marginBottom: 16 }}>
-              <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
-              <p style={{ margin: 0, fontSize: 14 }}>Шпионов: {room.gameSettings.spyCount ?? 1}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Все шпионы (редко): {room.gameSettings.allSpiesChanceEnabled ? 'да' : 'нет'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Шпионы видят друг друга: {room.gameSettings.spiesSeeEachOther ? 'да' : 'нет'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Список локаций в раунде: {room.gameSettings.showLocationsList ? 'показан всем' : 'скрыт'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {minSpyPlayers(room?.gameSettings?.spyCount ?? 1)} игроков</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Таймер: {room.gameSettings.timerEnabled ? `${(room.gameSettings.timerSeconds || 60) / 60} мин` : 'выкл'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Словари: {(room.gameSettings.dictionaryIds || ['free']).map((d) => DICT_NAMES[d] || d).join(', ')}</p>
-            </div>
-          )}
+          {room?.gameSettings ? (
+            <LobbyGameSummaryCard room={room} selectedGame="spy" dictNames={DICT_NAMES} />
+          ) : null}
+          {!isHost && room?.gameSettings ? (
+            <p className="lobby-summary-hint">Изменить настройки может только хост.</p>
+          ) : null}
           {isHost && (
-            <>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(!settingsOpen)}
-                  style={{ ...btnStyleToggleMid, flex: 1 }}
-                >
-                  Настройки
-                </button>
-                <button type="button" onClick={startSpy} style={{ ...btnStyle, flex: 1 }}>
-                  Начать
-                </button>
-              </div>
-              {settingsOpen && (
-                <div style={settingsBox}>
-                  <p style={{ marginTop: 0, marginBottom: 8 }}>Количество шпионов</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {SPY_COUNT_OPTIONS.map((n) => {
-                      const enabled = n === 1 || roomHasPro;
-                      const on = spyCount === n;
-                      return (
-                        <button
-                          key={n}
-                          type="button"
-                          disabled={!enabled}
-                          title={!enabled ? 'Нужна подписка Премиум' : ''}
-                          onClick={() => {
-                            if (!enabled) return;
-                            setSpyCount(n);
-                            patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount: n, allSpiesChanceEnabled, dictionaryIds } });
-                          }}
-                          style={{
-                            ...(on ? btnStyle : btnStyleToggleOff),
-                            width: 'auto',
-                            padding: '8px 14px',
-                            opacity: enabled ? 1 : 0.6,
-                          }}
-                        >
-                          {n}{n > 1 && <span style={{ fontSize: 10, marginLeft: 4 }}>Премиум</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={allSpiesChanceEnabled}
-                      onChange={(e) => {
-                        setAllSpiesChanceEnabled(e.target.checked);
-                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled: e.target.checked, dictionaryIds } });
-                      }}
-                    />
-                    <span>Все шпионы (редкий шанс)</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <input
-                      type="checkbox"
-                      checked={!!room?.gameSettings?.spiesSeeEachOther}
-                      onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, spiesSeeEachOther: e.target.checked } })}
-                    />
-                    <span>Шпионы видят друг друга</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <input
-                      type="checkbox"
-                      checked={!!room?.gameSettings?.showLocationsList}
-                      onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, showLocationsList: e.target.checked } })}
-                    />
-                    <span>Показывать всем список возможных локаций</span>
-                  </label>
-                  <p style={{ marginBottom: 8 }}>Локации</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cur = room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free'];
-                      setSpyDictDraft([...cur]);
-                      setSpyLocationsModalOpen(true);
-                    }}
-                    style={{ ...btnStyleToggleMid, marginBottom: 16 }}
-                  >
-                    Локации (выбрано: {(room?.gameSettings?.dictionaryIds || dictionaryIds || []).length})
-                  </button>
-                  <p style={{ marginBottom: 8 }}>Таймер раунда</p>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <input
-                      type="checkbox"
-                      checked={timerEnabled}
-                      onChange={(e) => { setTimerEnabled(e.target.checked); patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled: e.target.checked, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds } }); }}
-                    />
-                    <span>Включить таймер</span>
-                  </label>
-                  {timerEnabled && (
-                    <div style={{ marginBottom: 12 }}>
-                      <p style={{ marginBottom: 6 }}>Время:</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {TIMER_OPTIONS.map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => { setTimerSeconds(opt.value); patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds: opt.value, spyCount, allSpiesChanceEnabled, dictionaryIds } }); }}
-                            style={{
-                              ...(timerSeconds === opt.value ? btnStyle : btnStyleToggleOff),
-                              width: 'auto',
-                              padding: '8px 14px',
-                            }}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
+            <div className="lobby-game-actions">
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  setGameSettingsTab('presets');
+                  setGameSettingsSheetOpen(true);
+                }}
+              >
+                Настроить
+              </Button>
+              <button type="button" onClick={startSpy} style={btnStyle}>
+                Начать
+              </button>
+            </div>
           )}
         </>
       )}
@@ -855,148 +801,27 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Мафия</h3>
           </div>
-          {(room?.gameSettings && !isHost) && (
-            <div style={{ ...settingsBox, marginBottom: 16 }}>
-              <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
-              <p style={{ margin: 0, fontSize: 14 }}>Режим: {room.gameSettings.extended ? 'Расширенный (Премиум)' : 'Классика'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Ведущий: {room.gameSettings.hostSelection === 'choose' ? 'выбор' : 'случайно'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>
-                Таймеры фаз: ночь {room.gameSettings.phaseTimers?.nightMafia ?? 45}с, день {room.gameSettings.phaseTimers?.day ?? 90}с, голосование {room.gameSettings.phaseTimers?.voting ?? 45}с
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.mafia} игроков</p>
-            </div>
-          )}
+          {room?.gameSettings ? (
+            <LobbyGameSummaryCard room={room} selectedGame="mafia" dictNames={DICT_NAMES} />
+          ) : null}
+          {!isHost && room?.gameSettings ? (
+            <p className="lobby-summary-hint">Изменить настройки может только хост.</p>
+          ) : null}
           {isHost && (
-            <div style={{ ...settingsBox }}>
-              <button
-                type="button"
-                onClick={() => setMafiaAccordions((s) => ({ ...s, mode: !s.mode }))}
-                style={{ ...(mafiaAccordions.mode ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
+            <div className="lobby-game-actions">
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  setGameSettingsTab('mode');
+                  setGameSettingsSheetOpen(true);
+                }}
               >
-                Режим <span style={{ fontSize: 12, opacity: 0.8 }}>(мин. {MIN_PLAYERS.mafia} игр.)</span>
+                Настроить
+              </Button>
+              <button type="button" onClick={() => startMafia()} style={btnStyle}>
+                Начать
               </button>
-              {mafiaAccordions.mode && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  <button
-                    type="button"
-                    onClick={() => { setMafiaClassicPopup(true); if (room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: false } }); }}
-                    style={{ ...(room?.gameSettings?.extended ? btnStyleToggleOff : btnStyle), flex: 1, padding: 10 }}
-                    title="Какие роли в игре"
-                  >
-                    Классика
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setMafiaExtendedPopup(true); if (roomHasPro && !room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: true } }); }}
-                    style={{ ...(room?.gameSettings?.extended ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, opacity: roomHasPro ? 1 : 0.6 }}
-                    title="Подробнее об расширенной версии"
-                  >
-                    Расширенная (Премиум)
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setMafiaAccordions((s) => ({ ...s, rules: !s.rules }))}
-                style={{ ...(mafiaAccordions.rules ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
-              >
-                Правила
-              </button>
-              {mafiaAccordions.rules && (
-                <>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <input type="checkbox" checked={room?.gameSettings?.revealRoleOnDeath !== false} onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, revealRoleOnDeath: e.target.checked } })} />
-                    <span>Показывать роль после смерти</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <input type="checkbox" checked={!!room?.gameSettings?.mafiaCanSkipKill} onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mafiaCanSkipKill: e.target.checked } })} />
-                    <span>Мафия может не убивать ночью</span>
-                  </label>
-                  <p style={{ margin: '0 0 6px', fontSize: 14 }}>Скорость фаз</p>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    {[
-                      { id: 'fast', label: 'Быстро', val: { nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
-                      { id: 'std', label: 'Стандарт', val: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
-                      { id: 'long', label: 'Дольше', val: { nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
-                    ].map((p) => {
-                      const cur = room?.gameSettings?.phaseTimers || {};
-                      const active = cur.nightMafia === p.val.nightMafia && cur.day === p.val.day && cur.voting === p.val.voting;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, phaseTimers: p.val } })}
-                          style={{ ...(active ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
-                        >
-                          {p.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => patchLobbyGame({
-                      gameSettings: {
-                        ...room?.gameSettings,
-                        phaseTimers: { nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
-                      },
-                    })}
-                    style={{ ...btnStyle, marginBottom: 12 }}
-                    title="Компактная партия около 10 минут"
-                  >
-                    Режим 10 минут
-                  </button>
-                  <p style={{ margin: '0 0 16px', fontSize: 12, opacity: 0.8 }}>
-                    Ускоренный формат: короткие ночь/день/голосование для быстрой партии.
-                  </p>
-                </>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setMafiaAccordions((s) => ({ ...s, host: !s.host }))}
-                style={{ ...(mafiaAccordions.host ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
-              >
-                Ведущий
-              </button>
-              {mafiaAccordions.host && (
-                <>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    <button
-                      type="button"
-                      onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, hostSelection: 'random', moderatorId: null } })}
-                      style={{ ...(room?.gameSettings?.hostSelection !== 'choose' ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
-                    >
-                      Случайно
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, hostSelection: 'choose' } })}
-                      style={{ ...(room?.gameSettings?.hostSelection === 'choose' ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
-                    >
-                      Выбрать
-                    </button>
-                  </div>
-                  {room?.gameSettings?.hostSelection === 'choose' && (
-                    <div style={{ marginBottom: 16 }}>
-                      <p style={{ marginBottom: 6, fontSize: 14 }}>Кто ведущий?</p>
-                      {(room?.players || []).map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, moderatorId: p.id } })}
-                          style={{ ...(room?.gameSettings?.moderatorId === p.id ? btnStyle : btnStyleToggleOff), marginBottom: 6, padding: 8 }}
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-
-              <button type="button" onClick={() => startMafia()} style={btnStyle}>Начать игру</button>
             </div>
           )}
         </>
@@ -1007,164 +832,27 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Элиас</h3>
           </div>
-          {(room?.gameSettings && !isHost) && (
-            <div style={{ ...settingsBox, marginBottom: 16 }}>
-              <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
-              <p style={{ margin: 0, fontSize: 14 }}>Таймер: {(room.gameSettings.timerSeconds || 60) / 60} мин</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>До очков: {room.gameSettings.scoreLimit ?? 10}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Штраф за пропуск: −{room.gameSettings.skipPenalty ?? 1}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.elias} игроков</p>
-              {(room.gameSettings.eliasTeams?.length > 0) && (
-                <p style={{ margin: '8px 0 0', fontSize: 13 }}>
-                  Команды: {room.gameSettings.eliasTeams.map((t, i) => `${t.name}: ${(t.playerIds || []).map((id) => room?.players?.find((p) => p.id === id)?.name).filter(Boolean).join(', ') || '—'}`).join(' | ')}
-                </p>
-              )}
-            </div>
-          )}
+          {room?.gameSettings ? (
+            <LobbyGameSummaryCard room={room} selectedGame="elias" dictNames={DICT_NAMES} eliasDictNames={ELIAS_DICT_NAMES} />
+          ) : null}
+          {!isHost && room?.gameSettings ? (
+            <p className="lobby-summary-hint">Изменить настройки может только хост.</p>
+          ) : null}
           {isHost && (
-            <div style={{ ...settingsBox }}>
-              <button
-                type="button"
-                onClick={() => setEliasAccordions((s) => ({ ...s, timer: !s.timer }))}
-                style={{ ...(eliasAccordions.timer ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
-              >
-                Таймер раунда (сек) <span style={{ fontSize: 12, opacity: 0.8 }}>(мин. {MIN_PLAYERS.elias} игр.)</span>
-              </button>
-              {eliasAccordions.timer && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                  {[30, 60, 90, 120].map((sec) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerSeconds: sec } })}
-                      style={{ ...((room?.gameSettings?.timerSeconds ?? 60) === sec ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
-                    >
-                      {sec} сек
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setEliasAccordions((s) => ({ ...s, goal: !s.goal }))}
-                style={{ ...(eliasAccordions.goal ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
-              >
-                Победа (очков)
-              </button>
-              {eliasAccordions.goal && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                  {[5, 10, 15, 20, 50].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, scoreLimit: n } })}
-                      style={{ ...((room?.gameSettings?.scoreLimit ?? 10) === n ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <p style={{ margin: '0 0 6px', fontSize: 14 }}>Штраф за пропуск</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {[0, 1, 2].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipPenalty: n } })}
-                    style={{ ...((room?.gameSettings?.skipPenalty ?? 1) === n ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
-                  >
-                    {n === 0 ? 'Без штрафа' : `−${n} очко`}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="button"
+            <div className="lobby-game-actions">
+              <Button
+                variant="secondary"
+                fullWidth
                 onClick={() => {
-                  const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes'];
-                  setEliasDictDraft([...cur]);
-                  setEliasDictModalOpen(true);
+                  setGameSettingsTab('timer');
+                  setGameSettingsSheetOpen(true);
                 }}
-                style={{ ...btnStyleToggleOff, width: '100%', marginBottom: 12 }}
               >
-                Словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
+                Настроить
+              </Button>
+              <button type="button" onClick={startElias} style={btnStyle}>
+                Начать
               </button>
-
-              <button
-                type="button"
-                onClick={() => setEliasAccordions((s) => ({ ...s, teams: !s.teams }))}
-                style={{ ...(eliasAccordions.teams ? btnStyleToggleMid : btnStyleToggleOff), width: '100%', marginBottom: 12 }}
-              >
-                Команды
-              </button>
-              {eliasAccordions.teams && (
-                <>
-                  <p style={{ fontSize: 12, opacity: 0.85, marginBottom: 10 }}>Назначьте игроков в команды до старта. Нечётное число: один может быть «Не играет».</p>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
-                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: [...teams, { name: `Команда ${teams.length + 1}`, playerIds: [] }] } });
-                      }}
-                      style={{ ...btnStyleToggleMid, width: 'auto', padding: '6px 12px', fontSize: 13 }}
-                    >
-                      + Добавить команду
-                    </button>
-                    {(room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }]).length > 2 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const teams = room?.gameSettings?.eliasTeams;
-                          if (teams?.length > 2) patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: teams.slice(0, -1) } });
-                        }}
-                        style={{ ...btnStyleWarn, width: 'auto', padding: '6px 12px', fontSize: 13 }}
-                      >
-                        − Убрать команду
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ marginBottom: 16 }}>
-                    {(room?.players || []).map((p) => {
-                      const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
-                      const playerTeamIndex = teams.findIndex((t) => (t.playerIds || []).includes(p.id));
-                      const setTeam = (teamIndex) => {
-                        const next = teams.map((t, i) => ({
-                          ...t,
-                          playerIds: (t.playerIds || []).filter((id) => id !== p.id).concat(teamIndex === i ? [p.id] : []),
-                        }));
-                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: next } });
-                      };
-                      return (
-                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                          <span style={{ minWidth: 72 }}>{p.name}</span>
-                          {teams.map((t, i) => (
-                            <button
-                              key={t.name}
-                              type="button"
-                              onClick={() => setTeam(i)}
-                              style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
-                            >
-                              {t.name}
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => setTeam(-1)}
-                            style={{ ...(playerTeamIndex === -1 ? btnStyleToggleMid : btnStyleToggleInk), width: 'auto', padding: '6px 8px', fontSize: 11 }}
-                          >
-                            Не играет
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
-              <button type="button" onClick={startElias} style={btnStyle}>Начать игру</button>
             </div>
           )}
         </>
@@ -1175,255 +863,707 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div className="lobby-game-heading">
             <h3 className="lobby-game-heading__title">Правда или действие</h3>
           </div>
-
-          {(room?.gameSettings && !isHost) && (
-            <div style={{ ...settingsBox, marginBottom: 16 }}>
-              <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки</p>
-              <p style={{ margin: 0, fontSize: 14 }}>Формат: одна карточка — на выбор правда или действие</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Safe: {tdSafeMode ? 'да' : 'нет'}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>
-                18+: {tdSafeMode ? 'нет (safe)' : tdShow18Plus ? 'да' : 'нет'}
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Раундов: {tdRoundsCount}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 14 }}>Лимит пропусков: {tdSkipLimitPerPlayer}</p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>Мин. {MIN_PLAYERS.truth_dare} игроков</p>
-            </div>
-          )}
-
+          {room?.gameSettings ? (
+            <LobbyGameSummaryCard room={room} selectedGame="truth_dare" dictNames={DICT_NAMES} />
+          ) : null}
+          {!isHost && room?.gameSettings ? (
+            <p className="lobby-summary-hint">Изменить настройки может только хост.</p>
+          ) : null}
           {isHost && (
-            <div style={{ ...settingsBox }}>
-              <p style={{ marginTop: 0, marginBottom: 12, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+            <>
+              <p style={{ margin: '0 0 12px', fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
                 Каждый ход — одна карточка с двумя заданиями. Игрок сам выбирает: ответить честно или выполнить действие.
               </p>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <input
-                  type="checkbox"
-                  checked={tdSafeMode}
-                  onChange={(e) => {
-                    const nextSafeMode = e.target.checked;
-                    const nextShow18Plus = nextSafeMode ? false : tdShow18Plus;
-                    const nextCats = tdCategorySlugs.filter((slug) => {
-                      const cat = TD_CATEGORIES.find((c) => c.slug === slug);
-                      if (!cat) return false;
-                      if (nextSafeMode && !cat.safe) return false;
-                      if (cat.is18Plus && !nextShow18Plus) return false;
-                      return true;
-                    });
-                    patchLobbyGame({
-                      gameSettings: {
-                        ...room?.gameSettings,
-                        safeMode: nextSafeMode,
-                        show18Plus: nextShow18Plus,
-                        categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
-                      },
-                    });
+              <div className="lobby-game-actions">
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => {
+                    setGameSettingsTab('main');
+                    setGameSettingsSheetOpen(true);
                   }}
-                />
-                <span>Safe режим (мягкие карточки)</span>
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <input
-                  type="checkbox"
-                  checked={tdShow18Plus}
-                  disabled={tdSafeMode}
-                  onChange={(e) => {
-                    const nextShow18Plus = e.target.checked;
-                    const nextCats = tdCategorySlugs.filter((slug) => {
-                      const cat = TD_CATEGORIES.find((c) => c.slug === slug);
-                      if (!cat) return false;
-                      if (cat.is18Plus && !nextShow18Plus) return false;
-                      if (tdSafeMode && !cat.safe) return false;
-                      return true;
-                    });
-                    patchLobbyGame({
-                      gameSettings: {
-                        ...room?.gameSettings,
-                        show18Plus: nextShow18Plus,
-                        categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
-                      },
-                    });
-                  }}
-                />
-                <span>Показывать 18+ (нужно 18+ подтверждение)</span>
-              </label>
-
-              <p style={{ marginBottom: 8, fontSize: 14 }}>Раундов</p>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {[3, 5, 7, 10].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, roundsCount: n } })}
-                    style={{ ...(tdRoundsCount === n ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, fontSize: 14 }}
-                  >
-                    {n}
-                  </button>
-                ))}
+                >
+                  Настроить
+                </Button>
+                <button type="button" onClick={startTruthDare} disabled={startingGame} style={btnStyle}>
+                  {startingGame ? 'Запуск...' : 'Начать'}
+                </button>
               </div>
-
-              <p style={{ marginBottom: 8, fontSize: 14 }}>Лимит пропусков на игрока</p>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {[0, 1, 2, 3].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipLimitPerPlayer: n } })}
-                    style={{ ...(tdSkipLimitPerPlayer === n ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, fontSize: 14 }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={tdGameSettings.randomStartPlayer !== false}
-                  onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, randomStartPlayer: e.target.checked } })}
-                />
-                <span>Случайный первый игрок</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => patchLobbyGame({
-                  gameSettings: {
-                    ...room?.gameSettings,
-                    roundsCount: 3,
-                    timerSeconds: 35,
-                    skipLimitPerPlayer: 1,
-                    mode: 'mixed',
-                    safeMode: true,
-                    show18Plus: false,
-                    categorySlugs: ['classic', 'friends'],
-                  },
-                })}
-                style={{ ...btnStyle, marginBottom: 12 }}
-              >
-                Быстрая партия (3 раунда)
-              </button>
-
-              <p style={{ marginBottom: 8, fontSize: 14 }}>Категории карточек</p>
-              <button
-                type="button"
-                onClick={() => {
-                  const cur = Array.isArray(room?.gameSettings?.categorySlugs) && room.gameSettings.categorySlugs.length
-                    ? room.gameSettings.categorySlugs
-                    : tdCategorySlugs;
-                  setTdCategoryDraft([...cur]);
-                  setTdCategoryModalOpen(true);
-                }}
-                style={{ ...btnStyleToggleMid, width: '100%', marginBottom: 16 }}
-              >
-                Карточки (выбрано: {tdCategorySlugs.length})
-              </button>
-
-              <button type="button" onClick={startTruthDare} disabled={startingGame} style={btnStyle}>
-                {startingGame ? 'Запуск...' : 'Начать игру'}
-              </button>
-
-              <p style={{ marginTop: 10, marginBottom: 0, fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+              <p style={{ margin: '10px 0 0', fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
                 Примечание: карточки подбираются под текущего игрока (Pro/18+ учёт на сервере).
               </p>
+            </>
+          )}
+        </>
+      )}
+
+      {selectedGame === 'bunker' && (
+        <>
+          <div className="lobby-game-heading">
+            <h3 className="lobby-game-heading__title">Бункер</h3>
+          </div>
+          {room?.gameSettings ? (
+            <LobbyGameSummaryCard room={room} selectedGame="bunker" dictNames={DICT_NAMES} />
+          ) : null}
+          {!isHost && room?.gameSettings ? (
+            <p className="lobby-summary-hint">Изменить настройки может только хост.</p>
+          ) : null}
+          {isHost && (
+            <div className="lobby-game-actions">
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  setGameSettingsTab('party');
+                  setGameSettingsSheetOpen(true);
+                }}
+              >
+                Настроить
+              </Button>
+              <button type="button" onClick={startBunker} disabled={startingGame} style={btnStyle}>
+                {startingGame ? 'Запуск...' : 'Начать'}
+              </button>
             </div>
           )}
         </>
       )}
 
-      {isHost && selectedGame && selectedGame === 'bunker' && (
-        <div style={{ ...settingsBox, marginTop: 24 }}>
-          <div className="lobby-game-heading" style={{ marginTop: 0 }}>
-            <h3 className="lobby-game-heading__title" style={{ marginBottom: 0 }}>Бункер</h3>
+      <LobbySettingsSheet
+        open={Boolean(gameSettingsSheetOpen && isHost && selectedGame)}
+        onClose={() => setGameSettingsSheetOpen(false)}
+        title={gameSettingsSheetTitle}
+        tabs={gameSettingsTabs}
+        activeTab={gameSettingsTab}
+        onTabChange={setGameSettingsTab}
+        footer={<Button fullWidth onClick={() => setGameSettingsSheetOpen(false)}>Готово</Button>}
+      >
+        {selectedGame === 'spy' && gameSettingsTab === 'presets' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, lineHeight: 1.45 }}>
+              Готовые профили — детали можно изменить на других вкладках.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  const base = getDefaultGameSettings('spy');
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, ...base } });
+                  setSpyCount(base.spyCount);
+                  setTimerEnabled(base.timerEnabled);
+                  setTimerSeconds(base.timerSeconds);
+                  setAllSpiesChanceEnabled(base.allSpiesChanceEnabled);
+                  setDictionaryIds(base.dictionaryIds);
+                }}
+              >
+                Стандарт (1 шпион, без таймера)
+              </Button>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  patchLobbyGame({
+                    gameSettings: {
+                      ...room?.gameSettings,
+                      timerEnabled: true,
+                      timerSeconds: 120,
+                      spyCount: 1,
+                      dictionaryIds: (room?.gameSettings?.dictionaryIds?.length ? room.gameSettings.dictionaryIds : ['free']),
+                    },
+                  });
+                  setTimerEnabled(true);
+                  setTimerSeconds(120);
+                  setSpyCount(1);
+                }}
+              >
+                С таймером 2 мин
+              </Button>
+            </div>
+            <p style={{ marginBottom: 8 }}>Количество шпионов</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              {SPY_COUNT_OPTIONS.map((n) => {
+                const enabled = n === 1 || roomHasPro;
+                const on = spyCount === n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    disabled={!enabled}
+                    title={!enabled ? 'Нужна подписка Премиум' : ''}
+                    onClick={() => {
+                      if (!enabled) return;
+                      setSpyCount(n);
+                      patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount: n, allSpiesChanceEnabled, dictionaryIds } });
+                    }}
+                    style={{
+                      ...(on ? btnStyle : btnStyleToggleOff),
+                      width: 'auto',
+                      padding: '8px 14px',
+                      opacity: enabled ? 1 : 0.6,
+                    }}
+                  >
+                    {n}
+                    {n > 1 && <span style={{ fontSize: 10, marginLeft: 4 }}>Премиум</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <p style={{ marginBottom: 8, marginTop: 12, opacity: 0.9, fontSize: 14 }}>Настройки партии</p>
+        )}
+        {selectedGame === 'spy' && gameSettingsTab === 'locations' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Выберите наборы локаций для игры.</p>
+            <button
+              type="button"
+              onClick={() => {
+                const cur = room?.gameSettings?.dictionaryIds ?? dictionaryIds ?? ['free'];
+                setSpyDictDraft([...cur]);
+                setSpyLocationsModalOpen(true);
+              }}
+              style={{ ...btnStyleToggleMid, width: '100%' }}
+            >
+              Локации (выбрано: {(room?.gameSettings?.dictionaryIds || dictionaryIds || []).length})
+            </button>
+          </div>
+        )}
+        {selectedGame === 'spy' && gameSettingsTab === 'timer' && (
+          <div>
+            <p style={{ marginBottom: 8 }}>Таймер раунда</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={timerEnabled}
+                onChange={(e) => {
+                  setTimerEnabled(e.target.checked);
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled: e.target.checked, timerSeconds, spyCount, allSpiesChanceEnabled, dictionaryIds } });
+                }}
+              />
+              <span>Включить таймер</span>
+            </label>
+            {timerEnabled && (
+              <div>
+                <p style={{ marginBottom: 6 }}>Время:</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {TIMER_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setTimerSeconds(opt.value);
+                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds: opt.value, spyCount, allSpiesChanceEnabled, dictionaryIds } });
+                      }}
+                      style={{
+                        ...(timerSeconds === opt.value ? btnStyle : btnStyleToggleOff),
+                        width: 'auto',
+                        padding: '8px 14px',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {selectedGame === 'spy' && gameSettingsTab === 'more' && (
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={allSpiesChanceEnabled}
+                onChange={(e) => {
+                  setAllSpiesChanceEnabled(e.target.checked);
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerEnabled, timerSeconds, spyCount, allSpiesChanceEnabled: e.target.checked, dictionaryIds } });
+                }}
+              />
+              <span>Все шпионы (редкий шанс)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={!!room?.gameSettings?.spiesSeeEachOther}
+                onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, spiesSeeEachOther: e.target.checked } })}
+              />
+              <span>Шпионы видят друг друга</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 0 }}>
+              <input
+                type="checkbox"
+                checked={!!room?.gameSettings?.showLocationsList}
+                onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, showLocationsList: e.target.checked } })}
+              />
+              <span>Показывать всем список возможных локаций</span>
+            </label>
+          </div>
+        )}
 
-          <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Раундов</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-            {BUNKER_ROUND_OPTIONS.map((n) => {
-              const active = (room?.gameSettings?.maxRounds ?? 3) === n;
-              return (
+        {selectedGame === 'mafia' && gameSettingsTab === 'mode' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88 }}>Минимум {MIN_PLAYERS.mafia} игроков.</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMafiaClassicPopup(true);
+                  if (room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: false } });
+                }}
+                style={{ ...(room?.gameSettings?.extended ? btnStyleToggleOff : btnStyle), flex: 1, padding: 10 }}
+                title="Какие роли в игре"
+              >
+                Классика
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMafiaExtendedPopup(true);
+                  if (roomHasPro && !room?.gameSettings?.extended) patchLobbyGame({ gameSettings: { ...room?.gameSettings, extended: true } });
+                }}
+                style={{ ...(room?.gameSettings?.extended ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, opacity: roomHasPro ? 1 : 0.6 }}
+                title="Подробнее об расширенной версии"
+              >
+                Расширенная (Премиум)
+              </button>
+            </div>
+          </div>
+        )}
+        {selectedGame === 'mafia' && gameSettingsTab === 'rules' && (
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <input type="checkbox" checked={room?.gameSettings?.revealRoleOnDeath !== false} onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, revealRoleOnDeath: e.target.checked } })} />
+              <span>Показывать роль после смерти</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <input type="checkbox" checked={!!room?.gameSettings?.mafiaCanSkipKill} onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, mafiaCanSkipKill: e.target.checked } })} />
+              <span>Мафия может не убивать ночью</span>
+            </label>
+            <p style={{ margin: '0 0 6px', fontSize: 14 }}>Скорость фаз</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              {[
+                { id: 'fast', label: 'Быстро', val: { nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
+                { id: 'std', label: 'Стандарт', val: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
+                { id: 'long', label: 'Дольше', val: { nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
+              ].map((p) => {
+                const cur = room?.gameSettings?.phaseTimers || {};
+                const active = cur.nightMafia === p.val.nightMafia && cur.day === p.val.day && cur.voting === p.val.voting;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, phaseTimers: p.val } })}
+                    style={{ ...(active ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, minWidth: 100 }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => patchLobbyGame({
+                gameSettings: {
+                  ...room?.gameSettings,
+                  phaseTimers: { nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
+                },
+              })}
+              style={{ ...btnStyle, marginBottom: 12, width: '100%' }}
+              title="Компактная партия около 10 минут"
+            >
+              Режим 10 минут
+            </button>
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>
+              Ускоренный формат: короткие ночь/день/голосование для быстрой партии.
+            </p>
+          </div>
+        )}
+        {selectedGame === 'mafia' && gameSettingsTab === 'host' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, hostSelection: 'random', moderatorId: null } })}
+                style={{ ...(room?.gameSettings?.hostSelection !== 'choose' ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
+              >
+                Случайно
+              </button>
+              <button
+                type="button"
+                onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, hostSelection: 'choose' } })}
+                style={{ ...(room?.gameSettings?.hostSelection === 'choose' ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10 }}
+              >
+                Выбрать
+              </button>
+            </div>
+            {room?.gameSettings?.hostSelection === 'choose' && (
+              <div>
+                <p style={{ marginBottom: 6, fontSize: 14 }}>Кто ведущий?</p>
+                {(room?.players || []).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, moderatorId: p.id } })}
+                    style={{ ...(room?.gameSettings?.moderatorId === p.id ? btnStyle : btnStyleToggleOff), marginBottom: 6, padding: 8, width: '100%' }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedGame === 'elias' && gameSettingsTab === 'timer' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88 }}>Таймер и победа (мин. {MIN_PLAYERS.elias} игрока).</p>
+            <p style={{ marginBottom: 8 }}>Таймер раунда (сек)</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {[30, 60, 90, 120].map((sec) => (
+                <button
+                  key={sec}
+                  type="button"
+                  onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, timerSeconds: sec } })}
+                  style={{ ...((room?.gameSettings?.timerSeconds ?? 60) === sec ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
+                >
+                  {sec} сек
+                </button>
+              ))}
+            </div>
+            <p style={{ marginBottom: 8 }}>Победа (очков)</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {[5, 10, 15, 20, 50].map((n) => (
                 <button
                   key={n}
                   type="button"
-                  onClick={() => {
-                    patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), maxRounds: n } });
-                  }}
-                  disabled={startingGame}
-                  style={{
-                    ...(active ? btnStyle : btnStyleToggleOff),
-                    width: 'auto',
-                    padding: '8px 14px',
-                    opacity: startingGame ? 0.7 : 1,
-                  }}
+                  onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, scoreLimit: n } })}
+                  style={{ ...((room?.gameSettings?.scoreLimit ?? 10) === n ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
                 >
                   {n}
                 </button>
-              );
-            })}
-          </div>
-
-          <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Скорость фаз</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-            {BUNKER_SPEED_PRESETS.map((p) => {
-              const activeId = room?.gameSettings?.phaseSpeed || 'standard';
-              const active = activeId === p.id;
-              return (
+              ))}
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: 14 }}>Штраф за пропуск</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 0 }}>
+              {[0, 1, 2].map((n) => (
                 <button
-                  key={p.id}
+                  key={n}
+                  type="button"
+                  onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipPenalty: n } })}
+                  style={{ ...((room?.gameSettings?.skipPenalty ?? 1) === n ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
+                >
+                  {n === 0 ? 'Без штрафа' : `−${n} очко`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {selectedGame === 'elias' && gameSettingsTab === 'dicts' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Наборы слов для объяснения.</p>
+            <button
+              type="button"
+              onClick={() => {
+                const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes'];
+                setEliasDictDraft([...cur]);
+                setEliasDictModalOpen(true);
+              }}
+              style={{ ...btnStyleToggleMid, width: '100%' }}
+            >
+              Словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
+            </button>
+          </div>
+        )}
+        {selectedGame === 'elias' && gameSettingsTab === 'teams' && (
+          <div>
+            <p style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 10 }}>
+              Назначьте игроков в команды до старта. Нечётное число: один может быть «Не играет».
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: [...teams, { name: `Команда ${teams.length + 1}`, playerIds: [] }] } });
+                }}
+                style={{ ...btnStyleToggleMid, width: 'auto', padding: '6px 12px', fontSize: 13 }}
+              >
+                + Добавить команду
+              </button>
+              {(room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }]).length > 2 && (
+                <button
                   type="button"
                   onClick={() => {
-                    const phaseTimers = bunkerPhaseTimersFromSpeed(p.id);
-                    patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), phaseSpeed: p.id, phaseTimers } });
+                    const teams = room?.gameSettings?.eliasTeams;
+                    if (teams?.length > 2) patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: teams.slice(0, -1) } });
                   }}
-                  disabled={startingGame}
-                  style={{
-                    ...(active ? btnStyle : btnStyleToggleOff),
-                    width: 'auto',
-                    padding: '8px 14px',
-                    opacity: startingGame ? 0.7 : 1,
-                  }}
+                  style={{ ...btnStyleWarn, width: 'auto', padding: '6px 12px', fontSize: 13 }}
                 >
-                  {p.label}
+                  − Убрать команду
                 </button>
-              );
-            })}
+              )}
+            </div>
+            <div>
+              {(room?.players || []).map((p) => {
+                const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
+                const playerTeamIndex = teams.findIndex((t) => (t.playerIds || []).includes(p.id));
+                const setTeam = (teamIndex) => {
+                  const next = teams.map((t, i) => ({
+                    ...t,
+                    playerIds: (t.playerIds || []).filter((id) => id !== p.id).concat(teamIndex === i ? [p.id] : []),
+                  }));
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: next } });
+                };
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{ minWidth: 72 }}>{p.name}</span>
+                    {teams.map((t, i) => (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onClick={() => setTeam(i)}
+                        style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setTeam(-1)}
+                      style={{ ...(playerTeamIndex === -1 ? btnStyleToggleMid : btnStyleToggleInk), width: 'auto', padding: '6px 8px', fontSize: 11 }}
+                    >
+                      Не играет
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        )}
 
-          <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Сценарий</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-            {BUNKER_SCENARIOS.map((s) => {
-              const active = (room?.gameSettings?.scenarioId || 'shelter_default') === s.id;
-              const canUse = !s.premium || roomHasPro || (Array.isArray(myInventory?.unlockedItems) && myInventory.unlockedItems.includes(s.itemId));
-              return (
+        {selectedGame === 'truth_dare' && gameSettingsTab === 'main' && (
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={tdSafeMode}
+                onChange={(e) => {
+                  const nextSafeMode = e.target.checked;
+                  const nextShow18Plus = nextSafeMode ? false : tdShow18Plus;
+                  const nextCats = tdCategorySlugs.filter((slug) => {
+                    const cat = TD_CATEGORIES.find((c) => c.slug === slug);
+                    if (!cat) return false;
+                    if (nextSafeMode && !cat.safe) return false;
+                    if (cat.is18Plus && !nextShow18Plus) return false;
+                    return true;
+                  });
+                  patchLobbyGame({
+                    gameSettings: {
+                      ...room?.gameSettings,
+                      safeMode: nextSafeMode,
+                      show18Plus: nextShow18Plus,
+                      categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
+                    },
+                  });
+                }}
+              />
+              <span>Safe режим (мягкие карточки)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <input
+                type="checkbox"
+                checked={tdShow18Plus}
+                disabled={tdSafeMode}
+                onChange={(e) => {
+                  const nextShow18Plus = e.target.checked;
+                  const nextCats = tdCategorySlugs.filter((slug) => {
+                    const cat = TD_CATEGORIES.find((c) => c.slug === slug);
+                    if (!cat) return false;
+                    if (cat.is18Plus && !nextShow18Plus) return false;
+                    if (tdSafeMode && !cat.safe) return false;
+                    return true;
+                  });
+                  patchLobbyGame({
+                    gameSettings: {
+                      ...room?.gameSettings,
+                      show18Plus: nextShow18Plus,
+                      categorySlugs: nextCats.length ? nextCats : ['classic', 'friends'],
+                    },
+                  });
+                }}
+              />
+              <span>Показывать 18+ (нужно 18+ подтверждение)</span>
+            </label>
+            <p style={{ marginBottom: 8, fontSize: 14 }}>Раундов</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              {[3, 5, 7, 10].map((n) => (
                 <button
-                  key={s.id}
+                  key={n}
                   type="button"
-                  onClick={() => {
-                    if (!canUse) return;
-                    patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), scenarioId: s.id } });
-                  }}
-                  disabled={startingGame || !canUse}
-                  title={!canUse ? `Нужен Pro или pack ${s.itemId}` : ''}
-                  style={{
-                    ...(active ? btnStyle : btnStyleToggleOff),
-                    width: 'auto',
-                    padding: '8px 14px',
-                    opacity: (!canUse || startingGame) ? 0.6 : 1,
-                  }}
+                  onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, roundsCount: n } })}
+                  style={{ ...(tdRoundsCount === n ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, fontSize: 14, minWidth: 64 }}
                 >
-                  {s.label} {s.premium ? '🔒' : ''}
+                  {n}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+            <p style={{ marginBottom: 8, fontSize: 14 }}>Лимит пропусков на игрока</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              {[0, 1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => patchLobbyGame({ gameSettings: { ...room?.gameSettings, skipLimitPerPlayer: n } })}
+                  style={{ ...(tdSkipLimitPerPlayer === n ? btnStyle : btnStyleToggleOff), flex: 1, padding: 10, fontSize: 14, minWidth: 56 }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={tdGameSettings.randomStartPlayer !== false}
+                onChange={(e) => patchLobbyGame({ gameSettings: { ...room?.gameSettings, randomStartPlayer: e.target.checked } })}
+              />
+              <span>Случайный первый игрок</span>
+            </label>
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => patchLobbyGame({
+                gameSettings: {
+                  ...room?.gameSettings,
+                  roundsCount: 3,
+                  timerSeconds: 35,
+                  skipLimitPerPlayer: 1,
+                  mode: 'mixed',
+                  safeMode: true,
+                  show18Plus: false,
+                  categorySlugs: ['classic', 'friends'],
+                },
+              })}
+            >
+              Быстрая партия (3 раунда)
+            </Button>
           </div>
+        )}
+        {selectedGame === 'truth_dare' && gameSettingsTab === 'cats' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Выберите категории карточек.</p>
+            <button
+              type="button"
+              onClick={() => {
+                const cur = Array.isArray(room?.gameSettings?.categorySlugs) && room.gameSettings.categorySlugs.length
+                  ? room.gameSettings.categorySlugs
+                  : tdCategorySlugs;
+                setTdCategoryDraft([...cur]);
+                setTdCategoryModalOpen(true);
+              }}
+              style={{ ...btnStyleToggleMid, width: '100%' }}
+            >
+              Карточки (выбрано: {tdCategorySlugs.length})
+            </button>
+          </div>
+        )}
 
-          <button type="button" onClick={startBunker} disabled={startingGame} style={btnStyle}>
-            {startingGame ? 'Запуск...' : 'Начать игру'}
-          </button>
-        </div>
-      )}
+        {selectedGame === 'bunker' && gameSettingsTab === 'party' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>Быстрый старт или свои значения ниже.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  const base = getDefaultGameSettings('bunker');
+                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, ...base } });
+                }}
+              >
+                Стандарт (3 раунда, стандартная скорость)
+              </Button>
+            </div>
+            <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Раундов</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {BUNKER_ROUND_OPTIONS.map((n) => {
+                const active = (room?.gameSettings?.maxRounds ?? 3) === n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => {
+                      patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), maxRounds: n } });
+                    }}
+                    disabled={startingGame}
+                    style={{
+                      ...(active ? btnStyle : btnStyleToggleOff),
+                      width: 'auto',
+                      padding: '8px 14px',
+                      opacity: startingGame ? 0.7 : 1,
+                    }}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Скорость фаз</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 0 }}>
+              {BUNKER_SPEED_PRESETS.map((p) => {
+                const activeId = room?.gameSettings?.phaseSpeed || 'standard';
+                const active = activeId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      const phaseTimers = bunkerPhaseTimersFromSpeed(p.id);
+                      patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), phaseSpeed: p.id, phaseTimers } });
+                    }}
+                    disabled={startingGame}
+                    style={{
+                      ...(active ? btnStyle : btnStyleToggleOff),
+                      width: 'auto',
+                      padding: '8px 14px',
+                      opacity: startingGame ? 0.7 : 1,
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {selectedGame === 'bunker' && gameSettingsTab === 'scenario' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9 }}>Сюжет и правила бункера.</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {BUNKER_SCENARIOS.map((s) => {
+                const active = (room?.gameSettings?.scenarioId || 'shelter_default') === s.id;
+                const canUse = !s.premium || roomHasPro || (Array.isArray(myInventory?.unlockedItems) && myInventory.unlockedItems.includes(s.itemId));
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      if (!canUse) return;
+                      patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), scenarioId: s.id } });
+                    }}
+                    disabled={startingGame || !canUse}
+                    title={!canUse ? `Нужен Pro или pack ${s.itemId}` : ''}
+                    style={{
+                      ...(active ? btnStyle : btnStyleToggleOff),
+                      width: 'auto',
+                      padding: '8px 14px',
+                      opacity: (!canUse || startingGame) ? 0.6 : 1,
+                    }}
+                  >
+                    {s.label} {s.premium ? '🔒' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </LobbySettingsSheet>
 
       <div className="lobby-footer-actions">
         <div className="lobby-footer-actions__row">
@@ -1481,7 +1621,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       </Modal>
 
       {mafiaClassicPopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaClassicPopup(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 24 }} onClick={() => setMafiaClassicPopup(false)}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: 12 }}>Классическая Мафия — роли</h3>
             <p style={{ marginBottom: 8, fontSize: 14 }}>В игре участвуют:</p>
@@ -1498,7 +1638,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       {mafiaExtendedPopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }} onClick={() => setMafiaExtendedPopup(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 24 }} onClick={() => setMafiaExtendedPopup(false)}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: 12 }}>Расширенная версия Мафии</h3>
             <p style={{ marginBottom: 8, fontSize: 14 }}>Дополнительные роли и механики:</p>
@@ -1575,7 +1715,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       {spyDictLockPopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
             <p style={{ marginBottom: 8 }}>🔒 {DICT_NAMES[spyDictLockPopup] || spyDictLockPopup}</p>
             <p style={{ fontSize: 14, opacity: 0.9, marginBottom: 16 }}>Этот словарь доступен только по подписке Премиум. Покупка отдельных словарей пока не реализована — оформите Премиум, чтобы открыть все тематические локации.</p>
@@ -1585,7 +1725,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       {minPlayersWarning && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 24 }}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
             <p style={{ marginBottom: 16 }}>{minPlayersWarning}</p>
             <button type="button" onClick={() => setMinPlayersWarning(null)} style={btnStyle}>Ок</button>
@@ -1718,7 +1858,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       )}
 
       {ELIAS_CUSTOM_DICT_UI_ENABLED && eliasCustomModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, padding: 16 }} onClick={() => setEliasCustomModalOpen(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 16 }} onClick={() => setEliasCustomModalOpen(false)}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 420, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: 8 }}>Пользовательский словарь Элиас</h3>
             <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 10 }}>По одному слову на строку. Используется локально и отправляется при старте партии.</p>

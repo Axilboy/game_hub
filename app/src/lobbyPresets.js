@@ -18,6 +18,15 @@ export const BUNKER_SPEED_PRESETS = [
   { id: 'long', label: 'Длинно', mult: 1.3 },
 ];
 
+/** Сценарии бункера (лобби + сводка для гостей) */
+export const BUNKER_SCENARIOS = [
+  { id: 'shelter_default', label: 'Классический', premium: false, itemId: null },
+  { id: 'pandemic_plus', label: 'Пандемия+', premium: true, itemId: 'bunker_pandemic' },
+  { id: 'orbital_station', label: 'Орбита', premium: true, itemId: 'bunker_space' },
+];
+
+export const BUNKER_ROUND_OPTIONS = [2, 3, 4];
+
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
