@@ -1,0 +1,13 @@
+{
+  "name": "gamehub-multiplayer-sandbox",
+  "private": true,
+  "type": "module",
+  "description": "Отдельная среда: несколько «игроков» в браузере без правок основного кода",
+  "scripts": {
+    "start": "node open-players.mjs",
+    "browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}
