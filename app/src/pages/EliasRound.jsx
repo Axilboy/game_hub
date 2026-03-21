@@ -10,6 +10,7 @@ import PostMatchScreen from '../components/game/PostMatchScreen';
 import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 import Modal from '../components/ui/Modal';
+import Button from '../components/ui/Button';
 import './eliasRound.css';
 
 const DICT_LABELS = {
@@ -146,6 +147,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const navigate = useNavigate();
   useSeo({ robots: 'noindex, nofollow' });
   const myId = user?.id != null ? String(user.id) : '';
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [winnerTeamIndex, setWinnerTeamIndex] = useState(null);
@@ -234,12 +236,44 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     } catch (_) {}
   };
 
-  const beginRound = async () => {
+  const readyPreRound = async () => {
     try {
-      await api.post(`/rooms/${roomId}/elias/begin-round`, { playerId: myId });
+      await api.post(`/rooms/${roomId}/elias/ready-pre-round`, { playerId: myId });
       refreshState({ silent: true });
     } catch (_) {}
   };
+
+  const requestExitGame = () => setExitConfirmOpen(true);
+
+  const confirmExitGame = async () => {
+    setExitConfirmOpen(false);
+    try {
+      await onLeave();
+    } catch (_) {}
+    navigate('/');
+  };
+
+  const exitModal = (
+    <Modal
+      open={exitConfirmOpen}
+      onClose={() => setExitConfirmOpen(false)}
+      closeOnOverlayClick
+      title="Выйти из игры?"
+      width={400}
+    >
+      <p style={{ marginTop: 0, lineHeight: 1.5, fontSize: 15, opacity: 0.95 }}>
+        Вы покинете матч. Продолжить и перейти на главный экран?
+      </p>
+      <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+        <Button variant="secondary" fullWidth onClick={() => setExitConfirmOpen(false)}>
+          Отмена
+        </Button>
+        <Button variant="danger" fullWidth onClick={confirmExitGame}>
+          Выйти
+        </Button>
+      </div>
+    </Modal>
+  );
 
   const timerEnded = useCallback(async () => {
     try {
@@ -281,16 +315,22 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
 
   if (loading) {
     return (
-      <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
-        <Loader label="Загрузка Элиаса..." minHeight="50vh" />
-      </GameplayScreen>
+      <>
+        <GameplayScreen theme="elias" user={user} onBack={requestExitGame} backTitle="Назад" title="Элиас">
+          <Loader label="Загрузка Элиаса..." minHeight="50vh" />
+        </GameplayScreen>
+        {exitModal}
+      </>
     );
   }
   if (!state) {
     return (
-      <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
-        <ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} />
-      </GameplayScreen>
+      <>
+        <GameplayScreen theme="elias" user={user} onBack={requestExitGame} backTitle="Назад" title="Элиас">
+          <ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} />
+        </GameplayScreen>
+        {exitModal}
+      </>
     );
   }
 
@@ -308,6 +348,15 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     state.isCurrentExplainer && phase === 'playing' && !awaitingStart && Boolean(state.word);
   /** Подпись со словарями — только у текущего объясняющего */
   const dictSub = state.isCurrentExplainer ? `(Все наборы: ${dictSubtitle(state.dictionaryIds)})` : null;
+
+  const readyIds = Array.isArray(state.preRoundReadyIds) ? state.preRoundReadyIds : [];
+  const mPlayers = Math.max(
+    Array.isArray(room?.players) ? room.players.length : 0,
+    Number(state.roomPlayersCount) || 0,
+    readyIds.length,
+  );
+  const nReady = readyIds.length;
+  const imPreRoundReady = Boolean(myId && readyIds.some((id) => String(id) === myId));
 
   const updateRowOutcome = (index, outcome) => {
     setEditLog((prev) => {
@@ -340,40 +389,54 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   if (winner != null) {
     const winTeam = teams[winner];
     return (
-      <PostMatchScreen
-        theme="elias"
-        top={<BackArrow onClick={() => navigate('/lobby')} title="В лобби" />}
-        center={true}
-        padding={24}
-        primaryLabel="В лобби"
-        onPrimary={() => navigate('/lobby')}
-        secondaryLabel="Выйти"
-        onSecondary={onLeave}
-        secondaryBg="#333"
-      >
-        <div className="gpl__panel" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
-          <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t) => `${t.name} ${t.score}`).join(' — ')}</p>
-          {state?.mvp && (
-            <p style={{ marginBottom: 0, opacity: 0.9 }}>
-              MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
-            </p>
-          )}
-        </div>
-      </PostMatchScreen>
+      <>
+        <PostMatchScreen
+          theme="elias"
+          top={<BackArrow onClick={requestExitGame} title="Назад" />}
+          center={true}
+          padding={24}
+          primaryLabel="В лобби"
+          onPrimary={() => navigate('/lobby')}
+          secondaryLabel="Выйти"
+          onSecondary={onLeave}
+          secondaryBg="#333"
+        >
+          <div className="gpl__panel" style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 22, marginBottom: 16 }}>Победила {winTeam?.name || 'команда'}!</p>
+            <p style={{ marginBottom: 16 }}>Счёт: {teams.map((t) => `${t.name} ${t.score}`).join(' — ')}</p>
+            {state?.mvp && (
+              <p style={{ marginBottom: 0, opacity: 0.9 }}>
+                MVP: {state.mvp.name} (угадано {state.mvp.guessed}, пропусков {state.mvp.skipped})
+              </p>
+            )}
+          </div>
+        </PostMatchScreen>
+        {exitModal}
+      </>
     );
   }
 
   return (
-    <GameplayScreen theme="elias" user={user} onBack={() => navigate('/lobby')} backTitle="В лобби" title="Элиас">
-      <GameLayout top={null} center={false} padding={0} minHeight="auto" textAlign="center" bottom={null}>
+    <>
+      <GameplayScreen theme="elias" user={user} onBack={requestExitGame} backTitle="Назад" title="Элиас">
+        <GameLayout top={null} center={false} padding={0} minHeight="calc(100dvh - 100px)" textAlign="center" bottom={null}>
         <div className="elias-round">
           <div className="elias-round__meta-card gpl__panel">
             <p className="elias-round__meta-card-kicker">Текущий раунд</p>
             <p className="elias-round__meta-card-main">
-              Объясняет <strong>{state.explainerName}</strong>
+              Сейчас объясняет: <strong>{state.explainerName}</strong>
+              {state.isCurrentExplainer ? (
+                <span className="elias-round__meta-you-badge"> — это вы</span>
+              ) : null}
             </p>
             <p className="elias-round__meta-card-sub">Ход команды «{explainingTeamName}»</p>
+            <p className="elias-round__meta-card-role">
+              {state.isCurrentExplainer
+                ? 'Вы показываете слова команде (свайп да/нет).'
+                : state.isExplainer
+                  ? 'Вы отгадываете по подсказкам — слово на экране только у объясняющего.'
+                  : 'Вы в другой команде; слово видят только соперники в ходе их раунда.'}
+            </p>
             {myTeamName ? (
               <div className="elias-round__meta-pill">
                 <span className="elias-round__meta-pill-label">Ваша команда</span>
@@ -486,22 +549,21 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                 className="elias-round__ready-modal-overlay"
               >
                 <div className="elias-round__ready-modal-body">
-                  {state.isCurrentExplainer ? (
+                  {!imPreRoundReady ? (
                     <>
                       <p className="elias-round__ready-modal-text">
-                        Нажмите «Готов», когда команда настроена слушать подсказки. После этого появится слово и запустится таймер.
+                        Раунд начнётся, когда все игроки в комнате нажмут «Готов». Слово и таймер появятся у текущего объясняющего (
+                        <strong>{state.explainerName}</strong>).
                       </p>
-                      <button type="button" className="elias-round__start-btn" onClick={beginRound}>
+                      <button type="button" className="elias-round__start-btn" onClick={readyPreRound}>
                         Готов
                       </button>
                     </>
-                  ) : state.isExplainer ? (
-                    <p className="elias-round__ready-modal-text elias-round__ready-modal-text--solo">
-                      Ожидайте: объясняющий <strong>{state.explainerName}</strong> нажмёт «Готов» — тогда начнётся раунд и появится слово.
-                    </p>
                   ) : (
                     <p className="elias-round__ready-modal-text elias-round__ready-modal-text--solo">
-                      Команда «{explainingTeamName}» готовится. Слово и таймер увидят только участники этого хода.
+                      {nReady >= mPlayers && mPlayers > 0
+                        ? 'Все готовы — стартуем…'
+                        : `В ожидании игроков: ${nReady} из ${Math.max(mPlayers, 1)} готовы. Ожидаем ещё ${Math.max(0, mPlayers - nReady)}.`}
                     </p>
                   )}
                 </div>
@@ -544,7 +606,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
               )}
 
               {phase === 'playing' && !awaitingStart && state.word && state.isCurrentExplainer && (
-                <>
+                <div className="elias-round__play-column">
                   <EliasSwipeCard
                     word={state.word}
                     subtitle={dictSub}
@@ -563,7 +625,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                     </div>
                     <p className="elias-round__hint">Свайп влево/вниз — нет · вправо/вверх — да</p>
                   </div>
-                </>
+                </div>
               )}
 
               {phase === 'playing' && !awaitingStart && state.word && state.isExplainer && !state.isCurrentExplainer && (
@@ -593,5 +655,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         </div>
       </GameLayout>
     </GameplayScreen>
+    {exitModal}
+    </>
   );
 }
