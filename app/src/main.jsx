@@ -4,12 +4,12 @@ import App from './App';
 import ErrorBoundary from './ErrorBoundary';
 import { registerPwa } from './registerPwa';
 import './index.css';
-import { resolveInitialTheme } from './theme';
+import { applyTheme, resolveInitialTheme } from './theme';
 
 registerPwa();
 
 try {
-  document.documentElement.dataset.theme = resolveInitialTheme();
+  applyTheme(resolveInitialTheme());
   const d = localStorage.getItem('gh_density');
   document.documentElement.dataset.density = d === 'compact' ? 'compact' : 'default';
 } catch (_) {}

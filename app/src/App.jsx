@@ -9,6 +9,7 @@ import { getInventory } from './inventory';
 import { getAvatar, getDisplayName, getProfilePhoto } from './displayName';
 import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
+import { reapplyStoredTheme } from './theme';
 import Home from './pages/Home';
 import { ToastProvider, useToast } from './components/ui/ToastProvider';
 import RouteLoadingFallback from './components/RouteLoadingFallback';
@@ -90,6 +91,41 @@ function AppRoutes() {
       track('invite_open', { source: 'url', hasInvite: true });
       window.history.replaceState({}, '', window.location.pathname);
     }
+  }, []);
+
+  /** После Telegram.ready() — ещё раз применить тему (перебить inline-переменные). */
+  useEffect(() => {
+    if (ready) reapplyStoredTheme();
+  }, [ready]);
+
+  /** Telegram WebApp перезаписывает --tg-theme-* на <html> после загрузки — повторяем нашу тему. */
+  useEffect(() => {
+    const run = () => reapplyStoredTheme();
+    run();
+    const a = requestAnimationFrame(run);
+    const t0 = setTimeout(run, 0);
+    const t1 = setTimeout(run, 50);
+    const t2 = setTimeout(run, 250);
+    const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
+    const onTgTheme = () => run();
+    try {
+      tg?.onEvent?.('themeChanged', onTgTheme);
+    } catch (_) {}
+    try {
+      tg?.onEvent?.('theme_changed', onTgTheme);
+    } catch (_) {}
+    return () => {
+      cancelAnimationFrame(a);
+      clearTimeout(t0);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      try {
+        tg?.offEvent?.('themeChanged', onTgTheme);
+      } catch (_) {}
+      try {
+        tg?.offEvent?.('theme_changed', onTgTheme);
+      } catch (_) {}
+    };
   }, []);
 
   const createRoom = useCallback(

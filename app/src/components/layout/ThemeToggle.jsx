@@ -23,10 +23,11 @@ export default function ThemeToggle() {
       type="button"
       className="gh-theme-toggle"
       onClick={toggle}
-      aria-label={isLight ? 'Включить тёмную тему' : 'Включить светлую тему'}
-      title={isLight ? 'Тёмная тема' : 'Светлая тема'}
+      aria-label={isLight ? 'Светлая тема. Нажмите, чтобы тёмную' : 'Тёмная тема. Нажмите, чтобы светлую'}
+      title={isLight ? 'Светлая тема (нажмите — тёмная)' : 'Тёмная тема (нажмите — светлая)'}
     >
-      {isLight ? '🌙' : '☀️'}
+      {/* Иконка = текущий режим: солнце = день, луна = ночь */}
+      {isLight ? '☀️' : '🌙'}
     </button>
   );
 }

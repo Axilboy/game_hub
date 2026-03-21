@@ -12,6 +12,20 @@
   padding: 0 4px 32px;
 }
 
+/* Без translateY — иначе в WebView обрезается верх героя при gh-fade-in */
+article.gpl.gh-fade-in {
+  animation: gpl-fade-in 0.22s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes gpl-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* ——— Шпион: синий градиент + жёлтый акцент (референс) ——— */
 .gpl--spy {
   --gpl-bg1: #0a1628;
@@ -98,8 +112,8 @@
 
 .gpl__hero {
   text-align: center;
-  padding: 20px 18px 28px;
-  margin: 6px -12px 20px;
+  padding: 24px 18px 28px;
+  margin: 12px -12px 20px;
   border-radius: 0 0 var(--gpl-radius-hero) var(--gpl-radius-hero);
   background: linear-gradient(160deg, var(--gpl-bg1) 0%, var(--gpl-bg2) 55%, var(--gpl-bg3) 100%);
   box-shadow: var(--gpl-shadow);
@@ -109,6 +123,7 @@
 
 .gpl__eyebrow {
   margin: 0 0 12px;
+  padding-top: 2px;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -125,11 +140,13 @@
 
 .gpl__title {
   margin: 0 0 10px;
+  padding-top: 4px;
   font-size: clamp(26px, 6vw, 32px);
   font-weight: 800;
   letter-spacing: 0.04em;
-  line-height: 1.15;
+  line-height: 1.22;
   text-transform: uppercase;
+  overflow: visible;
 }
 
 .gpl__subtitle {
@@ -179,6 +196,7 @@ html[data-theme='light'] .gpl--truth_dare .gpl__steps .gpl__step {
 
 /* Тёмная тема сайта: чуть сильнее контраст плашек на тёмном фоне страницы */
 html[data-theme='dark'] .gpl .gpl__steps .gpl__step {
+  color: var(--gpl-hero-text);
   border-color: color-mix(in srgb, var(--gpl-pill-border) 80%, transparent);
 }
 
@@ -188,6 +206,11 @@ html[data-theme='dark'] .gpl .gpl__steps .gpl__step {
   border-radius: var(--gpl-radius-panel);
   padding: 22px 18px 20px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme='light'] .gpl .gpl__panel {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.08);
 }
 
 .gpl--truth_dare .gpl__panel {
