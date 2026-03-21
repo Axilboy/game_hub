@@ -38,6 +38,24 @@ function dictSubtitle(ids) {
   return list.map((id) => DICT_LABELS[id] || id).join(', ');
 }
 
+/** id текущего объясняющего из состава команды (как на сервере) */
+function getExplainerPlayerIdFromState(state) {
+  if (!state?.teams?.length) return null;
+  const ci = state.currentTeamIndex ?? 0;
+  const cex = state.currentExplainerIndex ?? 0;
+  const pids = state.teams[ci]?.playerIds;
+  if (!Array.isArray(pids) || pids.length === 0) return null;
+  return pids[cex % pids.length];
+}
+
+function resolveExplainerDisplayName(state, room) {
+  const pid = getExplainerPlayerIdFromState(state);
+  if (pid == null) return state?.explainerName || 'Игрок';
+  const p = room?.players?.find((x) => String(x.id) === String(pid));
+  if (p && p.name) return String(p.name).trim() || 'Игрок';
+  return state?.explainerName || 'Игрок';
+}
+
 /** Очки раунда для активной объясняющей команды (предпросмотр как на сервере) */
 function explainingTeamRoundDelta(log, currentTeamIndex, skipPenalty) {
   const p = Math.min(3, Math.max(0, Number(skipPenalty) || 0));
@@ -163,7 +181,9 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     if (!myId) return;
     const reqId = ++requestSeqRef.current;
     if (!silent) setLoading(true);
-    api.get(`/rooms/${roomId}/elias/state?playerId=${encodeURIComponent(myId)}`).then((s) => {
+    api
+      .get(`/rooms/${roomId}/elias/state?playerId=${encodeURIComponent(myId)}&_=${Date.now()}`)
+      .then((s) => {
       if (reqId !== requestSeqRef.current) return;
       setState(s);
       if (!silent) setLoading(false);
@@ -344,10 +364,18 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const myTeamName =
     myTeamIndex >= 0 && teams[myTeamIndex] ? teams[myTeamIndex].name : null;
   const roundPtsPreview = explainingTeamRoundDelta(editLog.length ? editLog : state.roundLog, explainingTeamIndex, state.skipPenalty);
+  /** Кто объясняет — считаем по составу команды + room, без «плавающего» флага с сервера */
+  const explainerPidResolved = getExplainerPlayerIdFromState(state);
+  const isMeExplainer = Boolean(
+    myId && explainerPidResolved != null && String(explainerPidResolved) === String(myId),
+  );
+  const displayExplainerName = resolveExplainerDisplayName(state, room);
+  /** Слово не показываем отгадывающим даже если в ответе осталось старое поле */
+  const wordForMe = isMeExplainer ? state.word : null;
   const canPlayActions =
-    state.isCurrentExplainer && phase === 'playing' && !awaitingStart && Boolean(state.word);
-  /** Подпись со словарями — только у текущего объясняющего */
-  const dictSub = state.isCurrentExplainer ? `(Все наборы: ${dictSubtitle(state.dictionaryIds)})` : null;
+    isMeExplainer && phase === 'playing' && !awaitingStart && Boolean(wordForMe);
+  /** Подпись со словарями — только у объясняющего */
+  const dictSub = isMeExplainer ? `(Все наборы: ${dictSubtitle(state.dictionaryIds)})` : null;
 
   const readyIds = Array.isArray(state.preRoundReadyIds) ? state.preRoundReadyIds : [];
   const mPlayers = Math.max(
@@ -422,19 +450,50 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
         <GameLayout top={null} center={false} padding={0} minHeight="calc(100dvh - 100px)" textAlign="center" bottom={null}>
         <div className="elias-round">
           <div className="elias-round__meta-card gpl__panel">
-            <p className="elias-round__meta-card-kicker">Текущий раунд</p>
-            <p className="elias-round__meta-card-main">
-              Сейчас объясняет: <strong>{state.explainerName}</strong>
-              {state.isCurrentExplainer ? (
-                <span className="elias-round__meta-you-badge"> — это вы</span>
+            <div className="elias-round__meta-card-head">
+              <div className="elias-round__meta-card-head-text">
+                <p className="elias-round__meta-card-kicker">Текущий раунд</p>
+                <p className="elias-round__meta-card-main">
+                  Сейчас объясняет: <strong>{displayExplainerName}</strong>
+                  {isMeExplainer ? (
+                    <span className="elias-round__meta-you-badge"> — это вы</span>
+                  ) : null}
+                </p>
+              </div>
+              {!awaitingStart && phase !== 'review' ? (
+                <div className="elias-round__hud-compact" title="Таймер и очки за раунд">
+                  <div className="elias-round__timer-wrap elias-round__timer-wrap--compact">
+                    {phase === 'playing' && state.roundEndsAt ? (
+                      <div
+                        className="elias-round__timer-ring elias-round__timer-ring--progress elias-round__timer-ring--sm"
+                        style={{ '--elias-timer-frac': timeFrac }}
+                      >
+                        <div className="elias-round__timer-inner elias-round__timer-inner--sm">{formatTime(timeLeft)}</div>
+                      </div>
+                    ) : (
+                      <div className="elias-round__timer-ring elias-round__timer-ring--idle elias-round__timer-ring--sm">
+                        <div className="elias-round__timer-inner elias-round__timer-inner--sm">—</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="elias-round__hud-compact-divider" aria-hidden />
+                  <div className="elias-round__score-block elias-round__score-block--compact">
+                    <span className="elias-round__score-label">Счёт</span>
+                    <span className="elias-round__score-num elias-round__score-num--compact">
+                      {state.roundStartScores && teams[explainingTeamIndex]
+                        ? (teams[explainingTeamIndex].score ?? 0) - (state.roundStartScores[explainingTeamIndex] ?? 0)
+                        : 0}
+                    </span>
+                  </div>
+                </div>
               ) : null}
-            </p>
+            </div>
             <p className="elias-round__meta-card-sub">Ход команды «{explainingTeamName}»</p>
             <p className="elias-round__meta-card-role">
-              {state.isCurrentExplainer
+              {isMeExplainer
                 ? 'Вы показываете слова команде (свайп да/нет).'
                 : state.isExplainer
-                  ? 'Вы отгадываете по подсказкам — слово на экране только у объясняющего.'
+                  ? 'Вы отгадываете по подсказкам — слова на экране нет, только таймер и счёт.'
                   : 'Вы в другой команде; слово видят только соперники в ходе их раунда.'}
             </p>
             {myTeamName ? (
@@ -460,7 +519,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                         </span>
                       ) : null}
                     </span>
-                    {state.isCurrentExplainer ? (
+                    {isMeExplainer ? (
                       <div className="elias-round__review-toggles">
                         <button
                           type="button"
@@ -492,7 +551,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                   <span>Набрано очков (ваша команда)</span>
                   <span>{roundPtsPreview}</span>
                 </div>
-                {state.isCurrentExplainer ? (
+                {isMeExplainer ? (
                   <button
                     type="button"
                     className="elias-round__start-btn"
@@ -510,36 +569,6 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
             </div>
           ) : (
             <>
-              {!awaitingStart ? (
-                <div className="elias-round__hud" title="Таймер и очки за раунд">
-                  <div className="elias-round__hud-glass">
-                    <div className="elias-round__timer-wrap">
-                      {phase === 'playing' && state.roundEndsAt ? (
-                        <div
-                          className="elias-round__timer-ring elias-round__timer-ring--progress"
-                          style={{ '--elias-timer-frac': timeFrac }}
-                        >
-                          <div className="elias-round__timer-inner">{formatTime(timeLeft)}</div>
-                        </div>
-                      ) : (
-                        <div className="elias-round__timer-ring elias-round__timer-ring--idle">
-                          <div className="elias-round__timer-inner">—</div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="elias-round__hud-divider" aria-hidden />
-                    <div className="elias-round__score-block">
-                      <span className="elias-round__score-label">Счёт</span>
-                      <span className="elias-round__score-num">
-                        {state.roundStartScores && teams[explainingTeamIndex]
-                          ? (teams[explainingTeamIndex].score ?? 0) - (state.roundStartScores[explainingTeamIndex] ?? 0)
-                          : 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
               <Modal
                 open={awaitingStart}
                 onClose={() => {}}
@@ -553,7 +582,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                     <>
                       <p className="elias-round__ready-modal-text">
                         Раунд начнётся, когда все игроки в комнате нажмут «Готов». Слово и таймер появятся у текущего объясняющего (
-                        <strong>{state.explainerName}</strong>).
+                        <strong>{displayExplainerName}</strong>).
                       </p>
                       <button type="button" className="elias-round__start-btn" onClick={readyPreRound}>
                         Готов
@@ -569,46 +598,50 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                 </div>
               </Modal>
 
-              {phase === 'last_word' && state.word && (
+              {phase === 'last_word' && (
                 <div className="gpl__panel" style={{ marginBottom: 12 }}>
                   <p className="elias-round__last-word-title">Кто отгадал последнее слово?</p>
-                  <div className="elias-round__card-wrap">
-                    <div className="elias-round__card-stack">
-                      <div className="elias-round__card-shadow" aria-hidden />
-                      <div className="elias-round__card" style={{ transform: 'none' }}>
-                        <p className="elias-round__word">{state.word}</p>
-                        {dictSub ? <p className="elias-round__sub">({dictSub})</p> : null}
-                      </div>
-                    </div>
-                  </div>
-                  {state.isCurrentExplainer ? (
-                    <div className="elias-round__team-grid" style={{ marginTop: 12 }}>
-                      {teams.map((t, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="elias-round__team-btn"
-                          onClick={() => lastWordAssign(i)}
-                        >
-                          {t.name}
-                        </button>
-                      ))}
-                      <button type="button" className="elias-round__team-btn elias-round__team-btn--muted" onClick={() => lastWordAssign(-1)}>
-                        Никто
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="elias-round__phase-card-hint" style={{ marginTop: 16, marginBottom: 0, textAlign: 'center' }}>
-                      Последнее слово отмечает только объясняющий ({state.explainerName}).
+                  {!isMeExplainer ? (
+                    <p className="elias-round__phase-card-hint" style={{ marginTop: 8, marginBottom: 0, textAlign: 'center' }}>
+                      Слово и выбор команды — только у объясняющего (<strong>{displayExplainerName}</strong>). Ожидайте.
                     </p>
+                  ) : (
+                    <>
+                      {wordForMe ? (
+                        <div className="elias-round__card-wrap elias-round__card-wrap--static">
+                          <div className="elias-round__card-stack">
+                            <div className="elias-round__card-shadow" aria-hidden />
+                            <div className="elias-round__card" style={{ transform: 'none' }}>
+                              <p className="elias-round__word">{wordForMe}</p>
+                              {dictSub ? <p className="elias-round__sub">({dictSub})</p> : null}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      <div className="elias-round__team-grid" style={{ marginTop: 12 }}>
+                        {teams.map((t, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            className="elias-round__team-btn"
+                            onClick={() => lastWordAssign(i)}
+                          >
+                            {t.name}
+                          </button>
+                        ))}
+                        <button type="button" className="elias-round__team-btn elias-round__team-btn--muted" onClick={() => lastWordAssign(-1)}>
+                          Никто
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
 
-              {phase === 'playing' && !awaitingStart && state.word && state.isCurrentExplainer && (
+              {phase === 'playing' && !awaitingStart && wordForMe && isMeExplainer && (
                 <div className="elias-round__play-column">
                   <EliasSwipeCard
-                    word={state.word}
+                    word={wordForMe}
                     subtitle={dictSub}
                     disabled={!canPlayActions}
                     onYes={guessed}
@@ -628,12 +661,12 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                 </div>
               )}
 
-              {phase === 'playing' && !awaitingStart && state.word && state.isExplainer && !state.isCurrentExplainer && (
+              {phase === 'playing' && !awaitingStart && state.isExplainer && !isMeExplainer && (
                 <div className="elias-round__phase-stack">
                   <div className="gpl__panel elias-round__phase-card elias-round__phase-card--wait">
                     <p className="elias-round__phase-card-kicker">Ваша команда ходит</p>
                     <p className="elias-round__phase-card-text">
-                      Сейчас объясняет <strong>{state.explainerName}</strong>. Слово и кнопки «да/нет» видны только ему — слушайте подсказки и отгадывайте вслух.
+                      Объясняет <strong>{displayExplainerName}</strong>. Слова на экране нет — только у него. Слушайте подсказки и отгадывайте вслух.
                     </p>
                   </div>
                 </div>

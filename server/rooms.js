@@ -1515,6 +1515,8 @@ export async function roomRoutes(fastify) {
   });
 
   fastify.get('/rooms/:roomId/elias/state', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    reply.header('Pragma', 'no-cache');
     const { roomId } = request.params;
     const playerId = request.query?.playerId;
     if (!playerId) return reply.code(400).send({ error: 'playerId required' });
@@ -1532,10 +1534,12 @@ export async function roomRoutes(fastify) {
     const playerStats = gs.playerStats && typeof gs.playerStats === 'object' ? gs.playerStats : {};
     const mvp = playersToMvp(playerStats, room.players);
     const roundPhase = gs.roundPhase || null;
-    const showWordToAll = roundPhase === 'last_word' || roundPhase === 'review';
     let wordForClient = null;
-    if (showWordToAll && gs.currentWord) {
-      wordForClient = gs.currentWord;
+    if (roundPhase === 'review') {
+      wordForClient = null;
+    } else if (roundPhase === 'last_word' && gs.currentWord) {
+      wordForClient =
+        explainerId != null && String(playerId) === String(explainerId) ? gs.currentWord : null;
     } else if (
       explainerId != null &&
       String(playerId) === String(explainerId) &&
