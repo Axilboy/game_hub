@@ -9,8 +9,8 @@ import { showAdIfNeeded } from '../ads';
 import { track } from '../analytics';
 import { buildInviteLinks, shareInviteSmart } from '../invite';
 import Modal from '../components/ui/Modal';
-import Button from '../components/ui/Button';
 import PageLayout from '../components/layout/PageLayout';
+import './homePage.css';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import HomeLandingCarousel from '../components/HomeLandingCarousel';
 
@@ -299,357 +299,368 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
 
   return (
     <PageLayout onBack={() => window.history.back()} right={<AppHeaderRight user={user} />}>
-      <HomeLandingCarousel />
+      <div className="home-page">
+        <HomeLandingCarousel />
 
-      {showAvatarPicker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 12 }}>Выберите аватар</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 16 }}>
-              {AVATAR_EMOJI_LIST.map((emoji) => (
-                <button key={emoji} type="button" onClick={() => pickAvatar(emoji)} style={{ fontSize: 28, padding: 8, background: avatarState === emoji ? 'rgba(90,160,90,0.4)' : 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                  {emoji}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="gh-btn gh-btn--muted gh-btn--mb" onClick={() => pickAvatar('')}>Фото из Telegram</button>
-            <button type="button" className="gh-btn gh-btn--block" onClick={() => setShowAvatarPicker(false)}>Закрыть</button>
-          </div>
-        </div>
-      )}
-
-      {error && <p role="alert" aria-live="assertive" style={{ color: '#f88' }}>{error}</p>}
-      {inviteIssue && (
-        <section className="gh-card gh-fade-in" style={{ marginBottom: 14, padding: 12, border: '1px solid rgba(255,120,120,0.35)' }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Приглашение больше не работает</div>
-          <p style={{ fontSize: 13, opacity: 0.9, margin: '0 0 10px', lineHeight: 1.4 }}>
-            Комната могла закрыться или ссылка устарела. Быстрые варианты:
+        <section className="home-page__intro" aria-label="О GameHub">
+          <p className="home-page__eyebrow">Комната для друзей</p>
+          <p className="home-page__tagline">
+            Создайте комнату, зовите по коду или ссылке — затем выберите игру в лобби.
           </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="gh-btn gh-btn--muted"
-              onClick={() => {
-                codeInputRef.current?.focus();
-                setInviteIssue(false);
-                track('invite_fallback_cta', { action: 'focus_code' });
-              }}
-            >
-              Ввести код
-            </button>
-            <button
-              type="button"
-              className="gh-btn"
-              onClick={async () => {
-                track('invite_fallback_cta', { action: 'create_room' });
-                await handleCreate();
-              }}
-              disabled={loading}
-            >
-              Начать игру
-            </button>
-            {hasRematchRoom && (
+        </section>
+
+        {showAvatarPicker && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+            <div className="home-modal">
+              <p className="home-panel__title" style={{ marginBottom: 12 }}>Выберите аватар</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 16 }}>
+                {AVATAR_EMOJI_LIST.map((emoji) => (
+                  <button key={emoji} type="button" onClick={() => pickAvatar(emoji)} style={{ fontSize: 28, padding: 8, background: avatarState === emoji ? 'rgba(34,197,94,0.35)' : 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="home-btn home-btn--ghost home-btn--mb" onClick={() => pickAvatar('')}>Фото из Telegram</button>
+              <button type="button" className="home-btn home-btn--primary" onClick={() => setShowAvatarPicker(false)}>Закрыть</button>
+            </div>
+          </div>
+        )}
+
+        {error && <p role="alert" aria-live="assertive" style={{ color: '#f87171', marginBottom: 12 }}>{error}</p>}
+        {inviteIssue && (
+          <section className="home-alert gh-fade-in">
+            <div className="home-alert__title">Приглашение больше не работает</div>
+            <p className="home-alert__text">
+              Комната могла закрыться или ссылка устарела. Быстрые варианты:
+            </p>
+            <div className="home-alert__row">
               <button
                 type="button"
-                className="gh-btn gh-btn--muted"
-                onClick={handleRematchRejoin}
-                disabled={loading}
-              >
-                Рематч
-              </button>
-            )}
-          </div>
-        </section>
-      )}
-      <section style={{ marginBottom: 12 }}>
-        {hasLastRoom && (
-          <button
-            type="button"
-            className="gh-btn gh-btn--block gh-btn--muted"
-            onClick={handleResumeRoom}
-            disabled={loading}
-            style={{ marginBottom: 8 }}
-          >
-            Вернуться в игру
-          </button>
-        )}
-        <button
-          type="button"
-          className="gh-btn gh-btn--block"
-          onClick={handleCreate}
-          disabled={loading}
-          aria-label="Начать игру и создать комнату"
-        >
-          Начать игру
-        </button>
-      </section>
-
-      <section className="gh-card" style={{ marginBottom: 16, padding: 12 }}>
-        <p style={{ marginBottom: 8 }}>Войти по коду</p>
-        {showAdminPassword ? (
-          <form onSubmit={handleAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input
-              type="password"
-              className="gh-input gh-input--full"
-              placeholder="Пароль"
-              value={adminPassword}
-              onChange={(e) => { setAdminPassword(e.target.value); setError(''); }}
-            />
-            <button type="submit" className="gh-btn gh-btn--block">Войти в админку</button>
-            <button type="button" className="gh-btn gh-btn--block gh-btn--muted" onClick={() => { setShowAdminPassword(false); setAdminPassword(''); setError(''); }}>Отмена</button>
-          </form>
-        ) : (
-          <form onSubmit={handleJoinByCode} style={{ display: 'flex', gap: 8 }}>
-            <input
-              ref={codeInputRef}
-              type="text"
-              className="gh-input gh-input--grow"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              aria-label="Код комнаты из 6 цифр"
-            />
-            <button type="submit" className="gh-btn" disabled={loading}>
-              Войти
-            </button>
-          </form>
-        )}
-      </section>
-
-      {hasRematchRoom && (
-        <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Быстрый рематч</div>
-          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px', lineHeight: 1.4 }}>
-            Последний матч завершился. Вернитесь в лобби одним нажатием.
-          </p>
-          <Button variant="primary" fullWidth onClick={handleRematchRejoin} disabled={loading}>
-            Вернуться на рематч
-          </Button>
-        </section>
-      )}
-
-      {(miniAppLink || webInviteLink) && (
-        <section className="gh-card" style={{ marginBottom: 16, padding: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Пригласить друзей</div>
-          <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 10px' }}>Ссылка на текущее приглашение (после создания комнаты).</p>
-          <Button variant="secondary" fullWidth onClick={copyInviteHint}>
-            Поделиться ссылкой
-          </Button>
-        </section>
-      )}
-
-      <section className="gh-card gh-fade-in" style={{ marginBottom: 16, padding: 14 }}>
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Сценарий за 30 секунд</div>
-        <ol style={{ margin: '0 0 12px', paddingLeft: 18, lineHeight: 1.5, fontSize: 13, opacity: 0.92 }}>
-          <li>Нажмите «Начать игру».</li>
-          <li>Отправьте ссылку в чат (кнопка «Поделиться»).</li>
-          <li>Выберите игру и нажмите «Начать».</li>
-        </ol>
-      </section>
-
-      <section style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          className="gh-btn gh-btn--block gh-btn--muted"
-          onClick={() => {
-            dismissThanks();
-            setShowFeedback(true);
-            setFeedbackDone(false);
-          }}
-          disabled={loading}
-        >
-          Обратная связь
-        </button>
-      </section>
-
-      <section className="gh-card" style={{ display: 'flex', gap: 8, marginBottom: 16, padding: 10 }}>
-        <button type="button" className="gh-btn gh-btn--flex gh-btn--green" onClick={() => { track('paywall_open', { source: 'home' }); setShowSubStub(true); }}>
-          Купить подписку
-        </button>
-        <button type="button" className="gh-btn gh-btn--flex gh-btn--purple" onClick={() => setShowShopStub(true)}>
-          Магазин
-        </button>
-      </section>
-
-      {showSubStub && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
-          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
-            <p style={{ marginBottom: 16 }}>Премиум убирает рекламу перед стартом, открывает премиальные словари и режимы (например, расширенную Мафию) для <strong>всех</strong> в вашей комнате на время сессии.</p>
-            <ul style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18, fontSize: 13, opacity: 0.92, lineHeight: 1.45 }}>
-              <li>Без рекламы перед стартом.</li>
-              <li>Премиальные словари и режимы.</li>
-              <li>Ценность на всю комнату в текущей сессии.</li>
-            </ul>
-            <button
-              type="button"
-              className="gh-btn gh-btn--block gh-btn--green gh-btn--mb"
-              onClick={() => {
-                setPro(Date.now() + 30 * 24 * 3600 * 1000);
-                track('paywall_buy_click', { source: 'home', plan: 'pro_30d' });
-                setInv(getInventory());
-                setShowSubStub(false);
-              }}
-            >
-              Купить подписку
-            </button>
-            <button
-              type="button"
-              className="gh-btn gh-btn--block gh-btn--charcoal gh-btn--mb"
-              onClick={() => {
-                const started = startTrialUnlock();
-                if (!started.ok) {
-                  setPromoError('Пробный период уже активировался недавно. Попробуйте позже.');
-                  track('paywall_trial_rejected', { source: 'home' });
-                  return;
-                }
-                track('paywall_trial_unlock', { source: 'home', hours: 24 });
-                setInv(started.inv || getInventory());
-                setShowSubStub(false);
-              }}
-              disabled={!canStartTrial()}
-            >
-              Пробный unlock на 24ч
-            </button>
-            <button
-              type="button"
-              className="gh-btn gh-btn--block gh-btn--charcoal gh-btn--mb"
-              onClick={async () => {
-                const t = 'Промокод GameHub — спроси у друзей или у хоста!';
-                try {
-                  await navigator.clipboard.writeText(t);
-                } catch (_) {
-                  setError('Не удалось скопировать');
-                }
-              }}
-            >
-              Текст для друга (копировать)
-            </button>
-            <p style={{ marginBottom: 6 }}>Промокод</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input type="text" className="gh-input gh-input--grow" placeholder="Введите промокод" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }} />
-              <button type="button" className="gh-btn gh-btn--inline" onClick={applyPromoCode}>Применить</button>
-            </div>
-            {promoError && <p style={{ color: '#f88', fontSize: 14, marginBottom: 12 }}>{promoError}</p>}
-            <p style={{ marginBottom: 6 }}>Реферальный код друга</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                className="gh-input gh-input--grow"
-                placeholder="GH-XXXXX"
-                value={referralCode}
-                onChange={(e) => { setReferralCode(e.target.value); setPromoError(''); }}
-              />
-              <button
-                type="button"
-                className="gh-btn gh-btn--inline"
+                className="home-btn home-btn--secondary home-btn--inline"
                 onClick={() => {
-                  const r = redeemReferralCode(referralCode);
-                  if (!r.ok) {
-                    setPromoError(r.reason === 'self' ? 'Нельзя ввести собственный код' : 'Код не принят');
-                    track('paywall_referral_fail', { source: 'home', reason: r.reason || 'unknown' });
-                    return;
-                  }
-                  setReferralCode('');
-                  setPromoError('');
-                  setInv(getInventory());
-                  track('paywall_referral_success', { source: 'home' });
+                  codeInputRef.current?.focus();
+                  setInviteIssue(false);
+                  track('invite_fallback_cta', { action: 'focus_code' });
                 }}
               >
-                Активировать
+                Ввести код
               </button>
+              <button
+                type="button"
+                className="home-btn home-btn--primary home-btn--inline"
+                onClick={async () => {
+                  track('invite_fallback_cta', { action: 'create_room' });
+                  await handleCreate();
+                }}
+                disabled={loading}
+              >
+                Начать игру
+              </button>
+              {hasRematchRoom && (
+                <button
+                  type="button"
+                  className="home-btn home-btn--secondary home-btn--inline"
+                  onClick={handleRematchRejoin}
+                  disabled={loading}
+                >
+                  Рематч
+                </button>
+              )}
             </div>
-            <p style={{ margin: '0 0 12px', fontSize: 12, opacity: 0.82 }}>
-              Ваш код: <strong>{myReferralCode}</strong> (бонус +12ч Премиум для друга)
-            </p>
+          </section>
+        )}
+
+        <div className="home-ctas">
+          {hasLastRoom && (
             <button
               type="button"
-              className="gh-btn gh-btn--block gh-btn--muted gh-btn--mb"
-              onClick={() => {
-                track('paywall_restore_click', { source: 'home' });
-                setInv(getInventory());
-              }}
+              className="home-btn home-btn--ghost"
+              onClick={handleResumeRoom}
+              disabled={loading}
             >
-              Восстановить покупки
+              Вернуться в игру
             </button>
-            <button type="button" className="gh-btn gh-btn--block" onClick={() => setShowSubStub(false)}>Закрыть</button>
-          </div>
+          )}
+          <button
+            type="button"
+            className="home-btn home-btn--primary"
+            onClick={handleCreate}
+            disabled={loading}
+            aria-label="Начать игру и создать комнату"
+          >
+            Начать игру
+          </button>
         </div>
-      )}
-      <ShopModal open={showShopStub} onClose={() => setShowShopStub(false)} initialGameFilter="all" />
 
-      <section className="gh-card" style={{ marginTop: 16, padding: 14 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Поддержать проект</div>
-        <p style={{ fontSize: 13, opacity: 0.88, margin: '0 0 12px', lineHeight: 1.45 }}>
-          Реклама запускается по требованию. Перед игрой показ может быть чаще — это настраивается площадкой, не чаще нескольких раз подряд без паузы.
-        </p>
-        <Button variant="primary" fullWidth onClick={handleShowAd} disabled={adLoading}>
-          {adLoading ? 'Загрузка…' : 'Показать рекламу'}
-        </Button>
-      </section>
+        <section className="home-panel">
+          <p className="home-panel__title">Войти по коду</p>
+          {showAdminPassword ? (
+            <form onSubmit={handleAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                type="password"
+                className="gh-input gh-input--full"
+                placeholder="Пароль"
+                value={adminPassword}
+                onChange={(e) => { setAdminPassword(e.target.value); setError(''); }}
+              />
+              <button type="submit" className="home-btn home-btn--primary">Войти в админку</button>
+              <button type="button" className="home-btn home-btn--secondary" onClick={() => { setShowAdminPassword(false); setAdminPassword(''); setError(''); }}>Отмена</button>
+            </form>
+          ) : (
+            <form onSubmit={handleJoinByCode} className="home-form-row">
+              <input
+                ref={codeInputRef}
+                type="text"
+                className="gh-input gh-input--grow"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                aria-label="Код комнаты из 6 цифр"
+              />
+              <button type="submit" className="home-btn home-btn--primary home-btn--inline" disabled={loading}>
+                Войти
+              </button>
+            </form>
+          )}
+        </section>
 
-      <Modal
-        open={showThanks}
-        onClose={dismissThanks}
-        title="Спасибо!"
-        width={360}
-      >
-        <p style={{ marginBottom: 12, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
-          Спасибо за поддержку и тестирование. У вас включён <strong>Премиум</strong>, чтобы можно было попробовать все режимы бесплатно.
-          Будем благодарны, если поделитесь проектом с друзьями и напишете отзыв через «Обратная связь».
-        </p>
-        <Button variant="primary" fullWidth onClick={dismissThanks}>
-          Обязательно
-        </Button>
-      </Modal>
-
-      <Modal
-        open={showFeedback}
-        onClose={() => setShowFeedback(false)}
-        title="Обратная связь"
-        width={400}
-      >
-        <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
-          Идеи, баги, пожелания — всё сюда. Сообщения сохраняются на сервере для команды проекта.
-        </p>
-        {feedbackDone ? (
-          <p style={{ color: '#8c8', fontSize: 14 }}>Спасибо! Сообщение отправлено.</p>
-        ) : (
-          <>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
-              Сообщение
-            </label>
-            <textarea
-              className="gh-input gh-input--full"
-              rows={5}
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder="Например: не хватает кнопки… или нашёл ошибку в…"
-              style={{ resize: 'vertical', minHeight: 100, marginBottom: 12 }}
-            />
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
-              Контакт (необязательно)
-            </label>
-            <input
-              type="text"
-              className="gh-input gh-input--full"
-              value={feedbackContact}
-              onChange={(e) => setFeedbackContact(e.target.value)}
-              placeholder="@username или email"
-              style={{ marginBottom: 12 }}
-            />
-            <Button variant="primary" fullWidth onClick={submitFeedback} disabled={feedbackSending}>
-              {feedbackSending ? 'Отправка…' : 'Отправить'}
-            </Button>
-          </>
+        {hasRematchRoom && (
+          <section className="home-panel gh-fade-in">
+            <div className="home-panel__title">Быстрый рематч</div>
+            <p className="home-panel__text" style={{ marginBottom: 12 }}>
+              Последний матч завершился. Вернитесь в лобби одним нажатием.
+            </p>
+            <button type="button" className="home-btn home-btn--primary" onClick={handleRematchRejoin} disabled={loading}>
+              Вернуться на рематч
+            </button>
+          </section>
         )}
-        <div style={{ marginTop: 12 }}>
-          <Button variant="secondary" fullWidth onClick={() => setShowFeedback(false)}>
-            {feedbackDone ? 'Закрыть' : 'Отмена'}
-          </Button>
-        </div>
-      </Modal>
+
+        {(miniAppLink || webInviteLink) && (
+          <section className="home-panel">
+            <div className="home-panel__title">Пригласить друзей</div>
+            <p className="home-panel__text">Ссылка на текущее приглашение (после создания комнаты).</p>
+            <button type="button" className="home-btn home-btn--secondary" onClick={copyInviteHint}>
+              Поделиться ссылкой
+            </button>
+          </section>
+        )}
+
+        <section className="home-panel gh-fade-in">
+          <div className="home-panel__title">Сценарий за 30 секунд</div>
+          <ul className="home-steps">
+            <li className="home-step">Нажмите «Начать игру»</li>
+            <li className="home-step">Отправьте ссылку в чат («Поделиться»)</li>
+            <li className="home-step">Выберите игру в лобби и нажмите «Начать»</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className="home-btn home-btn--ghost"
+            onClick={() => {
+              dismissThanks();
+              setShowFeedback(true);
+              setFeedbackDone(false);
+            }}
+            disabled={loading}
+          >
+            Обратная связь
+          </button>
+        </section>
+
+        <section className="home-panel home-row" style={{ padding: 14 }}>
+          <button type="button" className="home-btn home-btn--flex home-btn--green" onClick={() => { track('paywall_open', { source: 'home' }); setShowSubStub(true); }}>
+            Купить подписку
+          </button>
+          <button type="button" className="home-btn home-btn--flex home-btn--purple" onClick={() => setShowShopStub(true)}>
+            Магазин
+          </button>
+        </section>
+
+        {showSubStub && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
+            <div className="home-modal">
+              <p style={{ marginBottom: 16, lineHeight: 1.5, fontSize: 14 }}>Премиум убирает рекламу перед стартом, открывает премиальные словари и режимы (например, расширенную Мафию) для <strong>всех</strong> в вашей комнате на время сессии.</p>
+              <ul style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18, fontSize: 13, opacity: 0.92, lineHeight: 1.45 }}>
+                <li>Без рекламы перед стартом.</li>
+                <li>Премиальные словари и режимы.</li>
+                <li>Ценность на всю комнату в текущей сессии.</li>
+              </ul>
+              <button
+                type="button"
+                className="home-btn home-btn--green home-btn--mb"
+                onClick={() => {
+                  setPro(Date.now() + 30 * 24 * 3600 * 1000);
+                  track('paywall_buy_click', { source: 'home', plan: 'pro_30d' });
+                  setInv(getInventory());
+                  setShowSubStub(false);
+                }}
+              >
+                Купить подписку
+              </button>
+              <button
+                type="button"
+                className="home-btn home-btn--ghost home-btn--mb"
+                onClick={() => {
+                  const started = startTrialUnlock();
+                  if (!started.ok) {
+                    setPromoError('Пробный период уже активировался недавно. Попробуйте позже.');
+                    track('paywall_trial_rejected', { source: 'home' });
+                    return;
+                  }
+                  track('paywall_trial_unlock', { source: 'home', hours: 24 });
+                  setInv(started.inv || getInventory());
+                  setShowSubStub(false);
+                }}
+                disabled={!canStartTrial()}
+              >
+                Пробный unlock на 24ч
+              </button>
+              <button
+                type="button"
+                className="home-btn home-btn--ghost home-btn--mb"
+                onClick={async () => {
+                  const t = 'Промокод GameHub — спроси у друзей или у хоста!';
+                  try {
+                    await navigator.clipboard.writeText(t);
+                  } catch (_) {
+                    setError('Не удалось скопировать');
+                  }
+                }}
+              >
+                Текст для друга (копировать)
+              </button>
+              <p style={{ marginBottom: 6, fontSize: 14, fontWeight: 600 }}>Промокод</p>
+              <div className="home-form-row" style={{ marginBottom: 12 }}>
+                <input type="text" className="gh-input gh-input--grow" placeholder="Введите промокод" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }} />
+                <button type="button" className="home-btn home-btn--primary home-btn--inline" onClick={applyPromoCode}>Применить</button>
+              </div>
+              {promoError && <p style={{ color: '#f87171', fontSize: 14, marginBottom: 12 }}>{promoError}</p>}
+              <p style={{ marginBottom: 6, fontSize: 14, fontWeight: 600 }}>Реферальный код друга</p>
+              <div className="home-form-row" style={{ marginBottom: 12 }}>
+                <input
+                  type="text"
+                  className="gh-input gh-input--grow"
+                  placeholder="GH-XXXXX"
+                  value={referralCode}
+                  onChange={(e) => { setReferralCode(e.target.value); setPromoError(''); }}
+                />
+                <button
+                  type="button"
+                  className="home-btn home-btn--primary home-btn--inline"
+                  onClick={() => {
+                    const r = redeemReferralCode(referralCode);
+                    if (!r.ok) {
+                      setPromoError(r.reason === 'self' ? 'Нельзя ввести собственный код' : 'Код не принят');
+                      track('paywall_referral_fail', { source: 'home', reason: r.reason || 'unknown' });
+                      return;
+                    }
+                    setReferralCode('');
+                    setPromoError('');
+                    setInv(getInventory());
+                    track('paywall_referral_success', { source: 'home' });
+                  }}
+                >
+                  Активировать
+                </button>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: 12, opacity: 0.82 }}>
+                Ваш код: <strong>{myReferralCode}</strong> (бонус +12ч Премиум для друга)
+              </p>
+              <button
+                type="button"
+                className="home-btn home-btn--secondary home-btn--mb"
+                onClick={() => {
+                  track('paywall_restore_click', { source: 'home' });
+                  setInv(getInventory());
+                }}
+              >
+                Восстановить покупки
+              </button>
+              <button type="button" className="home-btn home-btn--primary" onClick={() => setShowSubStub(false)}>Закрыть</button>
+            </div>
+          </div>
+        )}
+        <ShopModal open={showShopStub} onClose={() => setShowShopStub(false)} initialGameFilter="all" />
+
+        <section className="home-panel" style={{ marginTop: 8 }}>
+          <div className="home-panel__title">Поддержать проект</div>
+          <p className="home-panel__text">
+            Реклама запускается по требованию. Перед игрой показ может быть чаще — это настраивается площадкой, не чаще нескольких раз подряд без паузы.
+          </p>
+          <button type="button" className="home-btn home-btn--primary" onClick={handleShowAd} disabled={adLoading}>
+            {adLoading ? 'Загрузка…' : 'Показать рекламу'}
+          </button>
+        </section>
+
+        <Modal
+          open={showThanks}
+          onClose={dismissThanks}
+          title="Спасибо!"
+          width={360}
+        >
+          <p style={{ marginBottom: 12, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
+            Спасибо за поддержку и тестирование. У вас включён <strong>Премиум</strong>, чтобы можно было попробовать все режимы бесплатно.
+            Будем благодарны, если поделитесь проектом с друзьями и напишете отзыв через «Обратная связь».
+          </p>
+          <button type="button" className="home-btn home-btn--primary" onClick={dismissThanks}>
+            Обязательно
+          </button>
+        </Modal>
+
+        <Modal
+          open={showFeedback}
+          onClose={() => setShowFeedback(false)}
+          title="Обратная связь"
+          width={400}
+        >
+          <>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+              Идеи, баги, пожелания — всё сюда. Сообщения сохраняются на сервере для команды проекта.
+            </p>
+            {feedbackDone ? (
+              <p style={{ color: '#22c55e', fontSize: 14 }}>Спасибо! Сообщение отправлено.</p>
+            ) : (
+              <>
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+                  Сообщение
+                </label>
+                <textarea
+                  className="gh-input gh-input--full"
+                  rows={5}
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Например: не хватает кнопки… или нашёл ошибку в…"
+                  style={{ resize: 'vertical', minHeight: 100, marginBottom: 12 }}
+                />
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+                  Контакт (необязательно)
+                </label>
+                <input
+                  type="text"
+                  className="gh-input gh-input--full"
+                  value={feedbackContact}
+                  onChange={(e) => setFeedbackContact(e.target.value)}
+                  placeholder="@username или email"
+                  style={{ marginBottom: 12 }}
+                />
+                <button type="button" className="home-btn home-btn--primary home-btn--mb" onClick={submitFeedback} disabled={feedbackSending}>
+                  {feedbackSending ? 'Отправка…' : 'Отправить'}
+                </button>
+              </>
+            )}
+            <div style={{ marginTop: 12 }}>
+              <button type="button" className="home-btn home-btn--secondary" onClick={() => setShowFeedback(false)}>
+                {feedbackDone ? 'Закрыть' : 'Отмена'}
+              </button>
+            </div>
+          </>
+        </Modal>
+      </div>
     </PageLayout>
   );
 }
