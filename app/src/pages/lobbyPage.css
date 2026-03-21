@@ -48,7 +48,7 @@
   gap: 10px;
 }
 
-/* Код комнаты — только отображение (копирование через «Поделиться» / ссылку) */
+/* Код комнаты — по клику копируется в буфер */
 .lobby-code-display {
   flex: 1;
   min-width: 140px;
@@ -63,6 +63,24 @@
   background: color-mix(in srgb, var(--tg-theme-bg-color, #1a1a2e) 88%, var(--tg-theme-button-color, #3a7bd5) 12%);
   color: inherit;
   text-align: left;
+}
+
+.lobby-code-display--clickable {
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+  max-width: 100%;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.lobby-code-display--clickable:hover {
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 22%, transparent);
+  border-color: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 45%, transparent);
+}
+
+.lobby-code-display--clickable:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 80%, transparent);
+  outline-offset: 2px;
 }
 
 .lobby-code-display__label {
@@ -157,6 +175,19 @@
 
 .lobby-player-card:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 70%, transparent);
+}
+
+.lobby-player-offline-countdown {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0.92;
+  color: color-mix(in srgb, var(--tg-theme-destructive-text-color, #e85) 85%, var(--tg-theme-text-color, #fff) 15%);
+}
+
+.lobby-player-offline-countdown__sec {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
 }
 
 /* Секции */

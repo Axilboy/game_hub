@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
@@ -113,6 +113,9 @@ const LOBBY_GAMES = [
 
 const EMPTY_GAME_SETTINGS_TABS = [];
 
+/** Через сколько мс после ухода в офлайн хост автоматически исключает игрока */
+const OFFLINE_KICK_MS = 30_000;
+
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -147,6 +150,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   /** Выбранный в списке участников игрок (меню: хост / кик / друзья) */
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
+  /** playerId → Date.now() при первом обнаружении offline (сброс при online) */
+  const [offlineSince, setOfflineSince] = useState(() => ({}));
+  /** Тик раз в секунду — обратный отсчёт на карточке офлайн-игрока */
+  const [, setOfflineTick] = useState(0);
+  const offlineKickInProgressRef = useRef(new Set());
 
   const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
@@ -227,6 +235,25 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     setAllSpiesChanceEnabled(!!room?.gameSettings?.allSpiesChanceEnabled);
     setDictionaryIds(room?.gameSettings?.dictionaryIds ?? ['free']);
   }, [room?.gameSettings]);
+
+  useEffect(() => {
+    const players = room?.players || [];
+    setOfflineSince((prev) => {
+      const next = { ...prev };
+      const ids = new Set(players.map((p) => p.id));
+      Object.keys(next).forEach((id) => {
+        if (!ids.has(id)) delete next[id];
+      });
+      for (const p of players) {
+        if (p.online === false) {
+          if (next[p.id] == null) next[p.id] = Date.now();
+        } else {
+          delete next[p.id];
+        }
+      }
+      return next;
+    });
+  }, [room?.players]);
 
   useEffect(() => {
     const local = getCustomDictionaries();
@@ -549,17 +576,64 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
-  const kickPlayer = async (playerIdToKick) => {
+  const kickPlayer = useCallback(
+    async (playerIdToKick) => {
+      try {
+        await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick });
+        showToast({ type: 'success', message: 'Игрок исключён' });
+        setPlayerMenuPlayer((m) => (m?.id === playerIdToKick ? null : m));
+        const { room: r } = await api.get(`/rooms/${roomId}`);
+        onRoomUpdate(r);
+      } catch (e) {
+        showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось исключить игрока') });
+      }
+    },
+    [roomId, user?.id, onRoomUpdate, showToast],
+  );
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setOfflineTick((n) => n + 1);
+      if (!isHost) return;
+      const now = Date.now();
+      const players = room?.players || [];
+      for (const p of players) {
+        if (p.online !== false || p.isHost) continue;
+        if (p.id === String(user?.id)) continue;
+        const start = offlineSince[p.id];
+        if (start == null || now - start < OFFLINE_KICK_MS) continue;
+        if (offlineKickInProgressRef.current.has(p.id)) continue;
+        offlineKickInProgressRef.current.add(p.id);
+        kickPlayer(p.id).finally(() => {
+          offlineKickInProgressRef.current.delete(p.id);
+        });
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [isHost, room?.players, offlineSince, user?.id, kickPlayer]);
+
+  const copyRoomCode = useCallback(async () => {
+    const code = room?.code != null ? String(room.code) : '';
+    if (!code) return;
     try {
-      await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick });
-      showToast({ type: 'success', message: 'Игрок исключён' });
-      setPlayerMenuPlayer(null);
-      const { room: r } = await api.get(`/rooms/${roomId}`);
-      onRoomUpdate(r);
-    } catch (e) {
-      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось исключить игрока') });
+      await navigator.clipboard.writeText(code);
+      showToast({ type: 'success', message: 'Код скопирован в буфер обмена' });
+    } catch (_) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = code;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast({ type: 'success', message: 'Код скопирован' });
+      } catch (__) {
+        showToast({ type: 'error', message: 'Не удалось скопировать код' });
+      }
     }
-  };
+  }, [room?.code, showToast]);
 
   const playersList = room.players || [];
   const lobbyPlayerCount = playersList.length;
@@ -624,10 +698,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
         <section className="lobby-invite" aria-label="Код и приглашение">
           <div className="lobby-invite__row">
-            <div className="lobby-code-display" aria-label={`Код комнаты ${room.code}`}>
+            <button
+              type="button"
+              className="lobby-code-display lobby-code-display--clickable"
+              aria-label={`Код комнаты ${room.code}, нажмите чтобы скопировать`}
+              title="Нажмите, чтобы скопировать код"
+              onClick={copyRoomCode}
+            >
               <span className="lobby-code-display__label">Код комнаты</span>
               <span className="lobby-code-display__value">{room.code}</span>
-            </div>
+            </button>
             <div className="lobby-invite__actions">
               <Button variant="primary" onClick={shareInvite}>
                 Поделиться
@@ -679,48 +759,63 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
         {playersList.length === 0 ? (
           <EmptyState title="Игроков пока нет" message="Поделитесь кодом комнаты или ссылкой-приглашением." />
-        ) : playersList.map((p) => (
-          <div
-            key={p.id}
-            role="button"
-            tabIndex={0}
-            className="gh-card lobby-player-card"
-            onClick={() => setPlayerMenuPlayer(p)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setPlayerMenuPlayer(p);
-              }
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                {p.avatar_emoji ? (
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                    {p.avatar_emoji}
-                  </div>
-                ) : p.photo_url ? (
-                  <img src={p.photo_url} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
-                    {(p.name || '?')[0]}
-                  </div>
-                )}
-                {p.hasPro && !p.isHost && (
-                  <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 14 }} title="Премиум">👑</span>
-                )}
+        ) : playersList.map((p) => {
+          const offlineLeftSec =
+            p.online === false && !p.isHost && offlineSince[p.id] != null
+              ? Math.max(0, Math.ceil((OFFLINE_KICK_MS - (Date.now() - offlineSince[p.id])) / 1000))
+              : null;
+          return (
+            <div
+              key={p.id}
+              role="button"
+              tabIndex={0}
+              className="gh-card lobby-player-card"
+              onClick={() => setPlayerMenuPlayer(p)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setPlayerMenuPlayer(p);
+                }
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  {p.avatar_emoji ? (
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                      {p.avatar_emoji}
+                    </div>
+                  ) : p.photo_url ? (
+                    <img src={p.photo_url} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--tg-theme-button-color, #3a7bd5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
+                      {(p.name || '?')[0]}
+                    </div>
+                  )}
+                  {p.hasPro && !p.isHost && (
+                    <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 14 }} title="Премиум">👑</span>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.name}
+                    <span style={{ marginLeft: 6 }}>
+                      {p.isHost ? <Badge tone="info">Хост</Badge> : null}
+                      {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Премиум</Badge></span> : null}
+                      {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : null}
+                    </span>
+                  </span>
+                  {offlineLeftSec != null ? (
+                    <span className="lobby-player-offline-countdown" aria-live="polite">
+                      Исключение через{' '}
+                      <strong className="lobby-player-offline-countdown__sec">{offlineLeftSec}</strong>
+                      с
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.name}
-                <span style={{ marginLeft: 6 }}>
-                  {p.isHost ? <Badge tone="info">Хост</Badge> : null}
-                  {p.hasPro && !p.isHost ? <span style={{ marginLeft: 4 }}><Badge tone="warning">Премиум</Badge></span> : null}
-                  {p.online === false ? <span style={{ marginLeft: 4 }}><Badge tone="danger">Офлайн</Badge></span> : null}
-                </span>
-              </span>
             </div>
-          </div>
-        ))}
+          );
+        })}
         </div>
       </section>
 
