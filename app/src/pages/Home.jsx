@@ -256,6 +256,41 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
     setShowAvatarPicker(false);
   };
 
+  const dismissThanks = () => {
+    try {
+      localStorage.setItem('gh_beta_thanks_v1', '1');
+    } catch (_) {}
+    setShowThanks(false);
+  };
+
+  const submitFeedback = async () => {
+    const text = feedbackText.trim();
+    if (text.length < 3) {
+      setError('Напишите хотя бы пару слов.');
+      return;
+    }
+    setError('');
+    setFeedbackSending(true);
+    setFeedbackDone(false);
+    try {
+      await api.post('/feedback', {
+        message: text,
+        contact: feedbackContact.trim(),
+        playerId: user?.id != null ? String(user.id) : '',
+        displayName: shownName,
+      });
+      track('feedback_submit', { ok: true, len: text.length });
+      setFeedbackDone(true);
+      setFeedbackText('');
+      setFeedbackContact('');
+    } catch (e) {
+      track('feedback_submit', { ok: false });
+      setError(getApiErrorMessage(e, 'Не удалось отправить'));
+    } finally {
+      setFeedbackSending(false);
+    }
+  };
+
   return (
     <PageLayout title="GameHub" onBack={() => window.history.back()}>
       <section className="gh-hero" style={{ marginBottom: 18 }}>
