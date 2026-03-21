@@ -1772,6 +1772,12 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     const team = gs.teams[gs.currentTeamIndex];
     if (!idInPlayerList(team?.players, playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
+    const explainerId = team?.players?.length
+      ? team.players[gs.currentExplainerIndex % team.players.length]
+      : null;
+    if (String(playerId) !== String(explainerId)) {
+      return reply.code(403).send({ error: 'Отмечать слова может только текущий объясняющий' });
+    }
     if (gs.awaitingExplainerStart || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Раунд ещё не начат' });
     }
@@ -1802,6 +1808,12 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     const team = gs.teams[gs.currentTeamIndex];
     if (!idInPlayerList(team?.players, playerId)) return reply.code(403).send({ error: 'Не ваша команда' });
+    const explainerIdSkip = team?.players?.length
+      ? team.players[gs.currentExplainerIndex % team.players.length]
+      : null;
+    if (String(playerId) !== String(explainerIdSkip)) {
+      return reply.code(403).send({ error: 'Пропускать слова может только текущий объясняющий' });
+    }
     if (gs.awaitingExplainerStart || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Раунд ещё не начат' });
     }
@@ -1910,6 +1922,13 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     if (gs.roundPhase !== 'last_word' || gs.currentWord == null) {
       return reply.code(400).send({ error: 'Нет фазы последнего слова' });
+    }
+    const teamLw = gs.teams[gs.currentTeamIndex];
+    const explainerIdLw = teamLw?.players?.length
+      ? teamLw.players[gs.currentExplainerIndex % teamLw.players.length]
+      : null;
+    if (String(playerId) !== String(explainerIdLw)) {
+      return reply.code(403).send({ error: 'Последнее слово отмечает только текущий объясняющий' });
     }
     const ti = parseInt(teamIndex, 10);
     if (Number.isNaN(ti)) {
