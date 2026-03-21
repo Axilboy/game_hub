@@ -177,6 +177,21 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 70%, transparent);
 }
 
+/* Примечание из «Друзья» — справа от имени */
+.lobby-player-card__friendNote {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  opacity: 0.82;
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.lobby-player-card__friendNote::before {
+  content: '· ';
+  opacity: 0.65;
+}
+
 .lobby-player-offline-countdown {
   font-size: 11px;
   font-weight: 600;

@@ -20,15 +20,15 @@ export function getRoleDisplayName(role, themeId = 'default') {
 
 /** @typedef {'random'|'moderator'|'player_vote'} MafiaRolesMode */
 
-/** Минимум игроков за столом (ведущий в состав не входит). Комфортный стол — от 6. */
-export const MIN_MAFIA_PLAYERS_CLASSIC = 6;
-export const MIN_MAFIA_PLAYERS_EXTENDED = 6;
+/** Минимум игроков за столом (ведущий в состав не входит). Временно 5 (раньше было 6). */
+export const MIN_MAFIA_PLAYERS_CLASSIC = 5;
+export const MIN_MAFIA_PLAYERS_EXTENDED = 5;
 
 /**
  * Состав ролей от числа играющих n (ведущий не считается).
  * Классика: дон ×1, «мафия» ×k, комиссар ×1, мирные — остальные.
  * k = 1 + ⌊(n − 4) / 3⌋ → при росте стола мафия увеличивается ступенями (~каждые 3 игрока +1 мафия).
- * Расширение: + доктор, + путана; мирные = n − 4 − k (нужно n ≥ 6).
+ * Расширение: + доктор, + путана; мирные = n − 4 − k (при n = 5 мирных может не быть).
  */
 export function computeRoleComposition(playerCount, extended) {
   const n = playerCount;

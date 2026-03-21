@@ -1,7 +1,7 @@
 import { BUNKER_SCENARIOS, BUNKER_SPEED_PRESETS } from '../../lobbyPresets';
 import './lobbySettingsSheet.css';
 
-const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 5, elias: 2, truth_dare: 2, bunker: 4 };
 
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
@@ -21,14 +21,16 @@ const TD_CAT_SHORT = {
   corporate: 'Корпоратив SFW',
 };
 
-function Row({ icon, label, value }) {
+function Row({ icon, label, value, title }) {
   return (
     <div className="lobby-summary-card__row">
       <span className="lobby-summary-card__icon" aria-hidden>
         {icon}
       </span>
       <span className="lobby-summary-card__label">{label}</span>
-      <span className="lobby-summary-card__value">{value}</span>
+      <span className="lobby-summary-card__value" title={title || undefined}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -63,23 +65,28 @@ export default function LobbyGameSummaryCard({
 
   if (selectedGame === 'mafia') {
     const pt = gs.phaseTimers || {};
+    const prepDay = pt.prepDay ?? 90;
+    const nightMeet = pt.nightMeet ?? 45;
+    const roleSetup = pt.roleSetup ?? 120;
     const rolesLine =
       gs.mafiaRolesMode === 'moderator'
         ? 'ведущий назначает'
         : gs.mafiaRolesMode === 'player_vote'
           ? 'голосование'
           : 'случайно';
+    const phasesLine = `дни ${prepDay}/${nightMeet}, роли ${roleSetup}, ночь ${pt.nightMafia ?? 45}/${pt.nightCommissioner ?? 25}, день ${pt.day ?? 90}, голос ${pt.voting ?? 45}`;
     return (
       <div className="lobby-summary-card">
         <Row icon="🎭" label="Режим" value={gs.extended ? 'Расширенный' : 'Классика'} />
         <Row icon="🎤" label="Ведущий" value={gs.hostSelection === 'choose' ? 'выбор' : 'случайно'} />
         <Row icon="🗳️" label="Мафия" value={rolesLine} />
+        <Row icon="⏱️" label="Фазы (с)" value={phasesLine} />
         <Row
-          icon="⏱️"
-          label="Фазы (с)"
-          value={`подг. ${pt.roleSetup ?? 120}, ночь ${pt.nightMafia ?? 45}, день ${pt.day ?? 90}, голос ${pt.voting ?? 45}`}
+          icon="👥"
+          label="Мин. за столом"
+          value={String(MIN_PLAYERS.mafia)}
+          title="Игроков за столом без ведущего; ведущий ведёт партию отдельно"
         />
-        <Row icon="👥" label="Мин. игроков" value={`${MIN_PLAYERS.mafia} (ведущий не в игре)`} />
       </div>
     );
   }

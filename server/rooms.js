@@ -11,6 +11,8 @@ import {
   getMafiaPlayers,
   assignRolesFromModeratorPicks,
   assignRolesFromPlayerVotes,
+  MIN_MAFIA_PLAYERS_CLASSIC,
+  MIN_MAFIA_PLAYERS_EXTENDED,
 } from './mafia.js';
 import { getEliasWords, getRandomEliasWord } from './eliasWords.js';
 import {
@@ -640,16 +642,14 @@ export async function roomRoutes(fastify) {
       modId = players[Math.floor(Math.random() * players.length)].id;
     }
     const poolPlaying = players.filter((p) => String(p.id) !== String(modId));
-    if (poolPlaying.length < 6) {
+    if (poolPlaying.length < MIN_MAFIA_PLAYERS_CLASSIC) {
       return reply.code(400).send({
-        error:
-          'В мафию нужно минимум 6 игроков за столом. Ведущий в игру не входит — пригласите ещё людей или назначьте другого ведущего.',
+        error: `В мафию нужно минимум ${MIN_MAFIA_PLAYERS_CLASSIC} игроков за столом. Ведущий в игру не входит — пригласите ещё людей или назначьте другого ведущего.`,
       });
     }
-    if (extended && poolPlaying.length < 6) {
+    if (extended && poolPlaying.length < MIN_MAFIA_PLAYERS_EXTENDED) {
       return reply.code(400).send({
-        error:
-          'Расширенная мафия: минимум 6 игроков за столом (без ведущего). Добавьте участника или выключите расширенный режим.',
+        error: `Расширенная мафия: минимум ${MIN_MAFIA_PLAYERS_EXTENDED} игроков за столом (без ведущего). Добавьте участника или выключите расширенный режим.`,
       });
     }
     const mafiaRolesMode =

@@ -58,7 +58,7 @@ const DICT_NAMES = {
   art: 'Искусство (Премиум)',
   tech: 'Технологии (Премиум)',
 };
-const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 5, elias: 2, truth_dare: 2, bunker: 4 };
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
   return n + 2;
@@ -109,7 +109,7 @@ const TD_CATEGORIES = [
 /** Карточки выбора режима в лобби (мин. игроков — ориентир для хоста) */
 const LOBBY_GAMES = [
   { id: 'spy', name: 'Шпион', emoji: '🕵️', minPlayers: 3 },
-  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 6 },
+  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 5 },
   { id: 'bunker', name: 'Бункер', emoji: '🛡️', minPlayers: 4 },
   { id: 'elias', name: 'Элиас', emoji: '📢', minPlayers: 2 },
   { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },
@@ -153,6 +153,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
   /** id друзей текущего игрока (для кнопки «Уже в друзьях») */
   const [friendIds, setFriendIds] = useState(() => new Set());
+  /** id друга → примечание из «Друзья» (показ рядом с именем в лобби) */
+  const [friendNotes, setFriendNotes] = useState(() => ({}));
   /** id игроков, которым уже отправлена заявка */
   const [outgoingPending, setOutgoingPending] = useState(() => new Set());
   /** Переименование команды Элиаса: { scope: 'elias', teamIndex, name } */
@@ -286,11 +288,19 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     if (!user?.id) return;
     try {
       const r = await api.get(`/friends/list?playerId=${encodeURIComponent(String(user.id))}`);
-      setFriendIds(new Set((r.friends || []).map((x) => String(x.id))));
+      const friends = r.friends || [];
+      setFriendIds(new Set(friends.map((x) => String(x.id))));
       setOutgoingPending(new Set((r.outgoingPendingIds || []).map((id) => String(id))));
+      const notes = {};
+      for (const f of friends) {
+        const n = f.note != null && String(f.note).trim() ? String(f.note).trim() : '';
+        if (n) notes[String(f.id)] = n;
+      }
+      setFriendNotes(notes);
     } catch (_) {
       setFriendIds(new Set());
       setOutgoingPending(new Set());
+      setFriendNotes({});
     }
   }, [user?.id]);
 
@@ -405,17 +415,18 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     const poolSize = modInRoom
       ? players.filter((p) => String(p.id) !== String(chosenMod)).length
       : Math.max(0, count - 1);
-    if (poolSize < 6) {
+    const minMafia = MIN_PLAYERS.mafia;
+    if (poolSize < minMafia) {
       setMinPlayersWarning(
         modInRoom
-          ? `В мафию нужно минимум 6 игроков за столом (ведущий не играет). Сейчас играющих: ${poolSize}. Назначьте ведущего или добавьте людей.`
-          : `В мафию нужно минимум 6 игроков за столом: при случайном ведущем из комнаты нужно не меньше 7 человек в лобби (один ведёт). Сейчас: ${count}.`,
+          ? `В мафию нужно минимум ${minMafia} игроков за столом (ведущий не играет). Сейчас играющих: ${poolSize}. Назначьте ведущего или добавьте людей.`
+          : `В мафию нужно минимум ${minMafia} игроков за столом: при случайном ведущем из комнаты нужно не меньше ${minMafia + 1} человек в лобби (один ведёт). Сейчас: ${count}.`,
       );
       return;
     }
-    if ((gs.extended ?? false) && poolSize < 6) {
+    if ((gs.extended ?? false) && poolSize < minMafia) {
       setMinPlayersWarning(
-        `Расширенная мафия: минимум 6 игроков за столом (без ведущего). Сейчас играющих: ${poolSize}.`,
+        `Расширенная мафия: минимум ${minMafia} игроков за столом (без ведущего). Сейчас играющих: ${poolSize}.`,
       );
       return;
     }
@@ -843,22 +854,32 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             )}
           </div>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {p.name}
-              <span style={{ marginLeft: 6 }}>
-                {p.isHost ? <Badge tone="info">Хост</Badge> : null}
-                {p.hasPro && !p.isHost ? (
-                  <span style={{ marginLeft: 4 }}>
-                    <Badge tone="warning">Премиум</Badge>
-                  </span>
-                ) : null}
-                {p.online === false ? (
-                  <span style={{ marginLeft: 4 }}>
-                    <Badge tone="danger">Офлайн</Badge>
-                  </span>
-                ) : null}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                flexWrap: 'wrap',
+                gap: '4px 10px',
+                minWidth: 0,
+              }}
+            >
+              <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                {p.name}
               </span>
-            </span>
+              {friendNotes[String(p.id)] ? (
+                <span
+                  className="lobby-player-card__friendNote"
+                  title={friendNotes[String(p.id)]}
+                >
+                  {friendNotes[String(p.id)]}
+                </span>
+              ) : null}
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                {p.isHost ? <Badge tone="info">Хост</Badge> : null}
+                {p.hasPro && !p.isHost ? <Badge tone="warning">Премиум</Badge> : null}
+                {p.online === false ? <Badge tone="danger">Офлайн</Badge> : null}
+              </span>
+            </div>
             {offlineLeftSec != null ? (
               <span className="lobby-player-offline-countdown" aria-live="polite">
                 Исключение через <strong className="lobby-player-offline-countdown__sec">{offlineLeftSec}</strong> с
