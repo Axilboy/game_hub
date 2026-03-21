@@ -114,10 +114,18 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
     } catch (_) {}
   };
 
+  const beginRound = async () => {
+    try {
+      await api.post(`/rooms/${roomId}/elias/begin-round`, { playerId: myId });
+      refreshState({ silent: true });
+    } catch (_) {}
+  };
+
   if (loading) return <div style={{ padding: 24 }}><Loader label="Загрузка Элиаса..." minHeight="50vh" /></div>;
   if (!state) return <div style={{ padding: 24 }}><ErrorState title="Нет данных" message="Состояние игры не загружено." actionLabel="В лобби" onAction={() => navigate('/lobby')} /></div>;
 
-  const timerStarted = state.roundEndsAt != null;
+  const awaitingStart = Boolean(state.awaitingExplainerStart);
+  const timerStarted = state.roundEndsAt != null && !awaitingStart;
   const timeLeft = state.roundEndsAt ? Math.max(0, state.roundEndsAt - Date.now()) : 0;
   const timeUp = timerStarted && timeLeft <= 0;
   const winner = state.winner != null ? state.winner : winnerTeamIndex;
@@ -198,7 +206,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
             Активная команда: {explainingTeamName}
           </p>
         )}
-        {timerStarted ? (
+        {awaitingStart ? (
+          <p style={{ marginBottom: 0, fontSize: 16, opacity: 0.9 }}>
+            Слово и таймер запустятся, когда объясняющий нажмёт «Начать».
+          </p>
+        ) : timerStarted ? (
           <>
             <p style={{ marginBottom: 6, fontSize: 20 }}>Таймер: {formatTime(timeLeft)}</p>
             <p style={{ marginBottom: 0, fontSize: 14, opacity: 0.85 }}>
@@ -206,7 +218,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
             </p>
           </>
         ) : (
-          <p style={{ marginBottom: 0, fontSize: 16, opacity: 0.8 }}>Ожидание готовности всех…</p>
+          <p style={{ marginBottom: 0, fontSize: 16, opacity: 0.8 }}>Подготовка раунда…</p>
         )}
       </div>
 
@@ -238,15 +250,37 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
           <p style={{ margin: '0 0 16px', fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
             Правило: не произноси само слово вслух. Объясняй так, чтобы команда догадалась.
           </p>
-          <p style={{ fontSize: 28, fontWeight: 'bold', marginBottom: 24, wordBreak: 'break-word' }}>{state.word}</p>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button type="button" onClick={guessed} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>Угадали</button>
-            <button type="button" onClick={skip} style={{ ...btnStyle, flex: 1, background: '#444' }}>Пропустить</button>
-          </div>
+          {awaitingStart ? (
+            <>
+              {state.isCurrentExplainer ? (
+                <button type="button" onClick={beginRound} style={{ ...btnStyle, background: 'var(--tg-theme-button-color, #3a7bd5)', marginBottom: 12 }}>
+                  Начать
+                </button>
+              ) : (
+                <p style={{ margin: '0 0 12px', fontSize: 14, opacity: 0.9 }}>
+                  Ожидайте: раунд начнёт <strong>{state.explainerName}</strong> — кнопка «Начать» у текущего объясняющего.
+                </p>
+              )}
+              <p style={{ margin: 0, fontSize: 13, opacity: 0.75 }}>Слово скрыто, пока раунд не начат.</p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 28, fontWeight: 'bold', marginBottom: 24, wordBreak: 'break-word' }}>{state.word}</p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button type="button" onClick={guessed} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>Угадали</button>
+                <button type="button" onClick={skip} style={{ ...btnStyle, flex: 1, background: '#444' }}>Пропустить</button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="gh-card" style={{ padding: 16 }}>
           <p style={{ margin: 0, fontSize: 18, opacity: 0.9, fontWeight: 800 }}>Раунд: угадывайте</p>
+          {awaitingStart && (
+            <p style={{ margin: '10px 0 0', fontSize: 14, opacity: 0.9 }}>
+              Скоро начнётся объяснение — ждите, пока <strong>{state.explainerName}</strong> нажмёт «Начать».
+            </p>
+          )}
           <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: 'rgba(0,0,0,0.25)' }}>
             <p style={{ margin: 0, fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Слово видит только команда объясняющего</p>
             <p style={{ margin: '8px 0 0', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>• Объясняющий не произносит слово вслух</p>

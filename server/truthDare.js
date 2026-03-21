@@ -155,6 +155,23 @@ export function getTruthDareCardSummary(card) {
 export function getTruthDareCardById(cardId) {
   const id = String(cardId || '').trim();
   if (!id) return null;
+  if (id.includes('__')) {
+    const [a, b] = id.split('__');
+    const ca = TRUTH_DARE_CARDS.find((c) => c.id === a);
+    const cb = TRUTH_DARE_CARDS.find((c) => c.id === b);
+    if (!ca || !cb) return null;
+    return {
+      id,
+      truth: ca.truth,
+      dare: cb.dare,
+      categorySlug: ca.categorySlug,
+      truthCardId: a,
+      dareCardId: b,
+      is18Plus: Boolean(ca.is18Plus || cb.is18Plus),
+      safe: Boolean(ca.safe && cb.safe),
+      premium: Boolean(ca.premium || cb.premium),
+    };
+  }
   return TRUTH_DARE_CARDS.find((c) => c.id === id) || null;
 }
 
@@ -214,6 +231,62 @@ export function pickTruthDareCard({
   return pickOne(candidates);
 }
 
+/**
+ * Правда и действие из разных карточек (больше разнообразия, не «жёсткая» пара).
+ */
+export function pickTruthDareDecoupled({
+  mode: _mode = 'mixed',
+  categorySlugs = DEFAULT_SETTINGS.categorySlugs,
+  include18Plus = false,
+  safeMode = true,
+  playerHasPro = false,
+  unlockedCategorySlugs = [],
+  usedTruthCardIds = [],
+  usedDareCardIds = [],
+} = {}) {
+  const selectedCats = new Set(migrateCategorySlugs(categorySlugs));
+  const unlockedCats = new Set((unlockedCategorySlugs || []).map(String));
+  const usedT = new Set(usedTruthCardIds || []);
+  const usedD = new Set(usedDareCardIds || []);
+
+  const eligible = TRUTH_DARE_CARDS.filter((card) => {
+    if (!selectedCats.has(card.categorySlug)) return false;
+    if (!include18Plus && card.is18Plus) return false;
+    if (safeMode && !card.safe) return false;
+    if (card.premium && !playerHasPro && !unlockedCats.has(card.categorySlug)) return false;
+    return true;
+  });
+
+  if (!eligible.length) return null;
+
+  let truthPool = eligible.filter((c) => !usedT.has(c.id));
+  if (!truthPool.length) truthPool = [...eligible];
+
+  const truthCard = pickOne(truthPool);
+  if (!truthCard) return null;
+
+  let dareCandidates = eligible.filter((c) => c.id !== truthCard.id);
+  if (!dareCandidates.length) dareCandidates = [...eligible];
+
+  let darePool = dareCandidates.filter((c) => !usedD.has(c.id));
+  if (!darePool.length) darePool = [...dareCandidates];
+
+  const dareCard = pickOne(darePool);
+  if (!dareCard) return null;
+
+  return {
+    id: `${truthCard.id}__${dareCard.id}`,
+    truth: truthCard.truth,
+    dare: dareCard.dare,
+    categorySlug: truthCard.categorySlug,
+    truthCardId: truthCard.id,
+    dareCardId: dareCard.id,
+    is18Plus: Boolean(truthCard.is18Plus || dareCard.is18Plus),
+    safe: Boolean(truthCard.safe && dareCard.safe),
+    premium: Boolean(truthCard.premium || dareCard.premium),
+  };
+}
+
 export function createTruthDareState(room, settings) {
   const gs = {};
   const s = normalizeTruthDareSettings(settings);
@@ -235,13 +308,14 @@ export function createTruthDareState(room, settings) {
     ageConfirmedByPlayerId[room.hostId] = true;
   }
 
-  const currentCard = pickTruthDareCard({
+  const currentCard = pickTruthDareDecoupled({
     categorySlugs: s.categorySlugs,
     include18Plus: s.show18Plus && Boolean(ageConfirmedByPlayerId[firstPlayerId]),
     safeMode: s.safeMode,
     playerHasPro: firstHasPro,
     unlockedCategorySlugs: firstUnlockedCategorySlugs,
-    excludeCardIds: [],
+    usedTruthCardIds: [],
+    usedDareCardIds: [],
   });
 
   gs.phase = 'round';
@@ -251,7 +325,8 @@ export function createTruthDareState(room, settings) {
   gs.currentPlayerIndex = currentPlayerIndex;
   gs.roundIndex = 0;
   gs.currentPlayerId = firstPlayerId;
-  gs.usedCardIds = currentCard ? [currentCard.id] : [];
+  gs.usedTruthCardIds = currentCard ? [currentCard.truthCardId] : [];
+  gs.usedDareCardIds = currentCard ? [currentCard.dareCardId] : [];
   gs.currentCard = currentCard || null;
   gs.skipCountByPlayerId = {};
   gs.playerStats = {};

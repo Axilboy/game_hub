@@ -109,15 +109,15 @@ const ELIAS_DICT_CARDS = [
 ];
 
 const TD_CATEGORIES = [
-  { slug: 'classic', name: 'Классика', premium: false, is18Plus: false, safe: true },
-  { slug: 'friends', name: 'Друзья', premium: false, is18Plus: false, safe: true },
-  { slug: '18plus', name: '18+', premium: false, is18Plus: true, safe: false },
-  { slug: 'drunk_party', name: 'Пьяная вечеринка (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
-  { slug: 'couples', name: 'Пары', premium: false, is18Plus: false, safe: true },
-  { slug: 'company', name: 'Компания', premium: false, is18Plus: false, safe: true },
-  { slug: 'hard', name: 'Без фильтра (Про/Pack)', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
-  { slug: 'romance', name: 'Романтика (Про/Pack)', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
-  { slug: 'corporate', name: 'Корпоратив SFW', premium: false, is18Plus: false, safe: true },
+  { slug: 'classic', name: 'Классика', emoji: '📗', description: 'Универсальные вопросы и задания для любой компании.', premium: false, is18Plus: false, safe: true },
+  { slug: 'friends', name: 'Друзья', emoji: '👥', description: 'Про вашу тусовку, общие истории и внутренние шутки.', premium: false, is18Plus: false, safe: true },
+  { slug: '18plus', name: '18+', emoji: '🔞', description: 'Откровенные темы — только после подтверждения возраста в игре.', premium: false, is18Plus: true, safe: false },
+  { slug: 'drunk_party', name: 'Пьяная вечеринка', emoji: '🍻', description: 'Громко, весело, про алкоголь и ночные истории.', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'couples', name: 'Пары', emoji: '💑', description: 'Отношения, нежность и бытовые сцены.', premium: false, is18Plus: false, safe: true },
+  { slug: 'company', name: 'Компания', emoji: '🏢', description: 'Большая компания: чаты, тусовки, общие приключения.', premium: false, is18Plus: false, safe: true },
+  { slug: 'hard', name: 'Без фильтра', emoji: '⚡', description: 'Острые вопросы и честность без смягчений.', premium: true, is18Plus: false, safe: false, requiredItem: 'td_party' },
+  { slug: 'romance', name: 'Романтика', emoji: '🌹', description: 'Свидания, чувства, комплименты.', premium: true, is18Plus: false, safe: true, requiredItem: 'td_romance' },
+  { slug: 'corporate', name: 'Корпоратив SFW', emoji: '💼', description: 'Офис, созвоны и коллеги — без пошлости.', premium: false, is18Plus: false, safe: true },
 ];
 
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
@@ -146,6 +146,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [eliasDictDraft, setEliasDictDraft] = useState(null);
   const [minPlayersWarning, setMinPlayersWarning] = useState(null);
   const [eliasDictModalOpen, setEliasDictModalOpen] = useState(false);
+  const [tdCategoryModalOpen, setTdCategoryModalOpen] = useState(false);
+  const [tdCategoryDraft, setTdCategoryDraft] = useState(null);
   const [eliasCustomModalOpen, setEliasCustomModalOpen] = useState(false);
   const [eliasCustomWordsText, setEliasCustomWordsText] = useState('');
   const [eliasImportText, setEliasImportText] = useState('');
@@ -519,6 +521,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
     patchLobbyGame({ gameSettings: { ...room?.gameSettings, dictionaryIds: d } });
     closeEliasDictModal();
+  };
+
+  const closeTdCategoryModal = () => {
+    setTdCategoryModalOpen(false);
+    setTdCategoryDraft(null);
+  };
+
+  const confirmTdCategoryDraft = () => {
+    const d = Array.isArray(tdCategoryDraft) ? tdCategoryDraft : [];
+    if (d.length === 0) {
+      showToast({ type: 'error', message: 'Категории не выбраны. Отметьте хотя бы один набор карточек и снова нажмите «Готово».' });
+      return;
+    }
+    patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: d } });
+    closeTdCategoryModal();
   };
 
   const transferHostTo = async (newHostId) => {
@@ -1329,41 +1346,20 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 Быстрая партия (3 раунда)
               </button>
 
-              <p style={{ marginBottom: 8, fontSize: 14 }}>Категории</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                {TD_CATEGORIES.map((c) => {
-                  const lockedByPro = c.premium && !hasCategoryPackAccess(c);
-                  const lockedBySafe = tdSafeMode && !c.safe;
-                  const lockedBy18 = c.is18Plus && !tdShow18Plus;
-                  const locked = lockedByPro || lockedBySafe || lockedBy18;
-                  const active = tdCategorySlugs.includes(c.slug);
-                  return (
-                    <button
-                      key={c.slug}
-                      type="button"
-                      disabled={locked}
-                      onClick={() => {
-                        const isActive = tdCategorySlugs.includes(c.slug);
-                        let next = isActive ? tdCategorySlugs.filter((x) => x !== c.slug) : [...tdCategorySlugs, c.slug];
-                        if (next.length === 0) next = ['classic', 'friends'];
-                        patchLobbyGame({ gameSettings: { ...room?.gameSettings, categorySlugs: next } });
-                        track('td_category_toggle', { category: c.slug, enabled: !isActive, source: 'lobby' });
-                      }}
-                      style={{
-                        ...btnStyle,
-                        width: 'auto',
-                        padding: '10px 10px',
-                        fontSize: 12,
-                        background: active ? 'var(--tg-theme-button-color, #3a7bd5)' : '#444',
-                        opacity: locked ? 0.6 : 1,
-                      }}
-                      title={lockedByPro ? `Нужен Про или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
-                    >
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
+              <p style={{ marginBottom: 8, fontSize: 14 }}>Категории карточек</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = Array.isArray(room?.gameSettings?.categorySlugs) && room.gameSettings.categorySlugs.length
+                    ? room.gameSettings.categorySlugs
+                    : tdCategorySlugs;
+                  setTdCategoryDraft([...cur]);
+                  setTdCategoryModalOpen(true);
+                }}
+                style={{ ...btnStyle, width: '100%', background: '#555', marginBottom: 16 }}
+              >
+                Карточки (выбрано: {tdCategorySlugs.length})
+              </button>
 
               <button type="button" onClick={startTruthDare} disabled={startingGame} style={btnStyle}>
                 {startingGame ? 'Запуск...' : 'Начать игру'}
@@ -1676,6 +1672,71 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 24, borderRadius: 12, maxWidth: 320 }}>
             <p style={{ marginBottom: 16 }}>{minPlayersWarning}</p>
             <button type="button" onClick={() => setMinPlayersWarning(null)} style={btnStyle}>Ок</button>
+          </div>
+        </div>
+      )}
+
+      {tdCategoryModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 16 }} onClick={closeTdCategoryModal}>
+          <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 360, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Категории карточек</h3>
+            <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 16 }}>
+              Можно снять все наборы и выбрать заново. Нажмите «Готово» — если ничего не выбрано, появится предупреждение (нужна хотя бы одна категория).
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              {TD_CATEGORIES.map((c) => {
+                const lockedByPro = c.premium && !hasCategoryPackAccess(c);
+                const lockedBySafe = tdSafeMode && !c.safe;
+                const lockedBy18 = c.is18Plus && !tdShow18Plus;
+                const locked = lockedByPro || lockedBySafe || lockedBy18;
+                const draft = Array.isArray(tdCategoryDraft) ? tdCategoryDraft : tdCategorySlugs;
+                const selected = draft.includes(c.slug);
+                const handleClick = () => {
+                  if (locked) return;
+                  const cur = Array.isArray(tdCategoryDraft) ? tdCategoryDraft : tdCategorySlugs;
+                  const next = selected ? cur.filter((x) => x !== c.slug) : [...cur, c.slug];
+                  setTdCategoryDraft(next);
+                  track('td_category_toggle', { category: c.slug, enabled: !selected, source: 'lobby_modal' });
+                };
+                return (
+                  <div
+                    key={c.slug}
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleClick}
+                    onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+                    style={{
+                      position: 'relative',
+                      padding: 14,
+                      borderRadius: 10,
+                      background: selected ? 'rgba(58, 123, 213, 0.25)' : 'rgba(255,255,255,0.06)',
+                      border: `2px solid ${selected ? 'var(--tg-theme-button-color, #3a7bd5)' : 'transparent'}`,
+                      cursor: locked ? 'not-allowed' : 'pointer',
+                      minHeight: 100,
+                      opacity: locked ? 0.55 : 1,
+                    }}
+                    title={lockedByPro ? `Нужен Про или pack ${c.requiredItem || ''}` : lockedBy18 ? 'Включите 18+' : lockedBySafe ? 'Safe режим отключает эту категорию' : ''}
+                  >
+                    {lockedByPro && (
+                      <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 18, zIndex: 1 }} title="Только Про / pack">🔒</div>
+                    )}
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 8 }}>
+                      {c.emoji || '📇'}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, lineHeight: 1.2 }}>{c.name}</div>
+                    <div style={{ fontSize: 11, opacity: 0.85, lineHeight: 1.3 }}>{c.description}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button type="button" onClick={closeTdCategoryModal} style={{ ...btnStyle, flex: 1, background: '#555' }}>
+                Отмена
+              </button>
+              <button type="button" onClick={confirmTdCategoryDraft} style={{ ...btnStyle, flex: 1, background: '#6a5' }}>
+                Готово
+              </button>
+            </div>
           </div>
         </div>
       )}

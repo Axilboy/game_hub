@@ -237,7 +237,10 @@ export default function TruthDareRound({ roomId, user, room, onLeave }) {
             </div>
           </div>
           <p style={{ margin: '10px 0 0', fontSize: 12, opacity: 0.85 }}>
-            Категория: {card?.categorySlug || '—'}
+            Категория (правда): {card?.categorySlug || '—'}
+          </p>
+          <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.78, lineHeight: 1.35 }}>
+            Правда и действие подбираются отдельно для разнообразия — это не одна «жёсткая» пара с карточки.
           </p>
           <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.82 }}>
             👍 {state.currentCardLikes || 0} · 🚩 {state.currentCardReports || 0}

@@ -1,3 +1,5 @@
+import { ELIAS_EXTRA_BY_ID } from './eliasWordsExtra.js';
+
 /** Бесплатные словари Элиас */
 const FREE_ELIAS = [
   {
@@ -126,9 +128,11 @@ export function getEliasWords(dictionaryIds = ['basic']) {
   const words = [];
   for (const id of ids) {
     const dict = ELIAS_DICTS[id];
-    if (dict?.words) words.push(...dict.words);
+    const extra = ELIAS_EXTRA_BY_ID[id] || [];
+    if (dict?.words) words.push(...dict.words, ...extra);
+    else if (extra.length) words.push(...extra);
   }
-  if (words.length === 0) words.push(...FREE_ELIAS[0].words);
+  if (words.length === 0) words.push(...FREE_ELIAS[0].words, ...(ELIAS_EXTRA_BY_ID.basic || []));
   return words;
 }
 
