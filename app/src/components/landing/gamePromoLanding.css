@@ -1,0 +1,271 @@
+/**
+ * Отдельные промо-лендинги под SEO/рекламу по каждой игре.
+ * Темы: .gpl--spy | .gpl--mafia | .gpl--elias | .gpl--truth_dare | .gpl--bunker
+ */
+.gpl {
+  --gpl-radius-hero: 24px;
+  --gpl-radius-pill: 999px;
+  --gpl-radius-btn: 14px;
+  --gpl-radius-panel: 20px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 4px 32px;
+}
+
+/* ——— Шпион: синий градиент + жёлтый акцент (референс) ——— */
+.gpl--spy {
+  --gpl-bg1: #0a1628;
+  --gpl-bg2: #1a3a6e;
+  --gpl-bg3: #0d2847;
+  --gpl-accent: #f5d547;
+  --gpl-accent-text: #1a1300;
+  --gpl-hero-text: #f8fbff;
+  --gpl-pill-bg: rgba(255, 255, 255, 0.12);
+  --gpl-pill-border: rgba(255, 255, 255, 0.18);
+  --gpl-panel: #ffffff;
+  --gpl-panel-text: #141414;
+  --gpl-panel-muted: rgba(20, 20, 20, 0.72);
+  --gpl-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+/* ——— Мафия: тёмно-красный + золото ——— */
+.gpl--mafia {
+  --gpl-bg1: #140808;
+  --gpl-bg2: #3a1212;
+  --gpl-bg3: #1f0a0a;
+  --gpl-accent: #d4af37;
+  --gpl-accent-text: #1a0f05;
+  --gpl-hero-text: #fff5e6;
+  --gpl-pill-bg: rgba(212, 175, 55, 0.12);
+  --gpl-pill-border: rgba(212, 175, 55, 0.28);
+  --gpl-panel: #fff9f0;
+  --gpl-panel-text: #1a1410;
+  --gpl-panel-muted: rgba(26, 20, 16, 0.75);
+  --gpl-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+}
+
+/* ——— Элиас: фиолетовый + бирюза ——— */
+.gpl--elias {
+  --gpl-bg1: #1a0f2e;
+  --gpl-bg2: #2d1f4f;
+  --gpl-bg3: #1e1540;
+  --gpl-accent: #5eead4;
+  --gpl-accent-text: #042f2a;
+  --gpl-hero-text: #f3f0ff;
+  --gpl-pill-bg: rgba(94, 234, 212, 0.12);
+  --gpl-pill-border: rgba(94, 234, 212, 0.3);
+  --gpl-panel: #ffffff;
+  --gpl-panel-text: #161022;
+  --gpl-panel-muted: rgba(22, 16, 34, 0.72);
+  --gpl-shadow: 0 20px 50px rgba(0, 0, 0, 0.38);
+}
+
+/* ——— Правда или действие: тёмный + лайм (референс, без откровенного копирайта) ——— */
+.gpl--truth_dare {
+  --gpl-bg1: #050505;
+  --gpl-bg2: #1a1a1a;
+  --gpl-bg3: #0d0d0d;
+  --gpl-accent: #c8ff3d;
+  --gpl-accent-text: #111;
+  --gpl-hero-text: #f5f5f5;
+  --gpl-pill-bg: rgba(200, 255, 61, 0.1);
+  --gpl-pill-border: rgba(200, 255, 61, 0.25);
+  --gpl-panel: #1e1e1e;
+  --gpl-panel-text: #f0f0f0;
+  --gpl-panel-muted: rgba(240, 240, 240, 0.65);
+  --gpl-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+/* ——— Бункер: бетон + оранжевый «аварийный» ——— */
+.gpl--bunker {
+  --gpl-bg1: #1c1e22;
+  --gpl-bg2: #2e3238;
+  --gpl-bg3: #23262c;
+  --gpl-accent: #ff8c42;
+  --gpl-accent-text: #1a0f08;
+  --gpl-hero-text: #eceff4;
+  --gpl-pill-bg: rgba(255, 140, 66, 0.12);
+  --gpl-pill-border: rgba(255, 140, 66, 0.28);
+  --gpl-panel: #e8eaee;
+  --gpl-panel-text: #1a1d22;
+  --gpl-panel-muted: rgba(26, 29, 34, 0.72);
+  --gpl-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+}
+
+.gpl__back {
+  margin-bottom: 8px;
+}
+
+.gpl__hero {
+  text-align: center;
+  padding: 20px 18px 28px;
+  margin: 0 -12px 20px;
+  border-radius: 0 0 var(--gpl-radius-hero) var(--gpl-radius-hero);
+  background: linear-gradient(160deg, var(--gpl-bg1) 0%, var(--gpl-bg2) 55%, var(--gpl-bg3) 100%);
+  box-shadow: var(--gpl-shadow);
+  color: var(--gpl-hero-text);
+}
+
+.gpl__eyebrow {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.92;
+}
+
+.gpl__mascot {
+  font-size: 88px;
+  line-height: 1;
+  margin: 0 0 12px;
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.25));
+  user-select: none;
+}
+
+.gpl__title {
+  margin: 0 0 10px;
+  font-size: clamp(26px, 6vw, 32px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.gpl__subtitle {
+  margin: 0 auto;
+  max-width: 28em;
+  font-size: 15px;
+  line-height: 1.5;
+  opacity: 0.92;
+  font-weight: 500;
+}
+
+.gpl__steps {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gpl__step {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 600;
+  text-align: center;
+  border-radius: var(--gpl-radius-pill);
+  background: var(--gpl-pill-bg);
+  border: 1px solid var(--gpl-pill-border);
+  color: var(--gpl-hero-text);
+  backdrop-filter: blur(8px);
+}
+
+.gpl__panel {
+  background: var(--gpl-panel);
+  color: var(--gpl-panel-text);
+  border-radius: var(--gpl-radius-panel);
+  padding: 22px 18px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.gpl--truth_dare .gpl__panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gpl__section-title {
+  margin: 18px 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.gpl__section-title:first-child {
+  margin-top: 0;
+}
+
+.gpl__section-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--gpl-panel-muted);
+}
+
+.gpl__section-body a {
+  color: var(--gh-color-primary, #5b8fd4);
+  font-weight: 600;
+}
+
+.gpl__ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.gpl__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--gpl-radius-btn);
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.gpl__btn:active {
+  transform: scale(0.98);
+}
+
+.gpl__btn--primary {
+  background: var(--gpl-accent);
+  color: var(--gpl-accent-text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.gpl__btn--secondary {
+  background: transparent;
+  color: var(--gpl-panel-text);
+  border: 2px solid rgba(0, 0, 0, 0.12);
+}
+
+.gpl--truth_dare .gpl__btn--secondary {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #eee;
+}
+
+.gpl__btn--ghost {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--gpl-panel-text);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.gpl--truth_dare .gpl__btn--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+}
+
+.gpl__hint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.75;
+  text-align: center;
+  color: var(--gpl-panel-muted);
+}
+
+.gpl__brand {
+  margin-top: 10px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  text-align: center;
+  color: var(--gpl-panel-muted);
+}

@@ -16,7 +16,8 @@
 
 - **`/robots.txt`** — отдаёт сервер; закрыты служебные маршруты (`/lobby`, игровые экраны, `/admin`, `/profile` и т.д.).
 - **`/sitemap.xml`** — список публичных URL: `/seo`, `/games/*`, `/how-to-play`, `/privacy`, `/rules`.
-- **Публичные страницы** (`/seo`, статьи игр, правила) — `useSeo`: title, description, **canonical**, **Open Graph**, **Twitter Card**, `index, follow`.
+- **Отдельные промо-лендинги игр** (`/games/spy`, `/games/mafia`, …) — своя визуальная тема, тексты под точечную рекламу, CTA «Играть», JSON-LD `WebApplication`.
+- **Публичные страницы** (`/seo`, лендинги игр, правила) — `useSeo`: title, description, **canonical**, **Open Graph**, **Twitter Card**, `index, follow`.
 - **Экран входа и комнаты** — `noindex, nofollow` (не дублируем игровые сессии в поиске).
 - **JSON-LD** на `/seo`: Organization, WebSite, Game, FAQPage.
 
