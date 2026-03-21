@@ -6,8 +6,8 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  contain: layout style;
-  overflow: hidden;
+  /* не overflow:hidden / contain — иначе в Telegram WebView обрезается низ градиента карточек */
+  overflow: visible;
 }
 
 .gh-home-carousel__label {
@@ -26,9 +26,10 @@
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
+  /* hidden по вертикали срезал нижнюю часть заливки карточек (кроме случайно «коротких» тем вроде Мафии) */
+  overflow-y: visible;
   scroll-snap-type: x mandatory;
-  padding: 4px 12px 14px;
+  padding: 4px 12px 20px;
   margin: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -36,6 +37,7 @@
   overscroll-behavior-y: none;
   touch-action: pan-x;
   scroll-snap-stop: always;
+  align-items: flex-start;
 }
 
 .gh-home-carousel::-webkit-scrollbar {
@@ -48,7 +50,7 @@
   text-decoration: none;
   color: inherit;
   border-radius: var(--gpl-radius-hero, 24px);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: var(--gpl-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
@@ -81,12 +83,16 @@
 }
 
 .gh-home-carousel__inner {
-  padding: 18px 16px 22px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 140px;
+  padding: 18px 16px 24px;
   margin: 0;
   text-align: center;
+  border-radius: inherit;
+  overflow: hidden;
   background: linear-gradient(160deg, var(--gpl-bg1) 0%, var(--gpl-bg2) 55%, var(--gpl-bg3) 100%);
   color: var(--gpl-hero-text);
-  min-height: 132px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -97,7 +103,7 @@
   background: linear-gradient(145deg, rgba(58, 123, 213, 0.25), rgba(40, 40, 70, 0.35));
   border: none;
   color: inherit;
-  min-height: 128px;
+  min-height: 136px;
 }
 
 .gh-home-carousel__emoji {
