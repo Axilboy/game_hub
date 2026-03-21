@@ -278,7 +278,7 @@ export async function roomRoutes(fastify) {
       gs.timerStartsAt = Date.now();
       io.to(roomId).emit('game_timer_start', { timerStartsAt: gs.timerStartsAt, timerSeconds: gs.timerSeconds });
     }
-    // Элиас: таймер и слово стартуют после «Готов» у всех (см. /elias/ready-pre-round)
+    // Элиас: таймер и слово стартуют после «Готов» только у текущего объясняющего (см. /elias/ready-pre-round)
     return { ok: true, timerStarted: allReady };
   });
 
@@ -1568,6 +1568,8 @@ export async function roomRoutes(fastify) {
       preRoundReadyIds: Array.isArray(gs.eliasPreRoundReady)
         ? gs.eliasPreRoundReady.map((id) => String(id))
         : [],
+      /** Сколько человек должны нажать «Готов» перед раундом (Элиас: всегда 1 — только объясняющий) */
+      preRoundRequiredCount: gs.awaitingExplainerStart ? 1 : null,
       roomPlayersCount: room.players.length,
       playerStats,
       mvp,
@@ -1614,7 +1616,7 @@ export async function roomRoutes(fastify) {
     io.to(roomId).emit('elias_update', {});
   }
 
-  /** Старт раунда после «Готов» у всех игроков (или логика begin-round). */
+  /** Старт раунда после «Готов» у текущего объясняющего. */
   function eliasBeginRoundInternal(roomId, io) {
     const room = roomManager.get(roomId);
     if (!room || room.game !== 'elias' || !room.gameState) return false;
@@ -1892,7 +1894,7 @@ export async function roomRoutes(fastify) {
     return { ok: true };
   });
 
-  /** Перед раундом: каждый игрок в комнате нажимает «Готов»; когда все готовы — старт как begin-round. */
+  /** Перед раундом: «Готов» только у текущего объясняющего; остальные команды не участвуют. */
   fastify.post('/rooms/:roomId/elias/ready-pre-round', async (request, reply) => {
     const { roomId } = request.params;
     const { playerId } = request.body || {};
@@ -1908,26 +1910,29 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
     if (gs.winner != null) return reply.code(400).send({ error: 'Игра уже завершена' });
     if (!gs.awaitingExplainerStart) {
-      return { ok: true, already: true, readyCount: 0, totalPlayers: room.players.length, started: true };
+      return { ok: true, already: true, readyCount: 0, totalPlayers: 1, started: true };
     }
-    if (!Array.isArray(gs.eliasPreRoundReady)) gs.eliasPreRoundReady = [];
+    const teamNow = gs.teams[gs.currentTeamIndex];
+    const explainerId = teamNow?.players?.length
+      ? teamNow.players[gs.currentExplainerIndex % teamNow.players.length]
+      : null;
+    if (explainerId == null) {
+      return reply.code(400).send({ error: 'Нет текущего объясняющего' });
+    }
+    if (String(playerId) !== String(explainerId)) {
+      return reply.code(403).send({ error: '«Готов» перед раундом нажимает только текущий объясняющий' });
+    }
     const sid = String(playerId);
-    if (!gs.eliasPreRoundReady.some((x) => String(x) === sid)) gs.eliasPreRoundReady.push(sid);
-    const unique = [...new Set(gs.eliasPreRoundReady.map((x) => String(x)))];
-    gs.eliasPreRoundReady = unique;
-    const M = room.players.length;
-    const N = unique.length;
-    let started = false;
-    if (N >= M && M > 0) {
-      started = eliasBeginRoundInternal(roomId, fastify.io);
-    } else {
+    gs.eliasPreRoundReady = [sid];
+    let started = eliasBeginRoundInternal(roomId, fastify.io);
+    if (!started) {
       fastify.io.to(roomId).emit('elias_update', {});
     }
     const gs2 = roomManager.get(roomId)?.gameState;
     return {
       ok: true,
-      readyCount: N,
-      totalPlayers: M,
+      readyCount: 1,
+      totalPlayers: 1,
       started,
       roundEndsAt: gs2?.roundEndsAt ?? null,
     };

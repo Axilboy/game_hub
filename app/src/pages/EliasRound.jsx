@@ -391,11 +391,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const dictSub = isMeExplainer ? `(Все наборы: ${dictSubtitle(state.dictionaryIds)})` : null;
 
   const readyIds = Array.isArray(state.preRoundReadyIds) ? state.preRoundReadyIds : [];
-  const mPlayers = Math.max(
-    Array.isArray(room?.players) ? room.players.length : 0,
-    Number(state.roomPlayersCount) || 0,
-    readyIds.length,
-  );
+  /** Элиас: перед раундом «Готов» только у объясняющего — счётчик 1 из 1 */
+  const preRoundRequired =
+    awaitingStart && state.preRoundRequiredCount != null && Number(state.preRoundRequiredCount) > 0
+      ? Number(state.preRoundRequiredCount)
+      : 1;
   const nReady = readyIds.length;
   const imPreRoundReady = Boolean(myId && readyIds.some((id) => String(id) === myId));
 
@@ -599,21 +599,38 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                 className="elias-round__ready-modal-overlay"
               >
                 <div className="elias-round__ready-modal-body">
-                  {!imPreRoundReady ? (
-                    <>
-                      <p className="elias-round__ready-modal-text">
-                        Раунд начнётся, когда все игроки в комнате нажмут «Готов». Слово и таймер появятся у текущего объясняющего (
-                        <strong>{displayExplainerName}</strong>).
+                  {isMeExplainer ? (
+                    !imPreRoundReady ? (
+                      <>
+                        <p className="elias-round__ready-modal-text">
+                          Нажмите «Готов», чтобы начать раунд: появятся слово и таймер. Остальные игроки ждут вашего хода.
+                        </p>
+                        <button type="button" className="elias-round__start-btn" onClick={readyPreRound}>
+                          Готов
+                        </button>
+                      </>
+                    ) : (
+                      <p className="elias-round__ready-modal-text elias-round__ready-modal-text--solo">
+                        {nReady >= preRoundRequired
+                          ? 'Стартуем…'
+                          : `Готовы ${nReady} из ${preRoundRequired}.`}
                       </p>
-                      <button type="button" className="elias-round__start-btn" onClick={readyPreRound}>
-                        Готов
-                      </button>
-                    </>
+                    )
                   ) : (
                     <p className="elias-round__ready-modal-text elias-round__ready-modal-text--solo">
-                      {nReady >= mPlayers && mPlayers > 0
-                        ? 'Все готовы — стартуем…'
-                        : `В ожидании игроков: ${nReady} из ${Math.max(mPlayers, 1)} готовы. Ожидаем ещё ${Math.max(0, mPlayers - nReady)}.`}
+                      {nReady >= preRoundRequired ? (
+                        'Объясняющий нажал «Готов» — стартуем…'
+                      ) : (
+                        <>
+                          Ожидайте: объясняющий <strong>{displayExplainerName}</strong> должен нажать «Готов», чтобы начался
+                          раунд.
+                          <br />
+                          <span style={{ display: 'block', marginTop: 12, opacity: 0.9 }}>
+                            Готовы {nReady} из {preRoundRequired}
+                            {preRoundRequired > nReady ? ` — не нажали ещё ${preRoundRequired - nReady}` : ''}.
+                          </span>
+                        </>
+                      )}
                     </p>
                   )}
                 </div>

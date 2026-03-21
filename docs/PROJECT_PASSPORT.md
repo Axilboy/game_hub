@@ -124,10 +124,11 @@ GAME_HUB/
 **`POST /rooms/elias/start`** — хост передаёт настройки (таймер, словари, команды, `teams` или `team1Ids`/`team2Ids`).  
 Создаётся `gameState` с полями вроде `teams`, `currentTeamIndex`, `currentExplainerIndex`, `awaitingExplainerStart`, `dictionaryIds`, `roundPhase`, `eliasPreRoundReady`, и т.д.
 
-### Фаза «все нажали Готов» перед раундом
+### Фаза «Готов» перед раундом (только текущий объясняющий)
 
-- **`POST /rooms/:roomId/elias/ready-pre-round`** — добавляет `playerId` в `eliasPreRoundReady` (уникальные id).
-- Когда **готовы все** `room.players.length`, вызывается **`eliasBeginRoundInternal`** (выбор слова, таймер, `roundPhase = 'playing'`, сброс `eliasPreRoundReady`).
+- **`POST /rooms/:roomId/elias/ready-pre-round`** — принимает нажатие **только от текущего объясняющего** (игрок из `teams[currentTeamIndex].players[currentExplainerIndex % len]`); иначе **403**.
+- В `eliasPreRoundReady` попадает только этот id; сразу вызывается **`eliasBeginRoundInternal`** (слово, таймер, `roundPhase = 'playing'`, сброс `eliasPreRoundReady`).
+- Остальные игроки не жмут «Готов» — им показывается ожидание объясняющего (см. клиент).
 - Старый **`/elias/begin-round`** удалён в пользу этого механизма.
 
 ### Игровой раунд
@@ -143,7 +144,7 @@ GAME_HUB/
 
 - Заголовки **`Cache-Control: no-store`** (чтобы WebView не кэшировал).
 - **`word`:** в `playing` — только если запросивший **`playerId` === id текущего объясняющего**; в `last_word` — слово **только объясняющему**; в `review` не отдаётся как текущее слово отдельно (лог в `roundLog`).
-- В ответе: `teams`, `explainerName`, `isExplainer`, **`isCurrentExplainer`** (серверный флаг), **`currentExplainerId`**, `preRoundReadyIds`, `roomPlayersCount`, `roundPhase`, и т.д.
+- В ответе: `teams`, `explainerName`, `isExplainer`, **`isCurrentExplainer`** (серверный флаг), **`currentExplainerId`**, `preRoundReadyIds`, **`preRoundRequiredCount`** (`1` при `awaitingExplainerStart`, иначе `null`), `roomPlayersCount`, `roundPhase`, и т.д.
 
 ---
 
@@ -163,7 +164,7 @@ GAME_HUB/
 ### UI
 
 - **Модалка выхода** по стрелке назад: подтверждение → `onLeave()` + переход на `/`.
-- **Подготовка к раунду:** модалка «Готов»; после нажатия — текст «N из M готовы»; старт раунда на сервере когда все готовы.
+- **Подготовка к раунду:** модалка с кнопкой **«Готов» только у текущего объясняющего**; остальным — текст ожидания и счётчик «готовы N из `preRoundRequiredCount`» (обычно 1 из 1).
 - **Таймер и счёт** — компактный блок в **шапке** карточки «Текущий раунд», не отдельный крупный HUD.
 - **Отгадывающий в команде объясняющей:** без карточки слова и без кнопок да/нет; только информация и таймер/счёт в шапке.
 - **Промо-стиль:** glass-панели, скругления — в `eliasRound.css`.
@@ -240,6 +241,7 @@ GAME_HUB/
 | 2026-03-17 | `SETUP.md`: подсказка при ошибке `Cannot find package 'vite-plugin-pwa'` — выполнить `npm install` в `app/`. |
 | 2026-03-17 | `tools/multiplayer-sandbox/open-players.mjs`: обработка ошибки `page.goto`, ожидание выхода без TTY (Ctrl+C вместо мгновенного закрытия окон); README — типичные причины «окна сразу закрылись». |
 | 2026-03-17 | Создан `docs/PROJECT_PASSPORT.md`; добавлено правило Cursor (`.cursor/rules/project-passport.mdc`); ссылка в `README.md`; описаны лобби/команды Элиас, Элиас (ready-pre-round, слово только объясняющему), клиент (isMeExplainer, wordForMe), песочница `tools/multiplayer-sandbox`. |
+| 2026-03-17 | Элиас: перед раундом «Готов» только у объясняющего; в state — `preRoundRequiredCount`; клиент `EliasRound.jsx` — кнопка только при `isMeExplainer`. |
 | Ранее (сессии) | Автораспределение команд в лобби (`syncPartyTeams`, `partyTeamAssign`), ручная смена команды (`assign-team`), редизайн UI Элиаса (glass), модалка выхода, исправления UX Элиаса (кто объясняет, отгадывающий без слова, компактный таймер). |
 
 ---
