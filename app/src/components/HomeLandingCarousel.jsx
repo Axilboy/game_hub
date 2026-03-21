@@ -96,7 +96,28 @@ export default function HomeLandingCarousel() {
   const userDraggedCarouselRef = useRef(false);
   const autoIntervalRef = useRef(null);
   const goNextAutoRef = useRef(null);
+  const scrollDotsRafRef = useRef(null);
   const [activeLogical, setActiveLogical] = useState(0);
+
+  /** Обновляем точки по центру видимой карточки во время свайпа (не ждём debounce normalizeLoop). */
+  const updateDotsFromScrollPosition = useCallback(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const slides = [...root.querySelectorAll('[data-carousel-slide]')];
+    if (slides.length < CYCLE_LEN * 3) return;
+    const domIdx = domIndexFromScroll(root);
+    const logical = logicalIndexFromDom(domIdx);
+    logicalRef.current = logical;
+    setActiveLogical(logical);
+  }, []);
+
+  const scheduleDotsUpdateOnScroll = useCallback(() => {
+    if (scrollDotsRafRef.current != null) return;
+    scrollDotsRafRef.current = requestAnimationFrame(() => {
+      scrollDotsRafRef.current = null;
+      updateDotsFromScrollPosition();
+    });
+  }, [updateDotsFromScrollPosition]);
 
   const scheduleAutoAdvance = useCallback(() => {
     if (autoIntervalRef.current) {
@@ -159,10 +180,19 @@ export default function HomeLandingCarousel() {
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
-    const onScroll = () => onScrollDebounced();
+    const onScroll = () => {
+      scheduleDotsUpdateOnScroll();
+      onScrollDebounced();
+    };
     root.addEventListener('scroll', onScroll, { passive: true });
-    return () => root.removeEventListener('scroll', onScroll);
-  }, [onScrollDebounced]);
+    return () => {
+      root.removeEventListener('scroll', onScroll);
+      if (scrollDotsRafRef.current != null) {
+        cancelAnimationFrame(scrollDotsRafRef.current);
+        scrollDotsRafRef.current = null;
+      }
+    };
+  }, [onScrollDebounced, scheduleDotsUpdateOnScroll]);
 
   const scrollToLogical = useCallback(
     (logical, behavior) => {

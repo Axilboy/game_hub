@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { addPurchaseHistory, getInventory, purchaseDictionary, restorePurchases, setPro, unlockItem } from '../inventory';
 import { SHOP_GAMES, SHOP_CATEGORIES, SHOP_ITEMS } from '../shopData';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
+import { getShopItemMarketing } from '../shopItemMarketing';
 import { track } from '../analytics';
 import Select from './ui/Select';
 import Tooltip from './ui/Tooltip';
@@ -21,15 +22,41 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
   const [shopGameFilter, setShopGameFilter] = useState(initialGameFilter);
   const [shopCategoryFilter, setShopCategoryFilter] = useState('all');
   const [inv, setInv] = useState(getInventory);
+  const [detailItem, setDetailItem] = useState(null);
+  const listScrollRef = useRef(null);
 
   useEffect(() => {
     if (open) {
       setShopGameFilter(initialGameFilter);
       setShopCategoryFilter('all');
       setInv(getInventory());
+      setDetailItem(null);
       track('store_open', { gameFilter: initialGameFilter });
     }
   }, [open, initialGameFilter]);
+
+  /** После смены фильтра — список с начала, чтобы были видны товары */
+  useEffect(() => {
+    if (!open) return;
+    const el = listScrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+    }
+  }, [open, shopGameFilter, shopCategoryFilter]);
+
+  useEffect(() => {
+    if (!detailItem) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setDetailItem(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detailItem]);
+
+  const openDetail = useCallback((item) => {
+    track('store_item_detail', { itemId: item.id, game: item.game });
+    setDetailItem(item);
+  }, []);
 
   if (!open) return null;
 
@@ -71,6 +98,63 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
     track('store_restore', { hasPro: Boolean(next.hasPro), purchases: next.purchases?.length || 0 });
   };
 
+  const renderItemCard = (item, keyPrefix) => {
+    const hasPack = Array.isArray(inv.unlockedItems) && inv.unlockedItems.includes(item.id);
+    const unlocked = item.free || inv.hasPro || hasPack;
+    const locked = !unlocked;
+    return (
+      <div
+        key={`${keyPrefix}-${item.id}`}
+        role="button"
+        tabIndex={0}
+        className="shop-modal__item"
+        style={{ marginBottom: 12, padding: 14, background: locked ? 'rgba(80,60,60,0.2)' : 'rgba(255,255,255,0.06)', borderRadius: 10, position: 'relative' }}
+        onClick={() => openDetail(item)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openDetail(item);
+          }
+        }}
+      >
+        {locked && (
+          <Tooltip text="Премиум-контент (можно купить отдельно)">
+            <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 18 }}>🔒</div>
+          </Tooltip>
+        )}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{item.emoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              {item.name}
+              {item.free && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Бесплатно</span>}
+              {!item.free && unlocked && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Открыто</span>}
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>{item.description}</div>
+            <div style={{ fontSize: 12, opacity: 0.65, marginTop: 6 }}>Нажмите, чтобы подробнее</div>
+            {!item.free && !unlocked ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  track('store_item_click', { itemId: item.id, game: item.game, category: item.category });
+                  buyItem(item);
+                }}
+                style={{ ...btnStyle, width: 'auto', marginTop: 8, padding: '6px 10px', fontSize: 12, background: '#555' }}
+              >
+                Купить / открыть
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const detailMarketing = detailItem ? getShopItemMarketing(detailItem) : null;
+  const detailHasPack = detailItem && Array.isArray(inv.unlockedItems) && inv.unlockedItems.includes(detailItem.id);
+  const detailUnlocked = detailItem && (detailItem.free || inv.hasPro || detailHasPack);
+
   return (
     <div className="shop-modal-overlay" onClick={onClose}>
       <div className="shop-modal__panel" onClick={(e) => e.stopPropagation()}>
@@ -94,13 +178,26 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
           aria-label="Фильтр по категории"
           style={{ marginBottom: 10 }}
         />
-        <div style={{ flex: 1, minHeight: 220, overflowY: 'auto', paddingRight: 2 }}>
+        <div ref={listScrollRef} className="shop-modal__scroll">
           {popular.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ margin: '0 0 8px', fontSize: 13, opacity: 0.9 }}>Популярное</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {popular.map((item) => (
-                  <div key={`popular-${item.id}`} style={{ padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.05)', fontSize: 12 }}>
+                  <div
+                    key={`popular-${item.id}`}
+                    role="button"
+                    tabIndex={0}
+                    className="shop-modal__item"
+                    style={{ padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.05)', fontSize: 12 }}
+                    onClick={() => openDetail(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openDetail(item);
+                      }
+                    }}
+                  >
                     <div style={{ fontWeight: 700 }}>{item.emoji} {item.name}</div>
                     <div style={{ marginTop: 4, opacity: 0.85 }}>{item.free ? 'Бесплатно' : 'Премиум'}</div>
                   </div>
@@ -112,43 +209,9 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
             <p style={{ margin: '10px 0 0', fontSize: 13, opacity: 0.82 }}>
               По выбранным фильтрам ничего не найдено. Показаны все товары.
             </p>
-          ) : items.map((item) => {
-            const hasPack = Array.isArray(inv.unlockedItems) && inv.unlockedItems.includes(item.id);
-            const unlocked = item.free || inv.hasPro || hasPack;
-            const locked = !unlocked;
-            return (
-              <div key={item.id} style={{ marginBottom: 12, padding: 14, background: locked ? 'rgba(80,60,60,0.2)' : 'rgba(255,255,255,0.06)', borderRadius: 10, position: 'relative' }}>
-                {locked && (
-                  <Tooltip text="Премиум-контент (можно купить отдельно)">
-                    <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 18 }}>🔒</div>
-                  </Tooltip>
-                )}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{item.emoji}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                      {item.name}
-                      {item.free && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Бесплатно</span>}
-                      {!item.free && unlocked && <span style={{ fontSize: 12, color: '#8f8', marginLeft: 6 }}>Открыто</span>}
-                    </div>
-                    <div style={{ fontSize: 13, opacity: 0.9 }}>{item.description}</div>
-                    {!item.free && !unlocked ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          track('store_item_click', { itemId: item.id, game: item.game, category: item.category });
-                          buyItem(item);
-                        }}
-                        style={{ ...btnStyle, width: 'auto', marginTop: 8, padding: '6px 10px', fontSize: 12, background: '#555' }}
-                      >
-                        Купить / открыть
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          ) : (
+            items.map((item) => renderItemCard(item, 'list'))
+          )}
           <div style={{ marginTop: 14 }}>
             <p style={{ margin: '0 0 8px', fontSize: 13, opacity: 0.92 }}>Матрица ценности Премиум</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -187,6 +250,51 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all' }) 
           Отдельная покупка карточек пока в разработке. Сейчас самый быстрый путь — <strong>Премиум</strong>: все премиальные словари, расширенная Мафия и без рекламы перед стартом для всей группы.
         </p>
         <button type="button" onClick={onClose} style={{ ...btnStyle, marginTop: 16 }}>Закрыть</button>
+
+        {detailItem && detailMarketing ? (
+          <div
+            className="shop-modal-detail"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shop-detail-title"
+            onClick={() => setDetailItem(null)}
+          >
+            <div className="shop-modal-detail__card" onClick={(e) => e.stopPropagation()}>
+              <h4 id="shop-detail-title">
+                {detailItem.emoji} {detailItem.name}
+              </h4>
+              <p className="shop-modal-detail__intro">{detailMarketing.intro}</p>
+              <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, opacity: 0.9 }}>Что входит / как работает</p>
+              <ul className="shop-modal-detail__list">
+                {detailMarketing.bullets.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              {detailMarketing.note ? <p className="shop-modal-detail__note">{detailMarketing.note}</p> : null}
+              <div className="shop-modal-detail__actions">
+                {!detailItem.free && !detailUnlocked ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      buyItem(detailItem);
+                      setDetailItem(null);
+                    }}
+                    style={{ ...btnStyle, width: '100%' }}
+                  >
+                    Купить / открыть
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setDetailItem(null)}
+                  className="gh-btn gh-btn--muted gh-btn--block"
+                >
+                  Закрыть
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

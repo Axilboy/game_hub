@@ -109,6 +109,19 @@
   outline-offset: 2px;
 }
 
+/* Светлая тема: точки не на тёмном фоне — иначе не видны */
+html[data-theme='light'] .gh-home-carousel__dot {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme='light'] .gh-home-carousel__dot:hover {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+html[data-theme='light'] .gh-home-carousel__dot--active {
+  background: var(--tg-theme-button-color, #2563eb);
+}
+
 .gh-home-carousel {
   display: flex;
   gap: 12px;

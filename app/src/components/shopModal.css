@@ -18,6 +18,7 @@
 }
 
 .shop-modal__panel {
+  position: relative;
   background: var(--tg-theme-bg-color, #1a1a1a);
   padding: 20px;
   border-radius: 12px;
@@ -28,6 +29,84 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+.shop-modal__scroll {
+  flex: 1;
+  min-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Карточка товара — нажатие открывает подробности */
+.shop-modal__item {
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+
+.shop-modal__item:hover {
+  opacity: 0.96;
+}
+
+/* Всплывающее описание товара */
+.shop-modal-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.shop-modal-detail__card {
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--tg-theme-bg-color, #1a1a1a);
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.shop-modal-detail__card h4 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.shop-modal-detail__intro {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.95;
+}
+
+.shop-modal-detail__list {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.shop-modal-detail__note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.shop-modal-detail__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 @media (min-width: 600px) {
