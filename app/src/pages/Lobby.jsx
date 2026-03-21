@@ -58,7 +58,7 @@ const DICT_NAMES = {
   art: 'Искусство (Премиум)',
   tech: 'Технологии (Премиум)',
 };
-const MIN_PLAYERS = { mafia: 5, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
   return n + 2;
@@ -109,7 +109,7 @@ const TD_CATEGORIES = [
 /** Карточки выбора режима в лобби (мин. игроков — ориентир для хоста) */
 const LOBBY_GAMES = [
   { id: 'spy', name: 'Шпион', emoji: '🕵️', minPlayers: 3 },
-  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 5 },
+  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 6 },
   { id: 'bunker', name: 'Бункер', emoji: '🛡️', minPlayers: 4 },
   { id: 'elias', name: 'Элиас', emoji: '📢', minPlayers: 2 },
   { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },

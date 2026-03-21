@@ -1,7 +1,7 @@
 import { BUNKER_SCENARIOS, BUNKER_SPEED_PRESETS } from '../../lobbyPresets';
 import './lobbySettingsSheet.css';
 
-const MIN_PLAYERS = { mafia: 5, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
 
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));

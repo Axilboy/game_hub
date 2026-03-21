@@ -20,24 +20,28 @@ export function getRoleDisplayName(role, themeId = 'default') {
 
 /** @typedef {'random'|'moderator'|'player_vote'} MafiaRolesMode */
 
-/** Минимум игроков за столом (ведущий в состав не входит). Временно 5 (раньше было 6). */
-export const MIN_MAFIA_PLAYERS_CLASSIC = 5;
-export const MIN_MAFIA_PLAYERS_EXTENDED = 5;
+/** Минимум игроков за столом (ведущий в состав не входит). Как у популярных правил клубов / приложений — от 6. */
+export const MIN_MAFIA_PLAYERS_CLASSIC = 6;
+export const MIN_MAFIA_PLAYERS_EXTENDED = 6;
 
 /**
  * Состав ролей от числа играющих n (ведущий не считается).
- * Классика: дон ×1, «мафия» ×k, комиссар ×1, мирные — остальные.
- * k = 1 + ⌊(n − 4) / 3⌋ → при росте стола мафия увеличивается ступенями (~каждые 3 игрока +1 мафия).
- * Расширение: + доктор, + путана; мирные = n − 4 − k (при n = 5 мирных может не быть).
+ * Баланс в духе конкурентов (турнирные столы, Mafia Lab: «≈ четверть стола — мафия»):
+ * команда мафии (дон + «рядовые») = ⌈n/4⌉, комиссар ×1, мирные — остаток.
+ * Расширение: доктор и путана вместо двух мирных.
  */
 export function computeRoleComposition(playerCount, extended) {
   const n = playerCount;
   if (n < MIN_MAFIA_PLAYERS_CLASSIC) {
-    return { ok: false, error: `Нужно минимум ${MIN_MAFIA_PLAYERS_CLASSIC} игрока за столом (без ведущего)` };
+    return { ok: false, error: `Нужно минимум ${MIN_MAFIA_PLAYERS_CLASSIC} игроков за столом (без ведущего)` };
   }
-  const mafia = Math.floor((n - 4) / 3) + 1;
+  const blackTotal = Math.ceil(n / 4);
+  const mafia = blackTotal - 1;
+  if (mafia < 1) {
+    return { ok: false, error: 'Некорректный состав ролей' };
+  }
   if (!extended) {
-    const civilian = n - 2 - mafia;
+    const civilian = n - blackTotal - 1;
     if (civilian < 1) return { ok: false, error: 'Некорректный состав для классики' };
     return {
       ok: true,
@@ -56,7 +60,7 @@ export function computeRoleComposition(playerCount, extended) {
       error: `Расширенная мафия: минимум ${MIN_MAFIA_PLAYERS_EXTENDED} игроков за столом (без ведущего)`,
     };
   }
-  const civilian = n - 4 - mafia;
+  const civilian = n - blackTotal - 1 - 2;
   if (civilian < 0) {
     return { ok: false, error: 'Недостаточно игроков для расширенных ролей' };
   }
