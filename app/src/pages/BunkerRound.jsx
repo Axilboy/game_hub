@@ -12,9 +12,28 @@ import Button from '../components/ui/Button';
 import PostMatchScreen from '../components/game/PostMatchScreen';
 import { track } from '../analytics';
 
+/** Порядок вывода полей на карточке (база + премиум) */
+const BUNKER_FIELD_ORDER = [
+  'profession',
+  'skill',
+  'phobia',
+  'baggage',
+  'gender',
+  'age',
+  'disease',
+  'body',
+  'hobby',
+  'secret',
+];
+
+function orderedKeysForCharacter(ch) {
+  if (!ch || typeof ch !== 'object') return [];
+  return BUNKER_FIELD_ORDER.filter((k) => ch[k] != null && ch[k] !== '');
+}
+
 function phaseTitle(phase) {
   if (phase === 'intro') return 'Ознакомление';
-  if (phase === 'reveals') return 'Раскрытия';
+  if (phase === 'reveals') return 'Раскрытия по очереди';
   if (phase === 'discussion') return 'Обсуждение';
   if (phase === 'voting') return 'Голосование';
   if (phase === 'tie_break') return 'Тай-брейк';
@@ -36,7 +55,8 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
   const myId = user?.id != null ? String(user.id) : '';
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(null); // 'vote'
+  const [actionLoading, setActionLoading] = useState(null); // 'vote' | 'reveal'
+  const [selectedRevealField, setSelectedRevealField] = useState(null);
   const maxRounds = state && typeof state.maxRounds === 'number' ? state.maxRounds : null;
   const [, setTick] = useState(0);
   const requestSeqRef = useRef(0);
@@ -106,6 +126,27 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       onLeave?.();
     } catch (_) {}
     navigate('/');
+  };
+
+  useEffect(() => {
+    if (!state) return;
+    const u = state.myUnrevealedFields || [];
+    if (state.isMyRevealTurn && u.length) {
+      setSelectedRevealField((prev) => (prev && u.includes(prev) ? prev : u[0]));
+    }
+  }, [state?.isMyRevealTurn, state?.myUnrevealedFields]);
+
+  const revealField = async () => {
+    if (actionLoading || !state?.isMyRevealTurn || !selectedRevealField) return;
+    try {
+      setActionLoading('reveal');
+      await api.post(`/rooms/${roomId}/bunker/reveal`, { playerId: myId, fieldKey: selectedRevealField });
+      refreshState({ silent: true });
+    } catch (_) {
+      // ignore
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const vote = async (targetId) => {
@@ -221,9 +262,11 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
   }
 
   const aliveIds = (state.alive || []).map((p) => p.id);
-  const myAlive = aliveIds.includes(myId);
+  const myAlive = aliveIds.some((id) => String(id) === String(myId));
   const myVote = state.votes?.[myId] || null;
-  const playerNameById = (id) => (state.alive || []).find((p) => p.id === id)?.name || id;
+  const playerNameById = (id) =>
+    (state.alive || []).find((p) => String(p.id) === String(id))?.name || id;
+  const fieldLabel = (key) => (state.fieldLabels && state.fieldLabels[key]) || key;
 
   return (
     <GameplayScreen theme="bunker" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Бункер">
@@ -272,50 +315,142 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
       ) : null}
 
       <div className="gpl__panel">
-        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
-          Ваша персона:
-        </p>
+        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Ваша карточка (видите только вы)</p>
         {state.myCharacter ? (
-          <div style={{ marginTop: 10, lineHeight: 1.5, fontSize: 14, opacity: 0.95 }}>
-            <div>Профессия: <strong>{state.myCharacter.profession}</strong></div>
-            <div>Навык: <strong>{state.myCharacter.skill}</strong></div>
-            <div>Фобия: <strong>{state.myCharacter.phobia}</strong></div>
-            <div>Багаж: <strong>{state.myCharacter.baggage}</strong></div>
+          <div style={{ marginTop: 10, lineHeight: 1.55, fontSize: 14, opacity: 0.95 }}>
+            {orderedKeysForCharacter(state.myCharacter).map((key) => (
+              <div key={key} style={{ marginBottom: 6 }}>
+                {fieldLabel(key)}: <strong>{state.myCharacter[key]}</strong>
+              </div>
+            ))}
           </div>
         ) : (
           <p style={{ marginTop: 10, opacity: 0.8 }}>—</p>
         )}
+
+        {state.phase === 'reveals' && state.myCharacter && (
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid color-mix(in srgb, var(--gpl-panel-text) 15%, transparent)' }}>
+            <p style={{ margin: 0, opacity: 0.88, fontSize: 13, lineHeight: 1.45 }}>
+              Выберите, <strong>какую характеристику раскроете этим ходом</strong> (порядок на ваше усмотрение), затем нажмите «Раскрыть».
+            </p>
+            {state.isMyRevealTurn ? (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                  {(state.myUnrevealedFields || []).map((key) => (
+                    <label
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        cursor: 'pointer',
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        background:
+                          selectedRevealField === key
+                            ? 'color-mix(in srgb, var(--gpl-panel-text) 14%, transparent)'
+                            : 'color-mix(in srgb, var(--gpl-panel-text) 6%, transparent)',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="bunker-reveal"
+                        checked={selectedRevealField === key}
+                        onChange={() => setSelectedRevealField(key)}
+                      />
+                      <span style={{ fontSize: 13 }}>
+                        {fieldLabel(key)} — <strong>{state.myCharacter[key]}</strong>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {(state.myUnrevealedFields || []).length === 0 ? (
+                  <p style={{ margin: '10px 0 0', fontSize: 13, opacity: 0.85 }}>Все ваши поля уже раскрыты, ждите остальных.</p>
+                ) : (
+                  <div style={{ marginTop: 14 }}>
+                    <Button
+                      variant="primary"
+                      fullWidth
+                      disabled={actionLoading === 'reveal' || !selectedRevealField}
+                      onClick={revealField}
+                      className="gameplay__btn"
+                      style={{ borderRadius: 10 }}
+                    >
+                      Раскрыть
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p style={{ margin: '12px 0 0', fontSize: 14, opacity: 0.9 }}>
+                Сейчас ход: <strong>{playerNameById(state.revealTurnPlayerId)}</strong>
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
+      {state.phase === 'intro' && (
+        <div className="gpl__panel">
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Скоро начнутся поочерёдные раскрытия. У каждого своя карточка.</p>
+        </div>
+      )}
+
+      {(state.phase === 'reveals' ||
+        state.phase === 'discussion' ||
+        state.phase === 'voting' ||
+        state.phase === 'round_event' ||
+        state.phase === 'tie_break') &&
+        state.publicRevealed && (
+        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Игроки и раскрытые характеристики</p>
+          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.78, lineHeight: 1.4 }}>
+            Появляются по мере ходов. Скрытые строки не показываются, пока игрок сам их не откроет.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+            {(state.alive || []).map((p) => {
+              const pr = state.publicRevealed[p.id] ?? state.publicRevealed[String(p.id)] ?? {};
+              const stats = state.playerRevealStats?.[p.id] ?? state.playerRevealStats?.[String(p.id)];
+              const revealedKeys = BUNKER_FIELD_ORDER.filter((k) => pr[k] != null && pr[k] !== '');
+              return (
+                <div
+                  key={p.id}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, transparent)',
+                  }}
+                >
+                  <div style={{ fontWeight: 800, marginBottom: 8, opacity: 0.96 }}>
+                    {p.name}
+                    {String(p.id) === String(myId) ? ' (вы)' : ''}
+                  </div>
+                  {revealedKeys.length === 0 ? (
+                    <div style={{ fontSize: 13, opacity: 0.75 }}>Пока ничего не раскрыто</div>
+                  ) : (
+                    revealedKeys.map((k) => (
+                      <div key={k} style={{ fontSize: 13, opacity: 0.92, lineHeight: 1.45, marginBottom: 4 }}>
+                        {fieldLabel(k)}: <strong>{pr[k]}</strong>
+                      </div>
+                    ))
+                  )}
+                  {stats && stats.total > 0 && (
+                    <div style={{ fontSize: 11, opacity: 0.65, marginTop: 6 }}>
+                      Раскрыто: {stats.revealedCount}/{stats.total}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {state.phase === 'round_event' && (
         <div className="gpl__panel">
           <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Событие раунда</p>
           <p style={{ margin: '10px 0 0', fontSize: 18, fontWeight: 800 }}>{state.currentCrisis?.name || '—'}</p>
           <p style={{ margin: '8px 0 0', opacity: 0.85, fontSize: 14 }}>{state.currentCrisis?.description || ''}</p>
-        </div>
-      )}
-
-      {(state.phase === 'reveals' || state.phase === 'discussion') && state.publicCharacters && (
-        <div className="gh-card" style={{ padding: 16, marginBottom: 12 }}>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Раскрытия</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-            {Object.entries(state.publicCharacters).map(([pid, ch]) => (
-              <div key={pid} style={{ padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, var(--gpl-panel-text) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, marginBottom: 6, opacity: 0.95 }}>
-                  {playerNameById(pid)} {pid === myId ? '(вы)' : ''}
-                </div>
-                <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
-                  Профессия: <strong>{ch.profession || '—'}</strong>
-                  <br />
-                  Навык: <strong>{ch.skill || '—'}</strong>
-                  <br />
-                  Фобия: <strong>{ch.phobia || '—'}</strong>
-                  <br />
-                  Багаж: <strong>{ch.baggage || '—'}</strong>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -331,7 +466,7 @@ export default function BunkerRound({ roomId, user, room, onLeave }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(state.alive || [])
-                .filter((p) => p.id !== myId)
+                .filter((p) => String(p.id) !== String(myId))
                 .map((p) => (
                   <Button
                     key={p.id}

@@ -96,6 +96,17 @@ export function getShopItemMarketing(item) {
     };
   }
 
+  if (item.game === 'bunker' && item.category === 'packs') {
+    return {
+      intro: `Пак «Бункер»: ${item.description.replace(/\.\s*Премиум.*$/i, '').trim()}.`,
+      bullets: [
+        'Дополнительные строки на карточке — больше споров и блефа.',
+        'Доступно владельцу пака или подписчику Pro.',
+        'Раскрываются по очереди вместе с базовыми полями.',
+      ],
+    };
+  }
+
   return {
     intro: `Дополнение для «${gameTitle}». ${item.description}`,
     bullets: [

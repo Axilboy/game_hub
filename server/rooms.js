@@ -31,7 +31,17 @@ import {
   getTruthDareCardById,
   getTruthDareCardSummary,
 } from './truthDare.js';
-import { createBunkerState, pickNextCrisis, canUseBunkerScenario, BUNKER_SCENARIOS } from './bunker.js';
+import {
+  createBunkerState,
+  pickNextCrisis,
+  canUseBunkerScenario,
+  BUNKER_SCENARIOS,
+  bunkerAllRevealsComplete,
+  bunkerNextRevealPlayerId,
+  getInitialRevealTurnPlayerId,
+  BUNKER_FIELD_LABELS,
+  getCharacterFieldKeys,
+} from './bunker.js';
 
 export async function roomRoutes(fastify) {
   function pickEliasWord(gs) {
@@ -1623,11 +1633,22 @@ export async function roomRoutes(fastify) {
   // BUNKER (rules engine v1)
   // -----------------------------
 
+  function bunkerPhaseTimerKey(phase) {
+    if (phase === 'tie_break') return 'tieBreak';
+    if (phase === 'round_event') return 'roundEvent';
+    return phase;
+  }
+
   function bunkerMarkPhase(gs, phase) {
     const timers = gs.settings?.phaseTimers || {};
     gs.phase = phase;
     gs.phaseStartedAt = Date.now();
-    gs.phaseDurationSec = Number(timers[phase]) || 15;
+    if (phase === 'reveals') {
+      gs.phaseDurationSec = null;
+    } else {
+      const key = bunkerPhaseTimerKey(phase);
+      gs.phaseDurationSec = Number(timers[key]) || 15;
+    }
     gs.phaseToken = (Number(gs.phaseToken) || 0) + 1;
   }
 
@@ -1663,15 +1684,9 @@ export async function roomRoutes(fastify) {
 
     if (gs.phase === 'intro') {
       bunkerMarkPhase(gs, 'reveals');
+      gs.revealedFields = gs.revealedFields || {};
+      gs.revealTurnPlayerId = getInitialRevealTurnPlayerId(gs);
       io.to(roomId).emit('bunker_update', {});
-      bunkerScheduleNext(roomId, io, gs.phaseToken, gs.phaseDurationSec * 1000);
-      return;
-    }
-
-    if (gs.phase === 'reveals') {
-      bunkerMarkPhase(gs, 'discussion');
-      io.to(roomId).emit('bunker_update', {});
-      bunkerScheduleNext(roomId, io, gs.phaseToken, gs.phaseDurationSec * 1000);
       return;
     }
 
@@ -1840,24 +1855,43 @@ export async function roomRoutes(fastify) {
     const gs = room.gameState;
 
     const now = Date.now();
-    const phaseEndsAt = gs.phaseStartedAt != null && gs.phaseDurationSec != null ? gs.phaseStartedAt + gs.phaseDurationSec * 1000 : null;
+    const phaseEndsAt =
+      gs.phaseStartedAt != null && gs.phaseDurationSec != null ? gs.phaseStartedAt + gs.phaseDurationSec * 1000 : null;
     const phaseSecondsLeft = phaseEndsAt != null ? Math.max(0, Math.ceil((phaseEndsAt - now) / 1000)) : null;
 
     const getPlayerName = (id) => room.players.find((p) => p.id === id)?.name || id;
     const alive = (gs.alive || []).map((id) => ({ id, name: getPlayerName(id) }));
 
-    const showPublicCharacters = ['reveals', 'discussion', 'voting', 'tie_break', 'round_event', 'final'].includes(gs.phase);
-    const publicCharacters = {};
-    if (showPublicCharacters && gs.characters) {
+    const aliveSet = new Set((gs.alive || []).map((id) => String(id)));
+    const showPublicRevealed = ['reveals', 'discussion', 'voting', 'tie_break', 'round_event', 'final'].includes(gs.phase);
+    const publicRevealed = {};
+    if (showPublicRevealed && gs.characters) {
       for (const pid of Object.keys(gs.characters)) {
-        if (!(gs.alive || []).includes(pid)) continue;
+        if (!aliveSet.has(String(pid))) continue;
         const ch = gs.characters[pid] || {};
-        publicCharacters[pid] = {
-          profession: ch.profession || null,
-          skill: ch.skill || null,
-          phobia: ch.phobia || null,
-          baggage: ch.baggage || null,
-        };
+        const rev = gs.revealedFields?.[pid] || {};
+        publicRevealed[pid] = {};
+        for (const k of Object.keys(ch)) {
+          if (rev[k]) publicRevealed[pid][k] = ch[k];
+        }
+      }
+    }
+
+    const myCh = gs.characters?.[playerId];
+    const myRev = gs.revealedFields?.[playerId] || {};
+    const myUnrevealedFields = getCharacterFieldKeys(myCh).filter((k) => !myRev[k]);
+    const isMyRevealTurn =
+      gs.phase === 'reveals' && gs.revealTurnPlayerId != null && String(gs.revealTurnPlayerId) === String(playerId);
+
+    const playerRevealStats = {};
+    if (gs.characters && showPublicRevealed) {
+      for (const pid of Object.keys(gs.characters)) {
+        if (!aliveSet.has(String(pid))) continue;
+        const ch = gs.characters[pid] || {};
+        const total = getCharacterFieldKeys(ch).length;
+        const rev = gs.revealedFields?.[pid] || {};
+        const revealedCount = Object.keys(rev).filter((k) => ch[k] != null && ch[k] !== '').length;
+        playerRevealStats[pid] = { total, revealedCount };
       }
     }
 
@@ -1893,13 +1927,64 @@ export async function roomRoutes(fastify) {
       currentCrisis: gs.currentCrisis || null,
       crisisHistory: Array.isArray(gs.crisisHistory) ? gs.crisisHistory.slice(-8) : [],
       myCharacter: gs.characters?.[playerId] || null,
-      publicCharacters,
+      publicRevealed,
+      fieldLabels: BUNKER_FIELD_LABELS,
+      revealTurnPlayerId: gs.revealTurnPlayerId ?? null,
+      isMyRevealTurn,
+      myUnrevealedFields,
+      playerRevealStats,
       votes: gs.votes || {},
       voteCounts,
       tieCandidates: gs.tieCandidates || null,
       eliminatedLog,
       myEliminatedAt: (gs.eliminated || []).find((e) => e?.id === playerId)?.at || null,
     };
+  });
+
+  fastify.post('/rooms/:roomId/bunker/reveal', async (request, reply) => {
+    const { roomId } = request.params;
+    const { playerId, fieldKey } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!fieldKey || typeof fieldKey !== 'string') return reply.code(400).send({ error: 'Нужен fieldKey' });
+    if (!allowAction(`bunker:reveal:${roomId}:${playerId}`, 25, 6000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'bunker' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    const gs = room.gameState;
+    if (gs.phase !== 'reveals') return reply.code(400).send({ error: 'Сейчас не фаза раскрытий' });
+    if (gs.revealTurnPlayerId == null || String(gs.revealTurnPlayerId) !== String(playerId)) {
+      return reply.code(403).send({ error: 'Не ваш ход' });
+    }
+    if (!Array.isArray(gs.alive) || !gs.alive.some((id) => String(id) === String(playerId))) {
+      return reply.code(403).send({ error: 'Вы не в игре' });
+    }
+
+    const ch = gs.characters?.[playerId];
+    if (!ch || !Object.prototype.hasOwnProperty.call(ch, fieldKey) || ch[fieldKey] == null || ch[fieldKey] === '') {
+      return reply.code(400).send({ error: 'Неверное поле' });
+    }
+    gs.revealedFields = gs.revealedFields || {};
+    gs.revealedFields[playerId] = gs.revealedFields[playerId] || {};
+    if (gs.revealedFields[playerId][fieldKey]) return reply.code(400).send({ error: 'Уже раскрыто' });
+
+    gs.revealedFields[playerId][fieldKey] = true;
+
+    const io = fastify.io;
+    if (bunkerAllRevealsComplete(gs)) {
+      bunkerClearTimeout(gs);
+      bunkerMarkPhase(gs, 'voting');
+      gs.votes = {};
+      gs.tieCandidates = null;
+      io.to(roomId).emit('bunker_update', {});
+      bunkerScheduleNext(roomId, io, gs.phaseToken, gs.phaseDurationSec * 1000);
+    } else {
+      gs.revealTurnPlayerId = bunkerNextRevealPlayerId(gs, playerId);
+      io.to(roomId).emit('bunker_update', {});
+    }
+
+    return { ok: true };
   });
 
   fastify.post('/rooms/:roomId/bunker/vote', async (request, reply) => {

@@ -214,6 +214,16 @@ GAME_HUB/
 
 ---
 
+## 9.1. Игра «Бункер» (сервер и клиент)
+
+**Файлы:** `server/bunker.js`, `server/rooms.js`, `app/src/pages/BunkerRound.jsx`.
+
+- **Карточка:** база — профессия, навык, фобия, багаж; расширение (Pro или предмет `bunker_extended_profile` в магазине) — пол, возраст, здоровье, телосложение, хобби, секрет (`BUNKER_PREMIUM_FIELD_KEYS` в `bunker.js`).
+- **Раскрытия:** фаза `reveals` без авто-таймера, ход по кругу (`revealTurnPlayerId`); `POST /rooms/:roomId/bunker/reveal` с `fieldKey`; когда у всех живых всё раскрыто → `voting`. Далее раунды: событие → голосование (без повторного полного цикла раскрытий).
+- **State:** `publicRevealed`, `fieldLabels`, `revealTurnPlayerId`, `isMyRevealTurn`, `myUnrevealedFields`, `playerRevealStats`.
+
+---
+
 ## 10. Маршруты фронта (кратко)
 
 **Файл:** `app/src/App.jsx`
@@ -274,6 +284,7 @@ GAME_HUB/
 
 | Дата | Что сделано |
 |------|-------------|
+| 2026-03-17 | **Бункер:** поочерёдное раскрытие полей (`POST /bunker/reveal`), базовые + премиум-характеристики (Pro / `bunker_extended_profile`), UI в `BunkerRound.jsx`; паспорт §9.1. |
 | 2026-03-17 | **Мафия:** состав как у конкурентов — **⌈n/4⌉** «чёрных» (дон + мафии), комиссар, мирные; минимум **6** за столом (`MIN_MAFIA_PLAYERS_*`, лобби `MIN_PLAYERS.mafia`). |
 | 2026-03-17 | **Мафия:** минимум игроков за столом снижен до **5** (сервер `MIN_MAFIA_PLAYERS_CLASSIC` / `EXTENDED`, `rooms.js` `/mafia/start`, лобби `MIN_PLAYERS.mafia`). |
 | 2026-03-17 | **Мафия:** минимум **6** игроков за столом (без ведущего); фазы подготовки `prep_day_1` → `night_meet` → `prep_day_2`, затем обычная игра; первая ночь мафии без убийств (`killNightEnabled`); таймеры `prepDay` / `nightMeet` в лобби и старте; клиент `MafiaRound.jsx`, примечания друзей у имён; шапка `GameplayScreen`: «На главную», фикс кликов «Назад». **Друзья:** `POST /friends/note`, страница `/friends` — смена примечания; `friendDisplayNameOnly`. Паспорт: §9, обновлена таблица API в §10. |

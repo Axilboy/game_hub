@@ -39,4 +39,13 @@ export const SHOP_ITEMS = [
   { game: 'truth_dare', category: 'packs', id: 'td_romance', name: 'Romance Pack', description: 'Мягкий романтический формат. Премиум.', emoji: '💘', free: false },
   { game: 'bunker', category: 'scenarios', id: 'bunker_pandemic', name: 'Сценарий: Пандемия', description: 'Расширенный кризисный сценарий. Премиум.', emoji: '🧪', free: false },
   { game: 'bunker', category: 'scenarios', id: 'bunker_space', name: 'Сценарий: Орбита', description: 'Выживание в космической изоляции. Премиум.', emoji: '🛰️', free: false },
+  {
+    game: 'bunker',
+    category: 'packs',
+    id: 'bunker_extended_profile',
+    name: 'Расширенный профиль',
+    description: 'Пол, возраст, телосложение, здоровье, хобби и секрет на карточке. Премиум или отдельная покупка.',
+    emoji: '📇',
+    free: false,
+  },
 ];
