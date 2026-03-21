@@ -13,16 +13,34 @@ import './mafiaRound.css';
 
 function phaseUi(phase) {
   switch (phase) {
+    case 'prep_day_1':
+      return {
+        title: 'Первый день',
+        sub: 'Подготовка к игре: договоритесь о правилах речи за столом. Игровых действий пока нет.',
+        short: 'День 1',
+      };
+    case 'night_meet':
+      return {
+        title: 'Первая ночь — знакомство',
+        sub: 'Никто не действует по ролям. Мафия узнаёт союзников. Ведущий переводит фазу, когда познакомитесь.',
+        short: 'Ночь 1',
+      };
+    case 'prep_day_2':
+      return {
+        title: 'Второй день',
+        sub: 'Ещё без обсуждений по делу — финальная подготовка. Дальше начнутся ночи с убийством.',
+        short: 'День 2',
+      };
     case 'role_setup_moderator':
       return { title: 'Ведущий назначает роли', sub: 'Только вы видите этот экран распределения. Игроки ждут, пока вы завершите.', short: 'Подготовка' };
     case 'role_setup_vote':
       return {
         title: 'Кто мафия?',
-        sub: 'Выберите двух игроков, которых считаете «мафией». Голоса суммируются — ведущий может завершить фазу досрочно.',
+        sub: 'Два голоса на игрока. По сумме голосов набирается команда мафии (дон + несколько мафий в зависимости от числа игроков). Ведущий завершает фазу, когда готово.',
         short: 'Голосование',
       };
     case 'night_mafia':
-      return { title: 'Ночь — мафия', sub: 'Выберите жертву или дождитесь таймера.', short: 'Ночь · мафия' };
+      return { title: 'Ночь — мафия', sub: 'С этой ночи мафия может убить одного. Выберите жертву или дождитесь таймера.', short: 'Ночь · мафия' };
     case 'night_commissioner':
       return { title: 'Ночь — комиссар', sub: 'Проверка игрока.', short: 'Ночь · комиссар' };
     case 'day':
@@ -47,7 +65,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const [roleSetupPick, setRoleSetupPick] = useState([]);
   const [modPicks, setModPicks] = useState({
     don: '',
-    mafia: '',
+    mafias: [''],
     commissioner: '',
     doctor: '',
     prostitute: '',
@@ -57,8 +75,23 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const [setupErr, setSetupErr] = useState(null);
   const [tick, setTick] = useState(0);
   const [rolePeekVisible, setRolePeekVisible] = useState(true);
+  const [friendNotes, setFriendNotes] = useState({});
   const autoAdvanceRef = useRef({ phase: null, phaseStartedAt: null, sent: false });
   const requestSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (!myId) return;
+    api
+      .get(`/friends/list?playerId=${encodeURIComponent(myId)}`)
+      .then((r) => {
+        const m = {};
+        (r.friends || []).forEach((f) => {
+          if (f?.id != null && f.note) m[String(f.id)] = String(f.note);
+        });
+        setFriendNotes(m);
+      })
+      .catch(() => {});
+  }, [myId, roomId]);
 
   const refreshState = ({ silent = false } = {}) => {
     if (!myId) return;
@@ -117,6 +150,18 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     if (state?.phase !== 'role_setup_vote') setRoleSetupPick([]);
     setSetupErr(null);
   }, [state?.phase]);
+
+  const mafiaSlots = state?.roleSetupExpect?.mafiaCount ?? 1;
+  useEffect(() => {
+    if (!state?.roleSetupExpect) return;
+    const n = state.roleSetupExpect.mafiaCount ?? 1;
+    setModPicks((p) => {
+      const next = [...(p.mafias || [])];
+      while (next.length < n) next.push('');
+      if (next.length > n) next.length = n;
+      return { ...p, mafias: next };
+    });
+  }, [state?.roleSetupExpect?.mafiaCount]);
 
   const advancePhase = async (opts = {}) => {
     if (actionLoading) return;
@@ -205,8 +250,10 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const submitModeratorRoles = async () => {
     if (actionLoading) return;
     const ext = !!state?.settings?.extended;
-    const { don, mafia, commissioner, doctor, prostitute } = modPicks;
-    if (!don || !mafia || !commissioner || (ext && (!doctor || !prostitute))) {
+    const { don, mafias, commissioner, doctor, prostitute } = modPicks;
+    const needM = mafiaSlots;
+    const mafiaIds = (mafias || []).slice(0, needM);
+    if (!don || mafiaIds.length !== needM || mafiaIds.some((x) => !x) || !commissioner || (ext && (!doctor || !prostitute))) {
       setSetupErr('Заполните все поля');
       return;
     }
@@ -216,7 +263,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       await api.post(`/rooms/${roomId}/mafia/set-roles`, {
         playerId: myId,
         donId: don,
-        mafiaId: mafia,
+        mafiaIds,
         commissionerId: commissioner,
         doctorId: ext ? doctor : undefined,
         prostituteId: ext ? prostitute : undefined,
@@ -327,19 +374,35 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const isDead = !amAlive && myRole;
   const myVoteId = state.dayVotes?.[myId] || voteTarget || null;
   const phaseUiInfo = phaseUi(phase);
+  const canKillAtNight = state.killNightEnabled !== false && phase === 'night_mafia';
+  const playerLine = (p) => (
+    <>
+      {p.name}
+      {String(p.id) === myId ? ' · вы' : ''}
+      {friendNotes[String(p.id)] ? (
+        <span className="mafiaRound__friendNote"> ({friendNotes[String(p.id)]})</span>
+      ) : null}
+    </>
+  );
   const phaseSecondsLeft =
     state.phaseStartedAt && state.phaseDurationSec
       ? Math.max(0, Math.ceil((state.phaseStartedAt + state.phaseDurationSec * 1000 - Date.now()) / 1000))
       : null;
 
-  const optionsForModerator = (field) => {
-    const taken = new Set(
-      ['don', 'mafia', 'commissioner', 'doctor', 'prostitute']
-        .filter((f) => f !== field)
-        .map((f) => modPicks[f])
-        .filter(Boolean)
-        .map(String),
-    );
+  const takenModeratorIds = (exclude) => {
+    const taken = new Set();
+    if (modPicks.don && exclude !== 'don') taken.add(String(modPicks.don));
+    if (modPicks.commissioner && exclude !== 'commissioner') taken.add(String(modPicks.commissioner));
+    if (modPicks.doctor && exclude !== 'doctor') taken.add(String(modPicks.doctor));
+    if (modPicks.prostitute && exclude !== 'prostitute') taken.add(String(modPicks.prostitute));
+    (modPicks.mafias || []).forEach((id, idx) => {
+      if (id && exclude !== `mafia_${idx}`) taken.add(String(id));
+    });
+    return taken;
+  };
+
+  const optionsForModerator = (excludeKey) => {
+    const taken = takenModeratorIds(excludeKey);
     return alive.filter((p) => !taken.has(String(p.id)));
   };
 
@@ -355,6 +418,32 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
         {optionsForModerator(field).map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
+            {friendNotes[String(p.id)] ? ` — ${friendNotes[String(p.id)]}` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const renderModeratorMafiaSelect = (index) => (
+    <label key={`mafia-${index}`} className="mafiaRound__fieldLabel" style={{ display: 'block' }}>
+      Мафия {mafiaSlots > 1 ? `(${index + 1}/${mafiaSlots})` : ''}
+      <select
+        className="mafiaRound__select"
+        value={modPicks.mafias[index] || ''}
+        onChange={(e) =>
+          setModPicks((m) => {
+            const next = [...(m.mafias || [])];
+            next[index] = e.target.value;
+            return { ...m, mafias: next };
+          })
+        }
+      >
+        <option value="">— выберите —</option>
+        {optionsForModerator(`mafia_${index}`).map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+            {friendNotes[String(p.id)] ? ` — ${friendNotes[String(p.id)]}` : ''}
           </option>
         ))}
       </select>
@@ -405,18 +494,6 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
             </p>
           )}
 
-          <div className="mafiaRound__panel">
-            <p className="mafiaRound__panelTitle">В игре</p>
-            <div className="mafiaRound__row">
-              {alive.map((p) => (
-                <span key={p.id} className="mafiaRound__alivePill">
-                  {p.name}
-                  {String(p.id) === myId ? ' · вы' : ''}
-                </span>
-              ))}
-            </div>
-          </div>
-
           {(state.killedTonight?.length > 0 || state.eliminatedToday?.length > 0 || state.revealed?.length > 0) && (
             <div className="mafiaRound__panel mafiaRound__panel--muted">
               <p className="mafiaRound__panelTitle">События</p>
@@ -445,11 +522,19 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
             <div className="mafiaRound__panel">
               <p className="mafiaRound__panelTitle">Назначьте роли</p>
               <p className="mafiaRound__panelHint" style={{ marginBottom: 14 }}>
-                В классике — три разных игрока (дон, мафия, комиссар). В расширенной — ещё доктор и путана.
+                Ведущий в игру не входит. Состав: дон ×1, мафия ×{mafiaSlots}, комиссар ×1
+                {state.settings?.extended ? ', доктор ×1, путана ×1' : ''}, остальные — мирные.
+                {state.roleSetupExpect && (
+                  <>
+                    {' '}
+                    Сейчас за столом <strong>{state.roleSetupExpect.playersInGame}</strong> игроков, мирных будет{' '}
+                    <strong>{state.roleSetupExpect.civilianCount}</strong>.
+                  </>
+                )}
               </p>
               {setupErr && <p className="mafiaRound__err">{setupErr}</p>}
               {renderModeratorSelect('don', 'Дон')}
-              {renderModeratorSelect('mafia', 'Мафия')}
+              {Array.from({ length: mafiaSlots }, (_, i) => renderModeratorMafiaSelect(i))}
               {renderModeratorSelect('commissioner', 'Комиссар')}
               {state.settings?.extended && (
                 <>
@@ -496,8 +581,10 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                         disabled={locked || actionLoading === 'role_setup'}
                         onClick={() => toggleRoleSetup(p.id)}
                       >
-                        {p.name}
-                        {on ? ' ✓' : ''}
+                        <span className="mafiaRound__chipLabel">
+                          {playerLine(p)}
+                          {on ? ' ✓' : ''}
+                        </span>
                       </button>
                     );
                   })}
@@ -530,11 +617,36 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
           <div className="mafiaRound__panel mafiaRound__panel--muted">
             <p className="mafiaRound__panelTitle">Подсказка</p>
             <p className="mafiaRound__panelHint">
-              Ночью действуют роли, днём — обсуждение и голосование. Мирные ищут мафию; мафия притворяется мирной.
+              Первые два дня и первая ночь — без убийств. Со второй ночи мафия убивает одного за ночь, днём город может
+              исключить одного игрока голосованием.
             </p>
           </div>
 
-          {phase === 'night_mafia' && state.mafiaTeammates !== undefined && (
+          {phase === 'night_meet' && state.mafiaTeammates !== undefined && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Ваша команда мафии</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                Убийства пока нет — только знакомство. Запомните союзников.
+              </p>
+              {(state.mafiaTeammates || []).length ? (
+                (state.mafiaTeammates || []).map((m) => (
+                  <div key={m.id} className="mafiaRound__voteTally" style={{ marginBottom: 6 }}>
+                    {playerLine({ id: m.id, name: m.name })}
+                  </div>
+                ))
+              ) : (
+                <p className="mafiaRound__panelHint">Вы единственный представитель мафии в этой партии.</p>
+              )}
+            </div>
+          )}
+
+          {phase === 'night_meet' && state.mafiaTeammates === undefined && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelHint">Мафия знакомится с командой. Остальные игроки «спят».</p>
+            </div>
+          )}
+
+          {phase === 'night_mafia' && state.mafiaTeammates !== undefined && canKillAtNight && (
             <div className="mafiaRound__panel">
               <p className="mafiaRound__panelTitle">Жертва ночи</p>
               <div className="mafiaRound__chips">
@@ -548,7 +660,11 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                       onClick={() => sendMafiaKill(p.id)}
                       disabled={actionLoading === 'kill'}
                     >
-                      {actionLoading === 'kill' ? `${p.name}…` : p.name}
+                      {actionLoading === 'kill' ? (
+                        <>…</>
+                      ) : (
+                        playerLine(p)
+                      )}
                     </button>
                   ))}
               </div>
@@ -583,7 +699,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                       onClick={() => sendCommissionerCheck(p.id)}
                       disabled={actionLoading === 'commissioner_check'}
                     >
-                      {actionLoading === 'commissioner_check' ? `${p.name}…` : p.name}
+                      {actionLoading === 'commissioner_check' ? '…' : playerLine(p)}
                     </button>
                   ))}
               </div>
@@ -609,8 +725,10 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                       onClick={() => sendVote(p.id)}
                       disabled={!!voteTarget || actionLoading === 'vote'}
                     >
-                      {p.name}
-                      {String(myVoteId) === String(p.id) ? ' ✓' : ''}
+                      <span className="mafiaRound__chipLabel">
+                        {playerLine(p)}
+                        {String(myVoteId) === String(p.id) ? ' ✓' : ''}
+                      </span>
                     </button>
                   ))}
               </div>
@@ -630,7 +748,8 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
               ) : (
                 alive.map((p) => (
                   <div key={p.id} className="mafiaRound__voteTally">
-                    {p.name}: <strong>{state.voteCounts?.[p.id] ?? state.voteCounts?.[String(p.id)] ?? 0}</strong>
+                    <span className="mafiaRound__chipLabel">{playerLine(p)}</span>:{' '}
+                    <strong>{state.voteCounts?.[p.id] ?? state.voteCounts?.[String(p.id)] ?? 0}</strong>
                   </div>
                 ))
               )}

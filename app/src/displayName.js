@@ -39,6 +39,13 @@ export function formatFriendListLine(f) {
   return n ? `${name} (${n})` : name;
 }
 
+/** Только имя друга (без примечания) — для строки «имя · примечание справа». */
+export function friendDisplayNameOnly(f) {
+  return (f.displayName && String(f.displayName).trim())
+    ? String(f.displayName).trim()
+    : `Игрок ${f.id ?? ''}`;
+}
+
 export function setDisplayName(name) {
   try {
     const v = (name && String(name).trim()) || '';

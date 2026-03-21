@@ -11,6 +11,7 @@ import {
   acceptPendingRequest,
   rejectPendingRequest,
   getNote,
+  setNoteFor,
 } from './friendsStore.js';
 import { touchPresence, getPresenceForFriend } from './presenceStore.js';
 
@@ -104,6 +105,22 @@ export async function friendsRoutes(fastify) {
     const r = addFriendPair(playerId, friendId, body.friendName);
     if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
     return { ok: true };
+  });
+
+  /** Изменить примечание к другу (видно только вам) */
+  fastify.post('/friends/note', async (request, reply) => {
+    const body = request.body || {};
+    const playerId = parsePlayerId(body.playerId);
+    const friendId = parsePlayerId(body.friendId);
+    const note = body.note != null ? String(body.note) : '';
+    if (!playerId || !friendId) {
+      return reply.code(400).send({ error: 'Нужны playerId и friendId' });
+    }
+    if (!areFriends(playerId, friendId)) {
+      return reply.code(400).send({ error: 'Не в списке друзей' });
+    }
+    setNoteFor(playerId, friendId, note);
+    return { ok: true, note: getNote(playerId, friendId) };
   });
 
   fastify.post('/friends/remove', async (request, reply) => {

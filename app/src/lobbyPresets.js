@@ -72,7 +72,15 @@ export function getDefaultGameSettings(gameId) {
         hostSelection: 'random',
         mafiaRolesMode: 'player_vote',
         theme: 'default',
-        phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45, roleSetup: 120 },
+        phaseTimers: {
+          prepDay: 90,
+          nightMeet: 45,
+          nightMafia: 45,
+          nightCommissioner: 25,
+          day: 90,
+          voting: 45,
+          roleSetup: 120,
+        },
       };
     case 'elias': {
       const [e1, e2] = generateTwoTeamNames();

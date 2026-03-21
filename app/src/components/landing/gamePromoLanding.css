@@ -397,13 +397,69 @@ html[data-theme='light'] .gpl .gpl__panel {
   padding: 8px 0 14px;
 }
 
+.gameplay__topbarSlot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.gameplay__topbarSlot--start {
+  width: 44px;
+  justify-content: flex-start;
+  position: relative;
+  z-index: 2;
+}
+
+.gameplay__topbarSlot--end {
+  justify-content: flex-end;
+  flex: 1;
+  max-width: 50%;
+}
+
+.gameplay__topbarPad {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+}
+
+.gameplay__backBtn,
+.gameplay__homeBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--gpl-pill-border);
+  background: var(--gpl-pill-bg);
+  color: var(--gpl-hero-text);
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.gameplay__homeBtn {
+  font-size: 18px;
+}
+
+.gameplay__backBtn:active,
+.gameplay__homeBtn:active {
+  opacity: 0.88;
+}
+
 .gameplay__title {
   flex: 1;
+  min-width: 0;
   text-align: center;
   font-weight: 800;
   font-size: 15px;
   letter-spacing: 0.02em;
   color: var(--gpl-hero-text);
+  pointer-events: none;
 }
 
 .gameplay__phase-pill {

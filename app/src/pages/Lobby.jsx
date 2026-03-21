@@ -58,7 +58,7 @@ const DICT_NAMES = {
   art: 'Искусство (Премиум)',
   tech: 'Технологии (Премиум)',
 };
-const MIN_PLAYERS = { mafia: 4, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
   return n + 2;
@@ -109,7 +109,7 @@ const TD_CATEGORIES = [
 /** Карточки выбора режима в лобби (мин. игроков — ориентир для хоста) */
 const LOBBY_GAMES = [
   { id: 'spy', name: 'Шпион', emoji: '🕵️', minPlayers: 3 },
-  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 4 },
+  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 6 },
   { id: 'bunker', name: 'Бункер', emoji: '🛡️', minPlayers: 4 },
   { id: 'elias', name: 'Элиас', emoji: '📢', minPlayers: 2 },
   { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },
@@ -397,9 +397,26 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const startMafia = async (opts) => {
     if (!isHost) return;
-    const count = room?.players?.length ?? 0;
-    if (count < MIN_PLAYERS.mafia) {
-      setMinPlayersWarning(`Для игры в Мафию нужно минимум ${MIN_PLAYERS.mafia} игроков. Сейчас в лобби: ${count}.`);
+    const players = room?.players || [];
+    const count = players.length;
+    const gs = room?.gameSettings || {};
+    const chosenMod = gs.hostSelection === 'choose' ? gs.moderatorId : null;
+    const modInRoom = chosenMod != null && players.some((p) => String(p.id) === String(chosenMod));
+    const poolSize = modInRoom
+      ? players.filter((p) => String(p.id) !== String(chosenMod)).length
+      : Math.max(0, count - 1);
+    if (poolSize < 6) {
+      setMinPlayersWarning(
+        modInRoom
+          ? `В мафию нужно минимум 6 игроков за столом (ведущий не играет). Сейчас играющих: ${poolSize}. Назначьте ведущего или добавьте людей.`
+          : `В мафию нужно минимум 6 игроков за столом: при случайном ведущем из комнаты нужно не меньше 7 человек в лобби (один ведёт). Сейчас: ${count}.`,
+      );
+      return;
+    }
+    if ((gs.extended ?? false) && poolSize < 6) {
+      setMinPlayersWarning(
+        `Расширенная мафия: минимум 6 игроков за столом (без ведущего). Сейчас играющих: ${poolSize}.`,
+      );
       return;
     }
     setStartingGame(true);
@@ -414,6 +431,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         mafiaCanSkipKill: gs.mafiaCanSkipKill ?? false,
         mafiaRolesMode: gs.mafiaRolesMode === 'moderator' ? 'moderator' : gs.mafiaRolesMode === 'player_vote' ? 'player_vote' : undefined,
         phaseTimers: gs.phaseTimers || {
+          prepDay: 90,
+          nightMeet: 45,
           nightMafia: 45,
           nightCommissioner: 25,
           day: 90,
@@ -1426,7 +1445,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
         {selectedGame === 'mafia' && gameSettingsTab === 'mode' && (
           <div>
-            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88 }}>Минимум {MIN_PLAYERS.mafia} игроков.</p>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.4 }}>
+              Минимум <strong>6 играющих</strong> (ведущий в партию не входит). Если ведущий выбирается из комнаты случайно — в лобби нужно <strong>7+</strong> человек. Расширенная мафия — тоже от <strong>6</strong> за столом.
+            </p>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <button
                 type="button"
@@ -1496,16 +1517,18 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <p style={{ margin: '0 0 6px', fontSize: 14 }}>Скорость фаз</p>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {[
-                { id: 'fast', label: 'Быстро', val: { roleSetup: 90, nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
-                { id: 'std', label: 'Стандарт', val: { roleSetup: 120, nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
-                { id: 'long', label: 'Дольше', val: { roleSetup: 150, nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
+                { id: 'fast', label: 'Быстро', val: { prepDay: 60, nightMeet: 30, roleSetup: 90, nightMafia: 30, nightCommissioner: 20, day: 60, voting: 30 } },
+                { id: 'std', label: 'Стандарт', val: { prepDay: 90, nightMeet: 45, roleSetup: 120, nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } },
+                { id: 'long', label: 'Дольше', val: { prepDay: 120, nightMeet: 60, roleSetup: 150, nightMafia: 60, nightCommissioner: 35, day: 120, voting: 60 } },
               ].map((p) => {
                 const cur = room?.gameSettings?.phaseTimers || {};
                 const active =
                   cur.nightMafia === p.val.nightMafia &&
                   cur.day === p.val.day &&
                   cur.voting === p.val.voting &&
-                  (cur.roleSetup ?? 120) === (p.val.roleSetup ?? 120);
+                  (cur.roleSetup ?? 120) === (p.val.roleSetup ?? 120) &&
+                  (cur.prepDay ?? 90) === (p.val.prepDay ?? 90) &&
+                  (cur.nightMeet ?? 45) === (p.val.nightMeet ?? 45);
                 return (
                   <button
                     key={p.id}
@@ -1523,7 +1546,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               onClick={() => patchLobbyGame({
                 gameSettings: {
                   ...room?.gameSettings,
-                  phaseTimers: { roleSetup: 60, nightMafia: 30, nightCommissioner: 20, day: 40, voting: 30 },
+                  phaseTimers: {
+                    prepDay: 45,
+                    nightMeet: 25,
+                    roleSetup: 60,
+                    nightMafia: 30,
+                    nightCommissioner: 20,
+                    day: 40,
+                    voting: 30,
+                  },
                 },
               })}
               style={{ ...btnStyle, marginBottom: 12, width: '100%' }}

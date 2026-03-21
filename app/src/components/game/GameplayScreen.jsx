@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import BackArrow from '../BackArrow';
 import AppHeaderRight from '../layout/AppHeaderRight';
 import '../landing/gamePromoLanding.css';
@@ -15,13 +16,27 @@ export default function GameplayScreen({
   children,
   headerExtra,
 }) {
+  const navigate = useNavigate();
   return (
     <div className={`gameplay gpl--${theme}`}>
       <div className="gameplay__inner">
         <header className="gameplay__topbar">
-          <BackArrow onClick={onBack} title={backTitle} />
+          <div className="gameplay__topbarSlot gameplay__topbarSlot--start">
+            {onBack ? <BackArrow onClick={onBack} title={backTitle} inline /> : <span className="gameplay__topbarPad" aria-hidden />}
+          </div>
           <span className="gameplay__title">{title || '\u00a0'}</span>
-          <AppHeaderRight user={user} />
+          <div className="gameplay__topbarSlot gameplay__topbarSlot--end">
+            <button
+              type="button"
+              className="gameplay__homeBtn"
+              onClick={() => navigate('/')}
+              title="На главную"
+              aria-label="На главную"
+            >
+              ⌂
+            </button>
+            <AppHeaderRight user={user} />
+          </div>
         </header>
         {headerExtra}
         {children}

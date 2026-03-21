@@ -1,6 +1,13 @@
-/** Стрелка назад слева сверху — дублирует кнопку «Назад» на экране */
-export default function BackArrow({ onClick, title = 'Назад' }) {
+/** Стрелка «Назад». `inline` — в шапке игры (не fixed), иначе плавающая кнопка для экранов без topbar. */
+export default function BackArrow({ onClick, title = 'Назад', inline = false }) {
   if (!onClick) return null;
+  if (inline) {
+    return (
+      <button type="button" className="gameplay__backBtn" onClick={onClick} title={title} aria-label={title}>
+        ‹
+      </button>
+    );
+  }
   return (
     <button
       type="button"

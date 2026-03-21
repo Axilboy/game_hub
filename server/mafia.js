@@ -20,21 +20,77 @@ export function getRoleDisplayName(role, themeId = 'default') {
 
 /** @typedef {'random'|'moderator'|'player_vote'} MafiaRolesMode */
 
+/** Минимум игроков за столом (ведущий в состав не входит). Комфортный стол — от 6. */
+export const MIN_MAFIA_PLAYERS_CLASSIC = 6;
+export const MIN_MAFIA_PLAYERS_EXTENDED = 6;
+
+/**
+ * Состав ролей от числа играющих n (ведущий не считается).
+ * Классика: дон ×1, «мафия» ×k, комиссар ×1, мирные — остальные.
+ * k = 1 + ⌊(n − 4) / 3⌋ → при росте стола мафия увеличивается ступенями (~каждые 3 игрока +1 мафия).
+ * Расширение: + доктор, + путана; мирные = n − 4 − k (нужно n ≥ 6).
+ */
+export function computeRoleComposition(playerCount, extended) {
+  const n = playerCount;
+  if (n < MIN_MAFIA_PLAYERS_CLASSIC) {
+    return { ok: false, error: `Нужно минимум ${MIN_MAFIA_PLAYERS_CLASSIC} игрока за столом (без ведущего)` };
+  }
+  const mafia = Math.floor((n - 4) / 3) + 1;
+  if (!extended) {
+    const civilian = n - 2 - mafia;
+    if (civilian < 1) return { ok: false, error: 'Некорректный состав для классики' };
+    return {
+      ok: true,
+      extended: false,
+      don: 1,
+      mafia,
+      commissioner: 1,
+      doctor: 0,
+      prostitute: 0,
+      civilian,
+    };
+  }
+  if (n < MIN_MAFIA_PLAYERS_EXTENDED) {
+    return {
+      ok: false,
+      error: `Расширенная мафия: минимум ${MIN_MAFIA_PLAYERS_EXTENDED} игроков за столом (без ведущего)`,
+    };
+  }
+  const civilian = n - 4 - mafia;
+  if (civilian < 0) {
+    return { ok: false, error: 'Недостаточно игроков для расширенных ролей' };
+  }
+  return {
+    ok: true,
+    extended: true,
+    don: 1,
+    mafia,
+    commissioner: 1,
+    doctor: 1,
+    prostitute: 1,
+    civilian,
+  };
+}
+
 function buildRandomRoleMap(pool, extended) {
-  const roles = [...(extended ? EXTENDED_ROLES : CLASSIC_ROLES)];
-  const count = pool.length;
-  const roleCounts = { civilian: Math.max(1, count - 3), mafia: 1, don: 1, commissioner: 1 };
-  if (extended) {
-    roleCounts.doctor = 1;
-    roleCounts.prostitute = 1;
-    roleCounts.civilian = Math.max(0, count - 5);
+  const comp = computeRoleComposition(pool.length, extended);
+  if (!comp.ok) {
+    const assignment = Array.from({ length: pool.length }, () => 'civilian');
+    const roleMap = {};
+    pool.forEach((p, i) => {
+      roleMap[p.id] = assignment[i];
+    });
+    return roleMap;
   }
   const assignment = [];
-  for (const [role, num] of Object.entries(roleCounts)) {
-    for (let i = 0; i < num; i++) assignment.push(role);
+  assignment.push('don');
+  for (let i = 0; i < comp.mafia; i++) assignment.push('mafia');
+  assignment.push('commissioner');
+  if (comp.extended) {
+    assignment.push('doctor');
+    assignment.push('prostitute');
   }
-  while (assignment.length < count) assignment.push('civilian');
-  while (assignment.length > count) assignment.pop();
+  for (let i = 0; i < comp.civilian; i++) assignment.push('civilian');
   shuffle(assignment);
   const roleMap = {};
   pool.forEach((p, i) => {
@@ -69,6 +125,7 @@ function baseMafiaPayload(moderatorId, poolIds, roleMap, settings) {
     phaseStartedAt: Date.now(),
     phaseDurationSec: null,
     roleSetupVotes: {},
+    killNightEnabled: false,
   };
 }
 
@@ -87,33 +144,48 @@ export function createMafiaState(players, settings = {}) {
 
   const roleMap = buildRandomRoleMap(pool, settings.extended);
   const out = baseMafiaPayload(moderatorId, poolIds, roleMap, { ...settings, mafiaRolesMode: 'random' });
-  out.phase = 'night_mafia';
+  out.phase = 'prep_day_1';
+  out.killNightEnabled = false;
   return out;
 }
 
 /**
- * Ведущий назначает роли вручную (классика: дон, мафия, комиссар; расширение: +доктор, путана).
+ * Ведущий назначает роли вручную.
+ * mafiaIds — массив id игроков в роли «мафия» (длина = computeRoleComposition(...).mafia).
+ * Поддержка legacy: одно поле mafiaId → [mafiaId].
  */
 export function assignRolesFromModeratorPicks({
   poolIds,
   donId,
-  mafiaId,
+  mafiaIds: mafiaIdsRaw,
+  mafiaId: legacyMafiaId,
   commissionerId,
   doctorId,
   prostituteId,
   extended,
 }) {
-  const need = extended
-    ? [donId, mafiaId, commissionerId, doctorId, prostituteId]
-    : [donId, mafiaId, commissionerId];
+  const comp = computeRoleComposition(poolIds.length, extended);
+  if (!comp.ok) return { error: comp.error };
+
+  let mafiaIds = Array.isArray(mafiaIdsRaw) ? mafiaIdsRaw : legacyMafiaId != null ? [legacyMafiaId] : [];
+  mafiaIds = mafiaIds.map((id) => String(id));
+  if (mafiaIds.length !== comp.mafia) {
+    return { error: `Нужно назначить ровно ${comp.mafia} игрок(а/ов) в роль «Мафия» (не считая дона)` };
+  }
+  const mSet = new Set(mafiaIds);
+  if (mSet.size !== mafiaIds.length) return { error: 'Все мафии должны быть разными игроками' };
+
+  const need = [donId, commissionerId, ...mafiaIds];
+  if (extended) need.push(doctorId, prostituteId);
   const s = new Set(need.map(String));
   if (s.size !== need.length) return { error: 'Все назначения должны быть разными игроками' };
   for (const id of need) {
     if (!poolIds.some((x) => String(x) === String(id))) return { error: 'Игрок не в составе' };
   }
+
   const roleMap = {};
   roleMap[String(donId)] = 'don';
-  roleMap[String(mafiaId)] = 'mafia';
+  for (const mid of mafiaIds) roleMap[String(mid)] = 'mafia';
   roleMap[String(commissionerId)] = 'commissioner';
   if (extended) {
     roleMap[String(doctorId)] = 'doctor';
@@ -134,13 +206,16 @@ function pickTwoOthersFromPool(poolIds, selfId) {
 }
 
 /**
- * Итог голосования «кто в мафии»: у каждого игрока 2 номинации; топ-2 — дон+мафия, комиссар и остальные — случайно из оставшихся.
+ * Итог голосования: у каждого 2 номинации; по очкам выбираем (1 + k) человек в команду мафии (дон + k мафий),
+ * дон случайно среди них, остальные — мафия; комиссар и пр. — случайно из оставшихся по правилам состава.
  */
 export function assignRolesFromPlayerVotes(gs) {
   const poolIds = [...(gs.alive || [])];
   const extended = !!gs.settings?.extended;
-  const votes = { ...(gs.roleSetupVotes || {}) };
+  const comp = computeRoleComposition(poolIds.length, extended);
+  if (!comp.ok) return { error: comp.error };
 
+  const votes = { ...(gs.roleSetupVotes || {}) };
   for (const id of poolIds) {
     if (votes[id] != null) continue;
     const auto = pickTwoOthersFromPool(poolIds, id);
@@ -161,18 +236,33 @@ export function assignRolesFromPlayerVotes(gs) {
     }
   }
 
-  const sorted = poolIds.slice().sort((x, y) => (tally[String(y)] || 0) - (tally[String(x)] || 0));
-  const first = sorted[0];
-  const second = sorted.find((id) => String(id) !== String(first)) || sorted[1];
-  if (first == null || second == null) return { error: 'Недостаточно игроков для голосования' };
+  const mafiaTeamSize = 1 + comp.mafia;
+  const sorted = poolIds.slice().sort((x, y) => {
+    const d = (tally[String(y)] || 0) - (tally[String(x)] || 0);
+    if (d !== 0) return d;
+    return String(x).localeCompare(String(y));
+  });
 
+  const mafiaTeamIds = [];
+  const seen = new Set();
+  for (const id of sorted) {
+    if (mafiaTeamIds.length >= mafiaTeamSize) break;
+    const k = String(id);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    mafiaTeamIds.push(id);
+  }
+  if (mafiaTeamIds.length < mafiaTeamSize) return { error: 'Недостаточно кандидатов для состава мафии' };
+
+  const donPick = mafiaTeamIds[Math.floor(Math.random() * mafiaTeamIds.length)];
   const roleMap = {};
-  const swap = Math.random() < 0.5;
-  roleMap[String(first)] = swap ? 'don' : 'mafia';
-  roleMap[String(second)] = swap ? 'mafia' : 'don';
+  roleMap[String(donPick)] = 'don';
+  for (const id of mafiaTeamIds) {
+    if (String(id) === String(donPick)) continue;
+    roleMap[String(id)] = 'mafia';
+  }
 
-  const mafiaTeam = new Set([String(first), String(second)]);
-  const rest = poolIds.filter((id) => !mafiaTeam.has(String(id)));
+  const rest = poolIds.filter((id) => !mafiaTeamIds.some((m) => String(m) === String(id)));
   if (rest.length === 0) return { error: 'Некорректный состав' };
 
   const commissioner = rest[Math.floor(Math.random() * rest.length)];
@@ -261,7 +351,7 @@ export function checkWin(gs) {
   const aliveSet = new Set(gs.alive);
   const mafiaIds = getMafiaPlayers(gs.roles);
   const aliveMafia = mafiaIds.filter((id) => aliveSet.has(id));
-  const aliveCivilians = gs.alive.filter((id) => !mafiaIds.includes(id));
+  const aliveCivilians = gs.alive.filter((id) => !mafiaIds.some((m) => String(m) === String(id)));
   if (aliveMafia.length === 0) return 'civilians';
   if (aliveMafia.length >= aliveCivilians.length) return 'mafia';
   return null;
@@ -279,6 +369,18 @@ export function toClientState(gs, playerId, players) {
   const roleSetupVotes = gs.roleSetupVotes && typeof gs.roleSetupVotes === 'object' ? gs.roleSetupVotes : {};
   const roleSetupVotedCount = poolIds.filter((id) => roleSetupVotes[id] != null).length;
   const mySetupVote = roleSetupVotes[playerId];
+  const comp = computeRoleComposition(poolIds.length, !!gs.settings?.extended);
+  const roleSetupExpect = comp.ok
+    ? {
+        playersInGame: poolIds.length,
+        extended: !!gs.settings?.extended,
+        mafiaCount: comp.mafia,
+        civilianCount: comp.civilian,
+        hasDoctor: !!comp.extended,
+        hasProstitute: !!comp.extended,
+      }
+    : null;
+
   const publicInfo = {
     phase: gs.phase,
     phaseStartedAt: gs.phaseStartedAt || null,
@@ -293,6 +395,9 @@ export function toClientState(gs, playerId, players) {
     roleSetupVotedCount,
     roleSetupTotal: poolIds.length,
     myRoleSetupTargets: Array.isArray(mySetupVote) ? mySetupVote : null,
+    roleSetupExpect,
+    /** false — подготовка до 2-й ночи; undefined (старые сохранения) — считать разрешённым */
+    killNightEnabled: gs.killNightEnabled !== false,
   };
   const dayVotes = gs.dayVotes && typeof gs.dayVotes === 'object' ? gs.dayVotes : {};
   const voteCounts = {};
@@ -301,8 +406,8 @@ export function toClientState(gs, playerId, players) {
   }
   let roleForPlayer = null;
   if (myRole) roleForPlayer = { role: myRole, roleName: getRoleDisplayName(myRole, theme) };
-  if (mafiaIds.includes(playerId)) {
-    const mafiaTeammates = mafiaIds.filter((id) => id !== playerId).map((id) => players.find((p) => p.id === id)).filter(Boolean);
+  if (mafiaIds.some((id) => String(id) === String(playerId))) {
+    const mafiaTeammates = mafiaIds.filter((id) => String(id) !== String(playerId)).map((id) => players.find((p) => String(p.id) === String(id))).filter(Boolean);
     return {
       ...publicInfo,
       myRole: roleForPlayer,

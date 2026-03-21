@@ -1,7 +1,7 @@
 import { BUNKER_SCENARIOS, BUNKER_SPEED_PRESETS } from '../../lobbyPresets';
 import './lobbySettingsSheet.css';
 
-const MIN_PLAYERS = { mafia: 4, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
 
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
@@ -79,7 +79,7 @@ export default function LobbyGameSummaryCard({
           label="Фазы (с)"
           value={`подг. ${pt.roleSetup ?? 120}, ночь ${pt.nightMafia ?? 45}, день ${pt.day ?? 90}, голос ${pt.voting ?? 45}`}
         />
-        <Row icon="👥" label="Мин. игроков" value={String(MIN_PLAYERS.mafia)} />
+        <Row icon="👥" label="Мин. игроков" value={`${MIN_PLAYERS.mafia} (ведущий не в игре)`} />
       </div>
     );
   }

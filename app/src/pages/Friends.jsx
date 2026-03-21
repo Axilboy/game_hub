@@ -5,7 +5,7 @@ import { useToast } from '../components/ui/ToastProvider';
 import PageLayout from '../components/layout/PageLayout';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Button from '../components/ui/Button';
-import { formatFriendListLine } from '../displayName';
+import { friendDisplayNameOnly } from '../displayName';
 import './friendsPage.css';
 
 function sortFriends(arr) {
@@ -22,6 +22,8 @@ export default function FriendsPage({ user, onJoinByInvite }) {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [joiningId, setJoiningId] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNoteId, setSavingNoteId] = useState(null);
 
   const myId = user?.id != null ? String(user.id) : '';
 
@@ -64,6 +66,21 @@ export default function FriendsPage({ user, onJoinByInvite }) {
       await loadFriends();
     } catch (e) {
       showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось удалить') });
+    }
+  };
+
+  const saveFriendNote = async (friendId) => {
+    if (!myId) return;
+    setSavingNoteId(String(friendId));
+    try {
+      const note = noteDraft.trim().slice(0, 200);
+      await api.post('/friends/note', { playerId: myId, friendId: String(friendId), note });
+      showToast({ type: 'success', message: 'Примечание сохранено' });
+      await loadFriends();
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось сохранить') });
+    } finally {
+      setSavingNoteId(null);
     }
   };
 
@@ -113,14 +130,26 @@ export default function FriendsPage({ user, onJoinByInvite }) {
                     <button
                       type="button"
                       className="friends-page__cardTap"
-                      onClick={() => setExpandedId(expanded ? null : f.id)}
+                      onClick={() => {
+                        if (expanded) {
+                          setExpandedId(null);
+                        } else {
+                          setNoteDraft(f.note != null ? String(f.note) : '');
+                          setExpandedId(f.id);
+                        }
+                      }}
                     >
                       <span
                         className={`friends-page__dot ${f.online ? 'friends-page__dot--on' : 'friends-page__dot--off'}`}
                         aria-hidden
                       />
                       <div className="friends-page__cardMain">
-                        <div className="friends-page__name">{formatFriendListLine(f)}</div>
+                        <div className="friends-page__nameRow">
+                          <span className="friends-page__name">{friendDisplayNameOnly(f)}</span>
+                          {f.note && String(f.note).trim() ? (
+                            <span className="friends-page__noteHint">{String(f.note).trim()}</span>
+                          ) : null}
+                        </div>
                         <div className="friends-page__status">{statusLabel(f)}</div>
                       </div>
                     </button>
@@ -137,6 +166,25 @@ export default function FriendsPage({ user, onJoinByInvite }) {
                   </div>
                   {expanded ? (
                     <div className="friends-page__actions">
+                      <label className="friends-page__noteLabel" htmlFor={`friend-note-${f.id}`}>
+                        Примечание (видно только вам)
+                      </label>
+                      <textarea
+                        id={`friend-note-${f.id}`}
+                        className="friends-page__noteInput"
+                        rows={2}
+                        maxLength={200}
+                        value={noteDraft}
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        placeholder="Например: одногруппник, играли вместе"
+                      />
+                      <Button
+                        fullWidth
+                        onClick={() => saveFriendNote(f.id)}
+                        disabled={savingNoteId === String(f.id)}
+                      >
+                        {savingNoteId === String(f.id) ? 'Сохранение…' : 'Сохранить примечание'}
+                      </Button>
                       <Button variant="danger" fullWidth onClick={() => removeFriend(f.id)}>
                         Удалить из друзей
                       </Button>

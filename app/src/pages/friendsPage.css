@@ -71,11 +71,35 @@
   min-width: 0;
 }
 
+.friends-page__nameRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .friends-page__name {
   font-weight: 700;
   font-size: 15px;
   line-height: 1.25;
   word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.friends-page__noteHint {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.78;
+  max-width: 100%;
+  text-align: right;
+  word-break: break-word;
+}
+
+.friends-page__noteHint::before {
+  content: '· ';
+  opacity: 0.6;
 }
 
 .friends-page__status {
@@ -105,4 +129,29 @@
 .friends-page__actions {
   margin-top: 8px;
   padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.friends-page__noteLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.friends-page__noteInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--home-panel-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in srgb, var(--tg-theme-bg-color) 88%, #fff 12%);
+  color: var(--tg-theme-text-color);
+  font-size: 14px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 52px;
+  font-family: inherit;
 }
