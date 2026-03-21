@@ -14,9 +14,11 @@ export default function GameLayout({
   textAlign = 'center',
   minHeight = '100vh',
   center = true,
+  className = '',
 }) {
   return (
     <div
+      className={`gameplay__layout-root ${className}`.trim()}
       style={{
         padding,
         textAlign,

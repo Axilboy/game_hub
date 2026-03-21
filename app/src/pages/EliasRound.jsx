@@ -136,6 +136,8 @@ function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
   };
 
   const rot = Math.max(-12, Math.min(12, drag.x / 25));
+  /** Явный transform (не CSS-переменные) — стабильнее при zoom Chrome и масштабе страницы */
+  const cardTransform = `translate(${drag.x}px, ${drag.y}px) rotate(${rot}deg)`;
 
   return (
     <div className="elias-round__card-wrap">
@@ -144,9 +146,7 @@ function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
         <div
           className={`elias-round__card ${hint === 'yes' ? 'elias-round__card--hint-yes' : ''} ${hint === 'no' ? 'elias-round__card--hint-no' : ''}`}
           style={{
-            '--dx': `${drag.x}px`,
-            '--dy': `${drag.y}px`,
-            '--rot': `${rot}deg`,
+            transform: cardTransform,
           }}
           onPointerDown={onDown}
           onPointerMove={onMove}
@@ -447,7 +447,15 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   return (
     <>
       <GameplayScreen theme="elias" user={user} onBack={requestExitGame} backTitle="Назад" title="Элиас">
-        <GameLayout top={null} center={false} padding={0} minHeight="calc(100dvh - 100px)" textAlign="center" bottom={null}>
+        <GameLayout
+          top={null}
+          center={false}
+          padding={0}
+          minHeight="0"
+          textAlign="center"
+          bottom={null}
+          className="elias-round__layout"
+        >
         <div className="elias-round">
           <div className="elias-round__meta-card gpl__panel">
             <div className="elias-round__meta-card-head">

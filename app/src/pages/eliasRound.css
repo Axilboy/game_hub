@@ -4,14 +4,36 @@
  * Визуал: «как на лендингах» — стекло, крупные радиусы, мягкие тени, без «квадратных блоков».
  */
 
+/* Цепочка flex на ПК / при zoom Chrome — карта остаётся в колонке по центру, не «улетает» в угол */
+.gameplay.gpl--elias .gameplay__inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+.gameplay.gpl--elias .gameplay__inner > header.gameplay__topbar {
+  flex-shrink: 0;
+}
+
+.gameplay.gpl--elias .gameplay__layout-root.elias-round__layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding-bottom: 0;
+}
+
 .elias-round {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding: 0 14px 16px;
   color: var(--gpl-hero-text);
-  min-height: calc(100dvh - 120px);
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .elias-round__meta-you-badge {
@@ -26,15 +48,16 @@
   color: var(--gpl-panel-muted);
 }
 
-/* Колонка: слово сверху, кнопки снизу — без flex:1 у карточки, чтобы не разъезжалось по высоте */
+/* Колонка: карта + кнопки; по вертикали центрируем блок в оставшейся высоте (на широком экране) */
 .elias-round__play-column {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   width: 100%;
   min-height: 0;
+  justify-content: center;
 }
 
 /* Панели внутри раунда — glassmorphism поверх градиента */
@@ -358,11 +381,12 @@ html[data-theme='light'] .elias-round__score-num {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: min(42vh, 280px);
-  max-height: 55vh;
+  min-height: clamp(160px, 28vh, 300px);
+  max-height: min(50vh, 420px);
   position: relative;
   touch-action: none;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -413,10 +437,11 @@ html[data-theme='light'] .elias-round__score-num {
     0 16px 48px rgba(0, 0, 0, 0.14),
     0 4px 12px rgba(0, 0, 0, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot, 0deg));
+  /* transform задаётся inline в EliasSwipeCard — стабильнее при масштабе Chrome */
   transition: box-shadow 0.15s ease;
   user-select: none;
   cursor: grab;
+  will-change: transform;
 }
 
 .elias-round__card:active {
