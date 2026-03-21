@@ -11,6 +11,7 @@ import Loader from '../components/ui/Loader';
 import ErrorState from '../components/ui/ErrorState';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import { useSwipeGesturesEnabled } from '../hooks/useSwipeGesturesEnabled';
 import './eliasRound.css';
 
 const DICT_LABELS = {
@@ -74,7 +75,7 @@ function explainingTeamRoundDelta(log, currentTeamIndex, skipPenalty) {
   return d;
 }
 
-function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
+function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo, swipeEnabled = true }) {
   const start = useRef({ x: 0, y: 0 });
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [hint, setHint] = useState(null);
@@ -91,7 +92,7 @@ function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
   };
 
   const onDown = (e) => {
-    if (disabled) return;
+    if (disabled || !swipeEnabled) return;
     const p = getPoint(e);
     start.current = p;
     setDrag({ x: 0, y: 0 });
@@ -102,7 +103,7 @@ function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
   };
 
   const onMove = (e) => {
-    if (disabled) return;
+    if (disabled || !swipeEnabled) return;
     const p = getPoint(e);
     const dx = p.x - start.current.x;
     const dy = p.y - start.current.y;
@@ -131,27 +132,37 @@ function EliasSwipeCard({ word, subtitle, disabled, onYes, onNo }) {
   }, [drag, onYes, onNo]);
 
   const onUp = () => {
-    if (disabled) return;
+    if (disabled || !swipeEnabled) return;
     fireSwipe();
   };
 
   const rot = Math.max(-12, Math.min(12, drag.x / 25));
   /** Явный transform (не CSS-переменные) — стабильнее при zoom Chrome и масштабе страницы */
-  const cardTransform = `translate(${drag.x}px, ${drag.y}px) rotate(${rot}deg)`;
+  const cardTransform =
+    swipeEnabled && !disabled ? `translate(${drag.x}px, ${drag.y}px) rotate(${rot}deg)` : 'none';
+
+  const pointerHandlers =
+    swipeEnabled && !disabled
+      ? {
+          onPointerDown: onDown,
+          onPointerMove: onMove,
+          onPointerUp: onUp,
+          onPointerCancel: onUp,
+        }
+      : {};
 
   return (
-    <div className="elias-round__card-wrap">
+    <div
+      className={`elias-round__card-wrap ${swipeEnabled ? '' : 'elias-round__card-wrap--buttons-only'}`}
+    >
       <div className="elias-round__card-stack">
         <div className="elias-round__card-shadow" aria-hidden />
         <div
-          className={`elias-round__card ${hint === 'yes' ? 'elias-round__card--hint-yes' : ''} ${hint === 'no' ? 'elias-round__card--hint-no' : ''}`}
+          className={`elias-round__card ${!swipeEnabled ? 'elias-round__card--no-swipe' : ''} ${hint === 'yes' ? 'elias-round__card--hint-yes' : ''} ${hint === 'no' ? 'elias-round__card--hint-no' : ''}`}
           style={{
             transform: cardTransform,
           }}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
+          {...pointerHandlers}
         >
           <p className="elias-round__word">{word}</p>
           {subtitle ? <p className="elias-round__sub">({subtitle})</p> : null}
@@ -176,6 +187,8 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
   const requestSeqRef = useRef(0);
   const timerEndedSentRef = useRef(false);
   const prevPhaseRef = useRef(null);
+  /** На ПК — только кнопки; на телефоне/планшете — ещё и свайп по карточке */
+  const swipeGesturesEnabled = useSwipeGesturesEnabled();
 
   const refreshState = useCallback(({ silent = false } = {}) => {
     if (!myId) return;
@@ -654,6 +667,7 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                     disabled={!canPlayActions}
                     onYes={guessed}
                     onNo={skip}
+                    swipeEnabled={swipeGesturesEnabled}
                   />
                   <div className="elias-round__actions-shell">
                     <div className="elias-round__actions">
@@ -664,7 +678,11 @@ export default function EliasRound({ roomId, user, room, onLeave }) {
                         ✓
                       </button>
                     </div>
-                    <p className="elias-round__hint">Свайп влево/вниз — нет · вправо/вверх — да</p>
+                    <p className="elias-round__hint">
+                      {swipeGesturesEnabled
+                        ? 'Свайп влево/вниз — нет · вправо/вверх — да'
+                        : 'На компьютере используйте кнопки ниже'}
+                    </p>
                   </div>
                 </div>
               )}

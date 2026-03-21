@@ -233,6 +233,7 @@ GAME_HUB/
 
 | Дата | Что сделано |
 |------|-------------|
+| 2026-03-17 | **Элиас:** `useSwipeGesturesEnabled` — свайп только при `maxTouchPoints` или `(pointer: coarse)`; на ПК только кнопки (нет ложных срабатываний мышью). |
 | 2026-03-17 | **Элиас (ПК/Chrome):** цепочка flex для `.gameplay__inner` + `GameLayout` (`elias-round__layout`), центрирование колонки с картой, `transform` свайпа через inline вместо CSS-переменных; правки `eliasRound.css`. |
 | 2026-03-17 | Друзья: **заявки** (request/accept/reject), заметка при принятии, отображение «Имя (заметка)»; имя для Telegram через `resolvePublicDisplayName` в heartbeat и заявках; `FriendsIncomingModal`. |
 | 2026-03-17 | Система **Друзья**: `friendsStore`/`presenceStore`/`friendsRoutes`, heartbeat в `App`, блок на главной (до 3), страница `/friends`, лобби — добавить в друзья; паспорт §9. |

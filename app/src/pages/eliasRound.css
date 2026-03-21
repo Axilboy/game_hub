@@ -390,6 +390,15 @@ html[data-theme='light'] .elias-round__score-num {
   box-sizing: border-box;
 }
 
+/* ПК: без свайпа — не перехватываем касания, карточка не реагирует на мышь как на жест */
+.elias-round__card-wrap--buttons-only {
+  touch-action: auto;
+}
+
+.elias-round__card--no-swipe {
+  cursor: default;
+}
+
 .elias-round__card-wrap--static {
   min-height: auto;
   max-height: none;
