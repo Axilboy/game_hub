@@ -189,16 +189,19 @@ GAME_HUB/
 
 ### Система «Друзья»
 
-**Сервер:** `server/friendsStore.js` — симметричный граф дружбы, файл `data/friends.json` (каталог `data/` в `.gitignore`, как у статистики). `server/presenceStore.js` — in-memory последний heartbeat (~45 с = онлайн). `server/friendsRoutes.js` подключён в `server/index.js` с префиксом `/api`.
+**Сервер:** `server/friendsStore.js` — граф дружбы, **очередь заявок** `pending`, **заметки** `notes[viewerId][friendId]` (как зовут в жизни), глобальные имена в `names`; файл `data/friends.json`. `server/presenceStore.js` — последний heartbeat. `server/friendsRoutes.js` — префикс `/api`.
 
 | Метод | Путь | Назначение |
 |-------|------|------------|
-| POST | `/presence/heartbeat` | `playerId`, `displayName`, `location` (`home` / `lobby` / `playing`), при лобби — `roomId`, `inviteToken`, `roomCode` |
-| POST | `/friends/add` | `playerId`, `friendId`, опц. `friendName` |
+| POST | `/presence/heartbeat` | `playerId`, `displayName`, `location`, при лобби — `roomId`, `inviteToken`, `roomCode` |
+| POST | `/friends/request` | Заявка: `playerId`, `targetId`, `requesterName` |
+| POST | `/friends/accept` | Принять: `playerId` (кто принимает), `fromId`, опц. `note`, `acceptorDisplayName` |
+| POST | `/friends/reject` | `playerId`, `fromId` |
+| POST | `/friends/add` | Устар.: мгновенное добавление (совместимость) |
 | POST | `/friends/remove` | `playerId`, `friendId` |
-| GET | `/friends/list?playerId=` | Друзья + `online`, `location`, `joinInviteToken` только если друг в **лобби** (не в игре) |
+| GET | `/friends/list?playerId=` | `friends` (с полем `note`), `incomingRequests`, `outgoingPendingIds`, плюс онлайн/лобби |
 
-**Клиент:** `usePresenceHeartbeat` — сразу и каждые 20 с обновляет присутствие (из `App.jsx`, есть `room`/`roomId`). Главная (`Home.jsx`) — превью до **3** друзей (сначала онлайн), кнопка «Все друзья». `Friends.jsx` — полный список, сортировка онлайн первыми; по нажатию на карточку — блок «Удалить из друзей»; «В лобби» вызывает существующий `joinByInvite`. Лобби: в меню игрока активная кнопка «Добавить в друзья».
+**Клиент:** `resolvePublicDisplayName` / `formatFriendListLine` в `displayName.js` (имя Telegram + кастомное имя; в списке **«Имя (заметка)»**). `usePresenceHeartbeat` передаёт `user` для корректного имени в heartbeat. `FriendsIncomingModal` — входящие заявки (принять / отклонить, поле заметки). Лобби: **«Добавить в друзья»** шлёт заявку; **«Заявка отправлена»** при исходящем pending.
 
 ---
 
@@ -230,6 +233,7 @@ GAME_HUB/
 
 | Дата | Что сделано |
 |------|-------------|
+| 2026-03-17 | Друзья: **заявки** (request/accept/reject), заметка при принятии, отображение «Имя (заметка)»; имя для Telegram через `resolvePublicDisplayName` в heartbeat и заявках; `FriendsIncomingModal`. |
 | 2026-03-17 | Система **Друзья**: `friendsStore`/`presenceStore`/`friendsRoutes`, heartbeat в `App`, блок на главной (до 3), страница `/friends`, лобби — добавить в друзья; паспорт §9. |
 | 2026-03-17 | `SETUP.md`: подсказка при ошибке `Cannot find package 'vite-plugin-pwa'` — выполнить `npm install` в `app/`. |
 | 2026-03-17 | `tools/multiplayer-sandbox/open-players.mjs`: обработка ошибки `page.goto`, ожидание выхода без TTY (Ctrl+C вместо мгновенного закрытия окон); README — типичные причины «окна сразу закрылись». |

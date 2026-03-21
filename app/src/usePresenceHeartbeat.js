@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { api } from './api';
-import { getDisplayName } from './displayName';
+import { resolvePublicDisplayName } from './displayName';
 
 /**
  * Периодически сообщает серверу, где игрок (главная / лобби / игра), чтобы друзья видели статус и могли зайти по инвайту.
- * @param {{ userId: string | number | null | undefined, room: object | null, roomId: string | null }} opts
+ * @param {{ userId: string | number | null | undefined, room: object | null, roomId: string | null, user: object | null }} opts
  */
-export function usePresenceHeartbeat({ userId, room, roomId }) {
+export function usePresenceHeartbeat({ userId, room, roomId, user }) {
   const roomRef = useRef(room);
   roomRef.current = room;
+  const userRef = useRef(user);
+  userRef.current = user;
 
   useEffect(() => {
     if (userId == null || userId === '') return undefined;
@@ -33,7 +35,7 @@ export function usePresenceHeartbeat({ userId, room, roomId }) {
           } catch (_) {}
         }
       }
-      const displayName = getDisplayName() || '';
+      const displayName = resolvePublicDisplayName(userRef.current);
       api
         .post('/presence/heartbeat', {
           playerId: String(userId),

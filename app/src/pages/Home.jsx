@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { canStartTrial, getInventory, getOrCreateReferralCode, redeemReferralCode, setPro, startTrialUnlock } from '../inventory';
 import { api, getApiErrorMessage } from '../api';
-import { getDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST } from '../displayName';
+import { getDisplayName, getAvatar, setAvatar, AVATAR_EMOJI_LIST, formatFriendListLine } from '../displayName';
 import ShopModal from '../components/ShopModal';
 import useSeo from '../hooks/useSeo';
 import { showAdIfNeeded } from '../ads';
@@ -606,7 +606,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
                     aria-hidden
                   />
                   <div className="home-friends__meta">
-                    <div className="home-friends__name">{f.displayName || `Игрок ${f.id}`}</div>
+                    <div className="home-friends__name">{formatFriendListLine(f)}</div>
                     <div className="home-friends__sub">{friendStatusLine(f)}</div>
                   </div>
                   {f.joinInviteToken ? (

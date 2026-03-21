@@ -11,6 +11,7 @@ import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
 import { reapplyStoredTheme } from './theme';
 import { usePresenceHeartbeat } from './usePresenceHeartbeat';
+import FriendsIncomingModal from './components/FriendsIncomingModal';
 import Home from './pages/Home';
 import { ToastProvider, useToast } from './components/ui/ToastProvider';
 import RouteLoadingFallback from './components/RouteLoadingFallback';
@@ -99,7 +100,7 @@ function AppRoutes() {
     if (ready) reapplyStoredTheme();
   }, [ready]);
 
-  usePresenceHeartbeat({ userId: user?.id, room, roomId });
+  usePresenceHeartbeat({ userId: user?.id, room, roomId, user });
 
   /** Telegram WebApp перезаписывает --tg-theme-* на <html> после загрузки — повторяем нашу тему. */
   useEffect(() => {
@@ -652,6 +653,7 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      <FriendsIncomingModal user={user} />
     </>
   );
 }

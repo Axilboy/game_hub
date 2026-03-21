@@ -5,7 +5,7 @@ import { api, getApiErrorMessage } from '../api';
 import { track } from '../analytics';
 import { showAdIfNeeded } from '../ads';
 import { getInventory } from '../inventory';
-import { getAvatar, getProfilePhoto } from '../displayName';
+import { getAvatar, getProfilePhoto, resolvePublicDisplayName } from '../displayName';
 import { exportCustomDictionariesText, getCustomDictionaries, importCustomDictionariesText, saveCustomEliasWords } from '../customDictionaries';
 import { buildInviteLinks, shareInviteSmart } from '../invite';
 import ShopModal from '../components/ShopModal';
@@ -153,6 +153,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
   /** id друзей текущего игрока (для кнопки «Уже в друзьях») */
   const [friendIds, setFriendIds] = useState(() => new Set());
+  /** id игроков, которым уже отправлена заявка */
+  const [outgoingPending, setOutgoingPending] = useState(() => new Set());
   /** Переименование команды: { scope: 'elias'|'truth_dare', teamIndex, name } */
   const [teamRename, setTeamRename] = useState(null);
   /** Смена команды игрока: { targetId, targetName } */
@@ -280,19 +282,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     setEliasCustomWordsText((local.elias || []).join('\n'));
   }, []);
 
-  const reloadFriendIds = useCallback(async () => {
+  const reloadFriendState = useCallback(async () => {
     if (!user?.id) return;
     try {
       const r = await api.get(`/friends/list?playerId=${encodeURIComponent(String(user.id))}`);
       setFriendIds(new Set((r.friends || []).map((x) => String(x.id))));
+      setOutgoingPending(new Set((r.outgoingPendingIds || []).map((id) => String(id))));
     } catch (_) {
       setFriendIds(new Set());
+      setOutgoingPending(new Set());
     }
   }, [user?.id]);
 
   useEffect(() => {
-    reloadFriendIds();
-  }, [reloadFriendIds, roomId]);
+    reloadFriendState();
+  }, [reloadFriendState, roomId]);
 
   useEffect(() => {
     const inv = getInventory();
@@ -628,16 +632,16 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     if (!target || !user?.id) return;
     if (String(target.id) === String(user.id)) return;
     try {
-      await api.post('/friends/add', {
+      await api.post('/friends/request', {
         playerId: String(user.id),
-        friendId: String(target.id),
-        friendName: target.name || undefined,
+        targetId: String(target.id),
+        requesterName: resolvePublicDisplayName(user),
       });
-      showToast({ type: 'success', message: 'Добавлено в друзья' });
-      await reloadFriendIds();
+      showToast({ type: 'success', message: 'Заявка отправлена' });
+      await reloadFriendState();
       setPlayerMenuPlayer(null);
     } catch (e) {
-      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось добавить в друзья') });
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось отправить заявку') });
     }
   };
 
@@ -2126,6 +2130,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               friendIds.has(String(pp.id)) ? (
                 <Button variant="secondary" fullWidth disabled>
                   Уже в друзьях
+                </Button>
+              ) : outgoingPending.has(String(pp.id)) ? (
+                <Button variant="secondary" fullWidth disabled>
+                  Заявка отправлена
                 </Button>
               ) : (
                 <Button variant="secondary" fullWidth onClick={addFriendFromLobby}>

@@ -11,6 +11,34 @@ export function getDisplayName() {
   }
 }
 
+/**
+ * Имя для отображения в комнатах/друзьях: своё из профиля или из Telegram.
+ * @param {null | { id?: string | number, first_name?: string, last_name?: string, username?: string }} user
+ */
+export function resolvePublicDisplayName(user) {
+  const custom = getDisplayName()?.trim();
+  if (custom) return custom.slice(0, 120);
+  const fn = user?.first_name;
+  if (fn) {
+    const ln = user.last_name ? ` ${user.last_name}` : '';
+    return `${fn}${ln}`.trim().slice(0, 120);
+  }
+  if (user?.username) return `@${user.username}`.slice(0, 120);
+  if (user?.id != null) return `Игрок ${String(user.id).slice(-4)}`;
+  return 'Игрок';
+}
+
+/**
+ * Строка в списке друзей: «Имя в игре (заметка)».
+ * @param {{ displayName?: string, note?: string, id?: string }} f
+ */
+export function formatFriendListLine(f) {
+  const name =
+    (f.displayName && String(f.displayName).trim()) ? String(f.displayName).trim() : `Игрок ${f.id ?? ''}`;
+  const n = f.note && String(f.note).trim() ? String(f.note).trim() : '';
+  return n ? `${name} (${n})` : name;
+}
+
 export function setDisplayName(name) {
   try {
     const v = (name && String(name).trim()) || '';

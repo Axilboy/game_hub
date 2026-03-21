@@ -354,6 +354,7 @@ html[data-theme='light'] .home-btn--primary {
   font-weight: 700;
   font-size: 14px;
   line-height: 1.25;
+  word-break: break-word;
 }
 
 .home-friends__sub {

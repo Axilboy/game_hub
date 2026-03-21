@@ -1,10 +1,16 @@
 import {
+  addPendingRequest,
   addFriendPair,
   removeFriendPair,
   getFriendIds,
   areFriends,
   getStoredDisplayName,
   setDisplayName,
+  getIncomingRequests,
+  getOutgoingPendingTargets,
+  acceptPendingRequest,
+  rejectPendingRequest,
+  getNote,
 } from './friendsStore.js';
 import { touchPresence, getPresenceForFriend } from './presenceStore.js';
 
@@ -12,6 +18,12 @@ function parsePlayerId(q) {
   if (q == null || q === '') return null;
   const s = String(q).trim();
   return s || null;
+}
+
+function resolveFriendDisplayName(fid, pres) {
+  const stored = getStoredDisplayName(fid);
+  const fromPresence = pres.online && pres.displayName ? pres.displayName.trim() : '';
+  return fromPresence || stored || `Игрок ${String(fid).slice(-4)}`;
 }
 
 /**
@@ -40,6 +52,48 @@ export async function friendsRoutes(fastify) {
     return { ok: true };
   });
 
+  /** Заявка в друзья (получатель увидит запрос и сможет принять/отклонить) */
+  fastify.post('/friends/request', async (request, reply) => {
+    const body = request.body || {};
+    const playerId = parsePlayerId(body.playerId);
+    const targetId = parsePlayerId(body.targetId);
+    if (!playerId || !targetId) {
+      return reply.code(400).send({ error: 'Нужны playerId и targetId' });
+    }
+    const requesterName = String(body.requesterName || '').trim().slice(0, 120);
+    const r = addPendingRequest(playerId, targetId, requesterName);
+    if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
+    return { ok: true };
+  });
+
+  /** Принять заявку: playerId — тот, кто принимает, fromId — отправитель заявки */
+  fastify.post('/friends/accept', async (request, reply) => {
+    const body = request.body || {};
+    const playerId = parsePlayerId(body.playerId);
+    const fromId = parsePlayerId(body.fromId);
+    if (!playerId || !fromId) {
+      return reply.code(400).send({ error: 'Нужны playerId и fromId' });
+    }
+    const note = body.note;
+    const acceptorDisplayName = String(body.acceptorDisplayName || '').trim().slice(0, 120);
+    const r = acceptPendingRequest(fromId, playerId, note, acceptorDisplayName);
+    if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
+    return { ok: true };
+  });
+
+  fastify.post('/friends/reject', async (request, reply) => {
+    const body = request.body || {};
+    const playerId = parsePlayerId(body.playerId);
+    const fromId = parsePlayerId(body.fromId);
+    if (!playerId || !fromId) {
+      return reply.code(400).send({ error: 'Нужны playerId и fromId' });
+    }
+    const r = rejectPendingRequest(fromId, playerId);
+    if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
+    return { ok: true };
+  });
+
+  /** Устарело: мгновенное добавление — оставлено для совместимости */
   fastify.post('/friends/add', async (request, reply) => {
     const body = request.body || {};
     const playerId = parsePlayerId(body.playerId);
@@ -74,19 +128,22 @@ export async function friendsRoutes(fastify) {
     const ids = getFriendIds(playerId);
     const friends = ids.map((fid) => {
       const pres = getPresenceForFriend(fid);
-      const storedName = getStoredDisplayName(fid);
-      const displayName = (pres.online && pres.displayName) || storedName || `Игрок ${fid.slice(-4)}`;
+      const displayName = resolveFriendDisplayName(fid, pres);
+      const note = getNote(playerId, fid);
       const canJoinLobby =
         pres.online && pres.location === 'lobby' && Boolean(pres.inviteToken);
       return {
         id: fid,
         displayName,
+        note: note || '',
         online: pres.online,
         location: pres.online ? pres.location : 'offline',
         roomCode: pres.roomCode || null,
         joinInviteToken: canJoinLobby ? pres.inviteToken : null,
       };
     });
-    return { friends };
+    const incomingRequests = getIncomingRequests(playerId);
+    const outgoingPendingIds = getOutgoingPendingTargets(playerId);
+    return { friends, incomingRequests, outgoingPendingIds };
   });
 }

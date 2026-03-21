@@ -5,6 +5,7 @@ import { useToast } from '../components/ui/ToastProvider';
 import PageLayout from '../components/layout/PageLayout';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Button from '../components/ui/Button';
+import { formatFriendListLine } from '../displayName';
 import './friendsPage.css';
 
 function sortFriends(arr) {
@@ -119,7 +120,7 @@ export default function FriendsPage({ user, onJoinByInvite }) {
                         aria-hidden
                       />
                       <div className="friends-page__cardMain">
-                        <div className="friends-page__name">{f.displayName || `Игрок ${f.id}`}</div>
+                        <div className="friends-page__name">{formatFriendListLine(f)}</div>
                         <div className="friends-page__status">{statusLabel(f)}</div>
                       </div>
                     </button>
