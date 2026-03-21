@@ -1,0 +1,303 @@
+/**
+ * Лобби — структура: комната → статус → участники → игра/настройки
+ */
+
+.lobby-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.lobby-room-head {
+  margin-bottom: 12px;
+}
+
+.lobby-room-head__title {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: default;
+}
+
+.lobby-room-head__title--editable {
+  cursor: pointer;
+}
+
+.lobby-room-head__input {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.15));
+  background: var(--gh-surface, rgba(255, 255, 255, 0.06));
+  color: inherit;
+}
+
+/* Приглашение: код + действия */
+.lobby-invite {
+  margin-bottom: 14px;
+}
+
+.lobby-invite__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.lobby-code-chip {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.14));
+  background: color-mix(in srgb, var(--tg-theme-bg-color, #1a1a2e) 88%, var(--tg-theme-button-color, #3a7bd5) 12%);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.lobby-code-chip:hover {
+  opacity: 0.95;
+}
+
+.lobby-code-chip:active {
+  transform: scale(0.99);
+}
+
+.lobby-code-chip__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.lobby-code-chip__value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-invite__actions {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.lobby-invite__actions .gh-btn {
+  flex: 1;
+}
+
+.lobby-invite__details {
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--gh-border, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.lobby-invite__details > summary {
+  list-style: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.92;
+}
+
+.lobby-invite__details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lobby-invite__details[open] > summary {
+  border-bottom: 1px solid var(--gh-border, rgba(255, 255, 255, 0.08));
+}
+
+.lobby-invite__link-body {
+  padding: 0 14px 12px;
+  font-size: 13px;
+}
+
+.lobby-invite__link-body a {
+  word-break: break-all;
+  color: color-mix(in srgb, var(--tg-theme-link-color, #7ab) 100%, transparent);
+}
+
+/* Статус сессии */
+.lobby-status {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, transparent);
+}
+
+/* Инструменты хоста (вторичные) */
+.lobby-host-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lobby-host-tools .gh-btn {
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+/* Секции */
+.lobby-section {
+  margin-bottom: 18px;
+}
+
+.lobby-section__title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.lobby-section__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.82;
+}
+
+/* Сетка игр */
+.lobby-game-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (min-width: 420px) {
+  .lobby-game-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.lobby-game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 14px 10px;
+  min-height: 108px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  background: var(--gh-surface, rgba(255, 255, 255, 0.07));
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+.lobby-game-card:hover {
+  border-color: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 55%, transparent);
+  background: color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 12%, var(--gh-surface, rgba(255, 255, 255, 0.07)));
+}
+
+.lobby-game-card:active {
+  transform: scale(0.98);
+}
+
+.lobby-game-card__emoji {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.lobby-game-card__name {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.lobby-game-card__meta {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* Гость: подсказка */
+.lobby-guest-wait {
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px dashed var(--gh-border, rgba(255, 255, 255, 0.2));
+  opacity: 0.95;
+}
+
+/* Нижняя зона: магазин + выход */
+.lobby-footer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.lobby-footer-actions__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lobby-footer-actions__row .gh-btn {
+  flex: 1;
+  min-width: 120px;
+  font-size: 14px;
+}
+
+/* Заголовок блока настроек игры */
+.lobby-game-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.lobby-game-heading__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.lobby-game-heading__switch {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  border: none;
+  background: none;
+  color: color-mix(in srgb, var(--tg-theme-link-color, #8af) 100%, transparent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

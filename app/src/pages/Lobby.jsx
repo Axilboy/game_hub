@@ -13,10 +13,10 @@ import Button from '../components/ui/Button';
 import PageLayout from '../components/layout/PageLayout';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Badge from '../components/ui/Badge';
-import Chip from '../components/ui/Chip';
 import EmptyState from '../components/ui/EmptyState';
 import IconButton from '../components/ui/IconButton';
 import { BUNKER_SPEED_PRESETS, bunkerPhaseTimersFromSpeed, getDefaultGameSettings } from '../lobbyPresets';
+import './lobbyPage.css';
 
 /** Включить экран «Пользовательский словарь» Элиас (когда доработаем) */
 const ELIAS_CUSTOM_DICT_UI_ENABLED = false;
@@ -99,6 +99,15 @@ const TD_CATEGORIES = [
   { slug: 'corporate', name: 'Корпоратив SFW', emoji: '💼', description: 'Офис, созвоны и коллеги — без пошлости.', premium: false, is18Plus: false, safe: true },
 ];
 
+/** Карточки выбора режима в лобби (мин. игроков — ориентир для хоста) */
+const LOBBY_GAMES = [
+  { id: 'spy', name: 'Шпион', emoji: '🕵️', minPlayers: 3 },
+  { id: 'mafia', name: 'Мафия', emoji: '🎭', minPlayers: 4 },
+  { id: 'bunker', name: 'Бункер', emoji: '🛡️', minPlayers: 4 },
+  { id: 'elias', name: 'Элиас', emoji: '📢', minPlayers: 2 },
+  { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },
+];
+
 export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -130,7 +139,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [eliasCustomModalOpen, setEliasCustomModalOpen] = useState(false);
   const [eliasCustomWordsText, setEliasCustomWordsText] = useState('');
   const [eliasImportText, setEliasImportText] = useState('');
-  const [gamesPickerOpen, setGamesPickerOpen] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [transferHostOpen, setTransferHostOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -160,11 +168,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   useEffect(() => {
     setEditNameValue(roomName);
   }, [roomName]);
-  useEffect(() => {
-    if (isHost && selectedGame === null) setGamesPickerOpen(true);
-    if (selectedGame) setGamesPickerOpen(false);
-  }, [isHost, selectedGame]);
-
   useEffect(() => {
     setTimerEnabled(room?.gameSettings?.timerEnabled ?? false);
     setTimerSeconds(room?.gameSettings?.timerSeconds ?? 60);
@@ -505,98 +508,141 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const playersList = room.players || [];
+  const lobbyPlayerCount = playersList.length;
+  const minForSelectedGame = selectedGame
+    ? (selectedGame === 'spy' ? minSpyPlayers(room?.gameSettings?.spyCount ?? 1) : MIN_PLAYERS[selectedGame] ?? 2)
+    : 0;
+
+  const ruPeopleWord = (n) => {
+    const n10 = n % 10;
+    const n100 = n % 100;
+    if (n10 === 1 && n100 !== 11) return 'человек';
+    if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return 'человека';
+    return 'человек';
+  };
+
+  const lobbyStatusText = (() => {
+    if (!selectedGame) {
+      if (!isHost) return 'Хост выбирает игру — подождите немного.';
+      if (lobbyPlayerCount === 0) return 'Пока никого нет — отправьте друзьям код или ссылку.';
+      return `В комнате ${lobbyPlayerCount} ${ruPeopleWord(lobbyPlayerCount)}. Выберите режим ниже.`;
+    }
+    const gameLabels = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', bunker: 'Бункер', truth_dare: 'Правда или действие' };
+    const gn = gameLabels[selectedGame] || selectedGame;
+    if (lobbyPlayerCount < minForSelectedGame) {
+      return `${gn}: нужно минимум ${minForSelectedGame} игроков (сейчас ${lobbyPlayerCount}).`;
+    }
+    return `${gn}: игроков достаточно — настройте режим и нажмите «Начать».`;
+  })();
+
+  const copyRoomCode = async () => {
+    try {
+      await navigator.clipboard.writeText(String(room.code));
+      showToast({ type: 'success', message: 'Код скопирован' });
+    } catch {
+      showToast({ type: 'error', message: 'Не удалось скопировать код' });
+    }
+  };
+
   return (
     <PageLayout
       title={roomName}
       onBack={handleBack}
       right={<AppHeaderRight user={user} />}
     >
-      {editingName && isHost ? (
-        <input
-          type="text"
-          value={editNameValue}
-          onChange={(e) => setEditNameValue(e.target.value)}
-          onBlur={saveRoomName}
-          onKeyDown={(e) => e.key === 'Enter' && saveRoomName()}
-          autoFocus
-          style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16, width: '100%', padding: 8, borderRadius: 8 }}
-        />
-      ) : (
-        <h2
-          style={{ marginBottom: 16, cursor: isHost ? 'pointer' : 'default' }}
-          onClick={() => isHost && setEditingName(true)}
-          title={isHost ? 'Нажмите, чтобы изменить название' : ''}
-        >
-          {roomName}
-        </h2>
-      )}
-
-      <p style={{ marginBottom: 12 }}>
-        ID комнаты: <strong>{room.code}</strong>
-      </p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <Button variant="primary" onClick={shareInvite} style={{ flex: 1 }}>
-          Поделиться
-        </Button>
-        <Button variant="secondary" onClick={() => setQrOpen(true)} style={{ flex: 1 }} disabled={!inviteLink}>
-          QR
-        </Button>
-      </div>
-      {inviteLink && (
-        <div style={{ marginBottom: 16 }}>
-          <p>Приглашение:</p>
-          {miniAppLink && (
-            <p style={{ marginBottom: 4 }}>
-              <a href={miniAppLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
-                Открыть в приложении
-              </a>
-            </p>
-          )}
-          {webLink && (
-            <p style={{ marginBottom: 8 }}>
-              <a href={webLink} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: '#7ab' }}>
-                {webLink}
-              </a>
-            </p>
-          )}
-        </div>
-      )}
-      {isHost && (
-        <div className="gh-card" style={{ padding: 12, marginBottom: 16 }}>
-          <p style={{ margin: 0, fontWeight: 800, marginBottom: 8, opacity: 0.95 }}>Быстрые действия хоста</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <Chip onClick={shareInvite} active>
-              Поделиться
-            </Chip>
-            <Chip
-              onClick={startSelectedGame}
-              active={Boolean(selectedGame)}
-              disabled={!selectedGame || startingGame}
-              title={!selectedGame ? 'Сначала выберите игру внизу' : startingGame ? 'Запуск…' : 'Запустить выбранную игру'}
+      <div className="lobby-shell">
+        <header className="lobby-room-head">
+          {editingName && isHost ? (
+            <input
+              type="text"
+              className="lobby-room-head__input"
+              value={editNameValue}
+              onChange={(e) => setEditNameValue(e.target.value)}
+              onBlur={saveRoomName}
+              onKeyDown={(e) => e.key === 'Enter' && saveRoomName()}
+              autoFocus
+            />
+          ) : (
+            <h2
+              className={`lobby-room-head__title${isHost ? ' lobby-room-head__title--editable' : ''}`}
+              onClick={() => isHost && setEditingName(true)}
+              title={isHost ? 'Нажмите, чтобы изменить название' : ''}
             >
-              {startingGame ? 'Запуск…' : 'Начать'}
-            </Chip>
-            <Chip onClick={() => setTransferHostOpen(true)} disabled={playersList.length < 2}>
-              Передать хоста
-            </Chip>
-          </div>
-          <p style={{ margin: '10px 0 0', fontSize: 12, opacity: 0.82, lineHeight: 1.4 }}>
-            Если хост отключился от сети, права хоста автоматически передаются другому игроку (предпочтительно онлайн).
-          </p>
-        </div>
-      )}
+              {roomName}
+            </h2>
+          )}
+        </header>
 
-      {isHost && selectedGame === null && !gamesPickerOpen && (
-        <div className="gh-card" style={{ padding: 12, marginBottom: 16 }}>
-          <p style={{ margin: '0 0 10px', fontSize: 13, opacity: 0.88, lineHeight: 1.4 }}>
-            Выберите режим для комнаты — откроется список игр.
-          </p>
-          <Button variant="primary" fullWidth onClick={() => setGamesPickerOpen(true)} aria-label="Открыть выбор игры">
-            Выбрать игру
-          </Button>
+        <section className="lobby-invite" aria-label="Код и приглашение">
+          <div className="lobby-invite__row">
+            <button type="button" className="lobby-code-chip" onClick={copyRoomCode} title="Нажмите, чтобы скопировать код">
+              <span className="lobby-code-chip__label">Код комнаты</span>
+              <span className="lobby-code-chip__value">{room.code}</span>
+            </button>
+            <div className="lobby-invite__actions">
+              <Button variant="primary" onClick={shareInvite}>
+                Поделиться
+              </Button>
+              <Button variant="secondary" onClick={() => setQrOpen(true)} disabled={!inviteLink}>
+                QR
+              </Button>
+            </div>
+          </div>
+          {inviteLink ? (
+            <details className="lobby-invite__details">
+              <summary>Показать ссылки-приглашения</summary>
+              <div className="lobby-invite__link-body">
+                {miniAppLink ? (
+                  <p style={{ marginBottom: 8 }}>
+                    <a href={miniAppLink} target="_blank" rel="noopener noreferrer">
+                      Открыть в Telegram
+                    </a>
+                  </p>
+                ) : null}
+                {webLink ? (
+                  <p style={{ marginBottom: 0 }}>
+                    <a href={webLink} target="_blank" rel="noopener noreferrer">
+                      {webLink}
+                    </a>
+                  </p>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
+        </section>
+
+        <div className="lobby-status" role="status">
+          {lobbyStatusText}
         </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
+
+        {!isHost && !selectedGame ? (
+          <div className="lobby-guest-wait">
+            Ожидайте: хост должен выбрать игру. Вы уже в комнате — можете позвать друзей по коду выше.
+          </div>
+        ) : null}
+
+        {isHost ? (
+          <div className="lobby-host-tools">
+            <Button variant="secondary" onClick={() => setTransferHostOpen(true)} disabled={playersList.length < 2} title={playersList.length < 2 ? 'Нужен хотя бы ещё один игрок' : ''}>
+              Передать хоста
+            </Button>
+            {selectedGame ? (
+              <Button
+                variant="primary"
+                onClick={startSelectedGame}
+                disabled={!selectedGame || startingGame || lobbyPlayerCount < minForSelectedGame}
+                title={!selectedGame ? 'Сначала выберите игру' : lobbyPlayerCount < minForSelectedGame ? 'Недостаточно игроков' : ''}
+              >
+                {startingGame ? 'Запуск…' : 'Быстрый старт'}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <section className="lobby-section" aria-label="Участники">
+        <h3 className="lobby-section__title">Участники</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
         {playersList.length === 0 ? (
           <EmptyState title="Игроков пока нет" message="Поделитесь кодом комнаты или ссылкой-приглашением." />
         ) : playersList.map((p) => (
@@ -650,41 +696,42 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             )}
           </div>
         ))}
-      </div>
-
-      {selectedGame && (
-        <div className="gh-card" style={{ padding: 12, marginBottom: 16 }}>
-          <p style={{ margin: 0, fontWeight: 800, marginBottom: 6, opacity: 0.95 }}>Конфигурация</p>
-          {selectedGame === 'spy' ? (
-            <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>
-              Шпион: словари {(room?.gameSettings?.dictionaryIds || ['free']).map((d) => DICT_NAMES[d] || d).join(', ')} ·
-              шпионов {room?.gameSettings?.spyCount ?? 1} · таймер {room?.gameSettings?.timerEnabled ? `${(room?.gameSettings?.timerSeconds || 60) / 60} мин` : 'выкл'}
-            </p>
-          ) : selectedGame === 'elias' ? (
-            <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>
-              Элиас: победа при {room?.gameSettings?.scoreLimit ?? 10} очках · таймер {(room?.gameSettings?.timerSeconds || 60) / 60} мин ·
-              словари {(room?.gameSettings?.dictionaryIds || ['basic', 'animals']).join(', ')}
-            </p>
-          ) : selectedGame === 'mafia' ? (
-            <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>
-              Мафия: {room?.gameSettings?.extended ? 'расширенная' : 'классическая'} · ведущий{' '}
-              {room?.gameSettings?.hostSelection === 'choose' ? 'выбран' : 'рандом'} ·
-              таймер не используется
-            </p>
-          ) : (
-            <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.4, fontSize: 14 }}>Игра выбрана.</p>
-          )}
         </div>
-      )}
+      </section>
+
+      {isHost && !selectedGame ? (
+        <section className="lobby-section lobby-section--games" aria-label="Выбор игры">
+          <h3 className="lobby-section__title">Выберите игру</h3>
+          <p className="lobby-section__hint">Карточка — режим комнаты. Ниже появятся настройки выбранной игры.</p>
+          <div className="lobby-game-grid">
+            {LOBBY_GAMES.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                className="lobby-game-card"
+                onClick={() => patchLobbyGame({ selectedGame: g.id, gameSettings: getDefaultGameSettings(g.id) })}
+              >
+                <span className="lobby-game-card__emoji" aria-hidden>
+                  {g.emoji}
+                </span>
+                <span className="lobby-game-card__name">{g.name}</span>
+                <span className="lobby-game-card__meta">от {g.minPlayers} игроков</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {selectedGame === 'spy' && (
         <>
-          <p style={{ marginTop: 24, marginBottom: 8 }}>
-            Игра: <strong>Шпион</strong>
-            {isHost && (
-              <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}>другая</button>
-            )}
-          </p>
+          <div className="lobby-game-heading">
+            <h3 className="lobby-game-heading__title">Шпион</h3>
+            {isHost ? (
+              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
+                Сменить игру
+              </button>
+            ) : null}
+          </div>
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
@@ -819,12 +866,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       {selectedGame === 'mafia' && (
         <>
-          <p style={{ marginTop: 24, marginBottom: 8 }}>
-            Игра: <strong>Мафия</strong>
-            {isHost && (
-              <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}>другая</button>
-            )}
-          </p>
+          <div className="lobby-game-heading">
+            <h3 className="lobby-game-heading__title">Мафия</h3>
+            {isHost ? (
+              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
+                Сменить игру
+              </button>
+            ) : null}
+          </div>
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
@@ -974,12 +1023,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       {selectedGame === 'elias' && (
         <>
-          <p style={{ marginTop: 24, marginBottom: 8 }}>
-            Игра: <strong>Элиас</strong>
-            {isHost && (
-              <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}>другая</button>
-            )}
-          </p>
+          <div className="lobby-game-heading">
+            <h3 className="lobby-game-heading__title">Элиас</h3>
+            {isHost ? (
+              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
+                Сменить игру
+              </button>
+            ) : null}
+          </div>
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
               <p style={{ marginTop: 0, marginBottom: 8 }}>Настройки (хост)</p>
@@ -1145,18 +1196,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       {selectedGame === 'truth_dare' && (
         <>
-          <p style={{ marginTop: 24, marginBottom: 8 }}>
-            Игра: <strong>Правда или действие</strong>
-            {isHost && (
-              <button
-                type="button"
-                onClick={() => patchLobbyGame({ selectedGame: null })}
-                style={{ fontSize: 12, marginLeft: 8, background: 'transparent', border: 'none', color: '#8af', cursor: 'pointer' }}
-              >
-                другая
+          <div className="lobby-game-heading">
+            <h3 className="lobby-game-heading__title">Правда или действие</h3>
+            {isHost ? (
+              <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
+                Сменить игру
               </button>
-            )}
-          </p>
+            ) : null}
+          </div>
 
           {(room?.gameSettings && !isHost) && (
             <div style={{ ...settingsBox, marginBottom: 16 }}>
@@ -1316,7 +1363,13 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       {isHost && selectedGame && selectedGame === 'bunker' && (
         <div style={{ ...settingsBox, marginTop: 24 }}>
-          <p style={{ marginBottom: 8 }}>Бункер: настройки</p>
+          <div className="lobby-game-heading" style={{ marginTop: 0 }}>
+            <h3 className="lobby-game-heading__title" style={{ marginBottom: 0 }}>Бункер</h3>
+            <button type="button" className="lobby-game-heading__switch" onClick={() => patchLobbyGame({ selectedGame: null })}>
+              Сменить игру
+            </button>
+          </div>
+          <p style={{ marginBottom: 8, marginTop: 12, opacity: 0.9, fontSize: 14 }}>Настройки партии</p>
 
           <p style={{ marginBottom: 8, opacity: 0.9, fontSize: 14 }}>Раундов</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
@@ -1404,20 +1457,21 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      <button type="button" onClick={() => setShopOpen(true)} style={{ ...btnStyleToggleMid, marginTop: 16 }}>
-        Магазин
-      </button>
-
-      {isHost && selectedGame ? (
-        <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ ...btnStyleToggleMid, marginTop: 24 }}>
-          К выбору игры
-        </button>
-      ) : null}
-      {(!isHost || !selectedGame) && (
-        <button type="button" onClick={() => setLeaveConfirmOpen(true)} style={{ ...btnStyleToggleMid, marginTop: isHost && selectedGame ? 8 : 24 }}>
+      <div className="lobby-footer-actions">
+        <div className="lobby-footer-actions__row">
+          <Button variant="secondary" onClick={() => setShopOpen(true)}>
+            Магазин
+          </Button>
+          {isHost && selectedGame ? (
+            <Button variant="secondary" onClick={() => patchLobbyGame({ selectedGame: null })}>
+              К выбору игры
+            </Button>
+          ) : null}
+        </div>
+        <Button variant="ghost" fullWidth onClick={() => setLeaveConfirmOpen(true)}>
           Выйти из комнаты
-        </button>
-      )}
+        </Button>
+      </div>
 
       <Modal open={leaveConfirmOpen} onClose={() => setLeaveConfirmOpen(false)} title="Выйти из комнаты?" width={400}>
         <p style={{ marginTop: 0, lineHeight: 1.5, opacity: 0.92 }}>
@@ -1561,44 +1615,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </div>
         </div>
       )}
-
-      <Modal
-        open={Boolean(isHost && selectedGame === null && gamesPickerOpen)}
-        onClose={() => setGamesPickerOpen(false)}
-        title="Выберите игру"
-        width={420}
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {[
-            { id: 'spy', name: 'Шпион', minPlayers: 3 },
-            { id: 'mafia', name: 'Мафия', minPlayers: MIN_PLAYERS.mafia },
-            { id: 'bunker', name: 'Бункер', minPlayers: MIN_PLAYERS.bunker },
-            { id: 'elias', name: 'Элиас', minPlayers: MIN_PLAYERS.elias },
-            { id: 'truth_dare', name: 'Правда/Действие', minPlayers: MIN_PLAYERS.truth_dare },
-          ].map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => {
-                patchLobbyGame({ selectedGame: g.id, gameSettings: getDefaultGameSettings(g.id) });
-                setGamesPickerOpen(false);
-              }}
-              style={{ ...btnStyle, padding: '14px 10px', background: 'var(--tg-theme-button-color, #3a7bd5)' }}
-            >
-              {g.name}
-              <span style={{ display: 'block', fontSize: 11, marginTop: 4, opacity: 0.9 }}>мин. {g.minPlayers}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ marginTop: 14 }}>
-          <Button variant="secondary" fullWidth type="button" onClick={() => setGamesPickerOpen(false)}>
-            Свернуть
-          </Button>
-          <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.75, lineHeight: 1.35 }}>
-            Окно можно свернуть и открыть снова кнопкой «Выбрать игру» ниже.
-          </p>
-        </div>
-      </Modal>
 
       {minPlayersWarning && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>
