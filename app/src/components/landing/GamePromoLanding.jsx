@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useSeo from '../../hooks/useSeo';
 import BackArrow from '../BackArrow';
 import SeoFooter from '../layout/SeoFooter';
+import JoinRoomModal from '../JoinRoomModal';
+import { track } from '../../analytics';
 import './gamePromoLanding.css';
 
 const baseUrl = (import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
@@ -23,12 +25,17 @@ export default function GamePromoLanding({
   steps = [],
   sections = [],
   onBack,
-  primaryCtaLabel = 'Играть в GameHub',
+  /** id игры для автолобби (spy, mafia, elias, truth_dare, bunker) */
+  presetGameId,
+  /** async ({ kind: 'code'|'invite', value }) — из App: join + navigate lobby */
+  onJoin,
+  primaryCtaLabel = 'Начать игру',
   showTelegramCta = true,
 }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const canonical = baseUrl ? `${baseUrl}${pathname}` : undefined;
+  const [joinOpen, setJoinOpen] = useState(false);
 
   useSeo({
     title: seoTitle,
@@ -68,6 +75,18 @@ export default function GamePromoLanding({
 
   const tgUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : null;
 
+  const handleStartGame = () => {
+    if (!presetGameId) {
+      navigate('/');
+      return;
+    }
+    try {
+      sessionStorage.setItem('gh_create_lobby_preset', presetGameId);
+    } catch (_) {}
+    track('landing_start_game', { game: presetGameId, path: pathname });
+    navigate('/');
+  };
+
   return (
     <article className={`gh-page gh-fade-in gpl gpl--${theme}`}>
       <div className="gpl__back">
@@ -102,11 +121,18 @@ export default function GamePromoLanding({
         ))}
 
         <div className="gpl__ctas">
-          <button type="button" className="gpl__btn gpl__btn--primary" onClick={() => navigate('/')}>
+          <button type="button" className="gpl__btn gpl__btn--primary" onClick={handleStartGame}>
             {primaryCtaLabel}
           </button>
-          <button type="button" className="gpl__btn gpl__btn--secondary" onClick={() => navigate('/rules')}>
-            Правила сервиса
+          <button
+            type="button"
+            className="gpl__btn gpl__btn--secondary"
+            onClick={() => {
+              track('landing_join_open', { game: presetGameId || '', path: pathname });
+              setJoinOpen(true);
+            }}
+          >
+            Присоединиться к игре
           </button>
           {showTelegramCta && tgUrl ? (
             <a href={tgUrl} className="gpl__btn gpl__btn--ghost" target="_blank" rel="noopener noreferrer">
@@ -116,12 +142,31 @@ export default function GamePromoLanding({
         </div>
 
         <p className="gpl__hint">
-          Одна комната — выберите игру в лобби. Реклама и поиск ведут на эту страницу: играйте с друзьями онлайн.
+          Одна комната — настройки можно поменять в лобби.{' '}
+          <button
+            type="button"
+            className="gpl__inline-link"
+            onClick={() => navigate('/rules')}
+          >
+            Правила сервиса
+          </button>
         </p>
         <p className="gpl__brand">GameHub</p>
       </div>
 
       <SeoFooter style={{ marginTop: 20 }} />
+
+      {onJoin ? (
+        <JoinRoomModal
+          open={joinOpen}
+          onClose={() => setJoinOpen(false)}
+          onJoin={async (payload) => {
+            await onJoin(payload);
+            setJoinOpen(false);
+            track('landing_join_ok', { kind: payload.kind, game: presetGameId || '' });
+          }}
+        />
+      ) : null}
     </article>
   );
 }

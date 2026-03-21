@@ -1,6 +1,6 @@
 import GamePromoLanding from '../components/landing/GamePromoLanding';
 
-export default function SeoGameElias({ onBack }) {
+export default function SeoGameElias({ onBack, onJoin }) {
   return (
     <GamePromoLanding
       theme="elias"
@@ -38,7 +38,9 @@ export default function SeoGameElias({ onBack }) {
         },
       ]}
       onBack={onBack}
-      primaryCtaLabel="Играть в Элиас в GameHub"
+      onJoin={onJoin}
+      presetGameId="elias"
+      primaryCtaLabel="Начать игру"
     />
   );
 }

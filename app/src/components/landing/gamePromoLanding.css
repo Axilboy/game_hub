@@ -260,6 +260,22 @@
   color: var(--gpl-panel-muted);
 }
 
+.gpl__inline-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--gpl-panel-text);
+  text-decoration: underline;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.gpl__inline-link:hover {
+  opacity: 1;
+}
+
 .gpl__brand {
   margin-top: 10px;
   font-size: 11px;

@@ -1,6 +1,6 @@
 import GamePromoLanding from '../components/landing/GamePromoLanding';
 
-export default function SeoGameBunker({ onBack }) {
+export default function SeoGameBunker({ onBack, onJoin }) {
   return (
     <GamePromoLanding
       theme="bunker"
@@ -37,7 +37,9 @@ export default function SeoGameBunker({ onBack }) {
         },
       ]}
       onBack={onBack}
-      primaryCtaLabel="Играть в Бункер в GameHub"
+      onJoin={onJoin}
+      presetGameId="bunker"
+      primaryCtaLabel="Начать игру"
     />
   );
 }

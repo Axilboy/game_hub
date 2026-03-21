@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useTelegram } from './useTelegram';
-import { api } from './api';
+import { api, getApiErrorMessage } from './api';
+import { getDefaultGameSettings, VALID_LOBBY_PRESET_IDS } from './lobbyPresets';
 import { socket } from './socket';
 import { addSessionTime, recordGameFinish, recordGameStart, touchVisit } from './stats';
 import { getInventory } from './inventory';
@@ -91,28 +92,86 @@ function AppRoutes() {
     }
   }, []);
 
-  const createRoom = async () => {
-    if (!user?.id) return;
-    const inv = getInventory();
-    const displayName = getDisplayName();
-    const avatarEmoji = getAvatar();
-    const customPhoto = getProfilePhoto();
-    const { room: r, inviteToken } = await api.post('/rooms', {
-      hostId: String(user.id),
-      hostName: displayName || user.first_name || 'Хост',
-      hostPhotoUrl: customPhoto || user.photo_url || null,
-      hostHasPro: inv.hasPro,
-      hostAvatarEmoji: avatarEmoji || null,
-    });
-    setRoom(r);
-    setRoomId(r.id);
-    sessionStorage.setItem('inviteToken', inviteToken);
+  const createRoom = useCallback(
+    async (options = {}) => {
+      const presetGame = options?.presetGame;
+      if (!user?.id) return;
+      const inv = getInventory();
+      const displayName = getDisplayName();
+      const avatarEmoji = getAvatar();
+      const customPhoto = getProfilePhoto();
+      const { room: r, inviteToken } = await api.post('/rooms', {
+        hostId: String(user.id),
+        hostName: displayName || user.first_name || 'Хост',
+        hostPhotoUrl: customPhoto || user.photo_url || null,
+        hostHasPro: inv.hasPro,
+        hostAvatarEmoji: avatarEmoji || null,
+      });
+      let nextRoom = r;
+      if (presetGame && VALID_LOBBY_PRESET_IDS.has(presetGame)) {
+        const gs = getDefaultGameSettings(presetGame);
+        if (gs) {
+          const { room: patched } = await api.patch(`/rooms/${r.id}`, {
+            hostId: String(user.id),
+            selectedGame: presetGame,
+            gameSettings: gs,
+          });
+          if (patched) nextRoom = patched;
+        }
+      }
+      setRoom(nextRoom);
+      setRoomId(nextRoom.id);
+      sessionStorage.setItem('inviteToken', inviteToken);
+      try {
+        sessionStorage.removeItem('gameHub_rematchRoomId');
+      } catch (_) {}
+      track('room_create', { roomId: r.id, presetGame: presetGame || null });
+      socket.connect(nextRoom.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: true });
+    },
+    [user?.id],
+  );
+
+  /** С лендинга игры: после перехода на главную создать комнату с выбранной игрой и настройками по умолчанию. */
+  useEffect(() => {
+    if (!ready || !user?.id) return;
+    if (location.pathname !== '/') return;
+    let preset = null;
     try {
-      sessionStorage.removeItem('gameHub_rematchRoomId');
+      preset = sessionStorage.getItem('gh_create_lobby_preset');
     } catch (_) {}
-    track('room_create', { roomId: r.id });
-    socket.connect(r.id, { id: String(user.id), name: displayName || user.first_name || 'Игрок', isHost: true });
-  };
+    if (!preset || !VALID_LOBBY_PRESET_IDS.has(preset)) return;
+
+    if (roomId) {
+      try {
+        sessionStorage.removeItem('gh_create_lobby_preset');
+      } catch (_) {}
+      showToast({
+        type: 'info',
+        message: 'У вас уже есть комната — открыли лобби.',
+        durationMs: 4200,
+      });
+      navigate('/lobby');
+      return;
+    }
+
+    try {
+      sessionStorage.removeItem('gh_create_lobby_preset');
+    } catch (_) {}
+    const claimed = preset;
+
+    (async () => {
+      try {
+        await createRoom({ presetGame: claimed });
+        navigate('/lobby');
+      } catch (e) {
+        showToast({
+          type: 'error',
+          message: getApiErrorMessage(e, 'Не удалось создать комнату'),
+          durationMs: 5200,
+        });
+      }
+    })();
+  }, [ready, user?.id, location.pathname, roomId, createRoom, navigate, showToast]);
 
   const joinByCode = async (code) => {
     if (!user?.id) return null;
@@ -396,23 +455,68 @@ function AppRoutes() {
         <Route path="/how-to-play" element={<Navigate to="/" replace />} />
         <Route
           path="/games/spy"
-          element={<SeoGameSpy onBack={() => navigate('/')} />}
+          element={
+            <SeoGameSpy
+              onBack={() => navigate('/')}
+              onJoin={async (payload) => {
+                if (payload.kind === 'invite') await joinByInvite(payload.value);
+                else await joinByCode(payload.value);
+                navigate('/lobby');
+              }}
+            />
+          }
         />
         <Route
           path="/games/elias"
-          element={<SeoGameElias onBack={() => navigate('/')} />}
+          element={
+            <SeoGameElias
+              onBack={() => navigate('/')}
+              onJoin={async (payload) => {
+                if (payload.kind === 'invite') await joinByInvite(payload.value);
+                else await joinByCode(payload.value);
+                navigate('/lobby');
+              }}
+            />
+          }
         />
         <Route
           path="/games/mafia"
-          element={<SeoGameMafia onBack={() => navigate('/')} />}
+          element={
+            <SeoGameMafia
+              onBack={() => navigate('/')}
+              onJoin={async (payload) => {
+                if (payload.kind === 'invite') await joinByInvite(payload.value);
+                else await joinByCode(payload.value);
+                navigate('/lobby');
+              }}
+            />
+          }
         />
         <Route
           path="/games/truth_dare"
-          element={<SeoGameTruthDare onBack={() => navigate('/')} />}
+          element={
+            <SeoGameTruthDare
+              onBack={() => navigate('/')}
+              onJoin={async (payload) => {
+                if (payload.kind === 'invite') await joinByInvite(payload.value);
+                else await joinByCode(payload.value);
+                navigate('/lobby');
+              }}
+            />
+          }
         />
         <Route
           path="/games/bunker"
-          element={<SeoGameBunker onBack={() => navigate('/')} />}
+          element={
+            <SeoGameBunker
+              onBack={() => navigate('/')}
+              onJoin={async (payload) => {
+                if (payload.kind === 'invite') await joinByInvite(payload.value);
+                else await joinByCode(payload.value);
+                navigate('/lobby');
+              }}
+            />
+          }
         />
         <Route
           path="/privacy"

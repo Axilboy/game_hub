@@ -15,6 +15,7 @@ import Badge from '../components/ui/Badge';
 import Chip from '../components/ui/Chip';
 import EmptyState from '../components/ui/EmptyState';
 import IconButton from '../components/ui/IconButton';
+import { BUNKER_SPEED_PRESETS, bunkerPhaseTimersFromSpeed, getDefaultGameSettings } from '../lobbyPresets';
 
 /** Включить экран «Пользовательский словарь» Элиас (когда доработаем) */
 const ELIAS_CUSTOM_DICT_UI_ENABLED = false;
@@ -30,12 +31,6 @@ const TIMER_OPTIONS = [
 ];
 
 const SPY_COUNT_OPTIONS = [1, 2, 3];
-const BUNKER_DEFAULT_PHASE_TIMERS = { intro: 15, reveals: 10, discussion: 25, voting: 25, tieBreak: 10, roundEvent: 15, final: 20 };
-const BUNKER_SPEED_PRESETS = [
-  { id: 'fast', label: 'Быстро', mult: 0.75 },
-  { id: 'standard', label: 'Стандарт', mult: 1 },
-  { id: 'long', label: 'Длинно', mult: 1.3 },
-];
 const BUNKER_ROUND_OPTIONS = [2, 3, 4];
 const BUNKER_SCENARIOS = [
   { id: 'shelter_default', label: 'Классический', premium: false, itemId: null },
@@ -58,23 +53,6 @@ const DICT_NAMES = {
   tech: 'Технологии (Про)',
 };
 const MIN_PLAYERS = { mafia: 4, elias: 2, truth_dare: 2, bunker: 4 };
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
-}
-function bunkerPhaseTimersFromSpeed(speedId) {
-  const preset = BUNKER_SPEED_PRESETS.find((p) => p.id === speedId) || BUNKER_SPEED_PRESETS[1];
-  const mult = preset.mult;
-  const toSec = (val) => clamp(Math.round(val * mult), 5, 120);
-  return {
-    intro: toSec(BUNKER_DEFAULT_PHASE_TIMERS.intro),
-    reveals: toSec(BUNKER_DEFAULT_PHASE_TIMERS.reveals),
-    discussion: toSec(BUNKER_DEFAULT_PHASE_TIMERS.discussion),
-    voting: toSec(BUNKER_DEFAULT_PHASE_TIMERS.voting),
-    tieBreak: toSec(BUNKER_DEFAULT_PHASE_TIMERS.tieBreak),
-    roundEvent: toSec(BUNKER_DEFAULT_PHASE_TIMERS.roundEvent),
-    final: toSec(BUNKER_DEFAULT_PHASE_TIMERS.final),
-  };
-}
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
   return n + 2;
@@ -1657,12 +1635,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               key={g.id}
               type="button"
               onClick={() => {
-                const base = g.id === 'spy' ? { timerEnabled: false, timerSeconds: 60, spyCount: 1, allSpiesChanceEnabled: false, spiesSeeEachOther: false, showLocationsList: false, dictionaryIds: ['free'] } : null;
-                const mafia = g.id === 'mafia' ? { extended: false, revealRoleOnDeath: true, mafiaCanSkipKill: false, hostSelection: 'random', theme: 'default', phaseTimers: { nightMafia: 45, nightCommissioner: 25, day: 90, voting: 45 } } : null;
-                const elias = g.id === 'elias' ? { timerSeconds: 60, scoreLimit: 10, skipPenalty: 1, dictionaryIds: ['basic', 'animals', 'memes'], eliasTeams: [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }] } : null;
-                const truthDare = g.id === 'truth_dare' ? { mode: 'mixed', show18Plus: false, safeMode: true, roundsCount: 5, categorySlugs: ['classic', 'friends'] } : null;
-                const bunker = g.id === 'bunker' ? { maxRounds: 3, phaseSpeed: 'standard', phaseTimers: bunkerPhaseTimersFromSpeed('standard'), scenarioId: 'shelter_default' } : null;
-                patchLobbyGame({ selectedGame: g.id, gameSettings: base || mafia || elias || truthDare || bunker || undefined });
+                patchLobbyGame({ selectedGame: g.id, gameSettings: getDefaultGameSettings(g.id) });
                 setGamesPickerOpen(false);
               }}
               style={{ ...btnStyle, padding: '14px 10px', background: 'var(--tg-theme-button-color, #3a7bd5)' }}

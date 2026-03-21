@@ -1,6 +1,6 @@
 import GamePromoLanding from '../components/landing/GamePromoLanding';
 
-export default function SeoGameTruthDare({ onBack }) {
+export default function SeoGameTruthDare({ onBack, onJoin }) {
   return (
     <GamePromoLanding
       theme="truth_dare"
@@ -39,7 +39,9 @@ export default function SeoGameTruthDare({ onBack }) {
         },
       ]}
       onBack={onBack}
-      primaryCtaLabel="Старт в GameHub"
+      onJoin={onJoin}
+      presetGameId="truth_dare"
+      primaryCtaLabel="Начать игру"
     />
   );
 }
