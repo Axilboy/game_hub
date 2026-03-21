@@ -2,7 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
+import { registerPwa } from './registerPwa';
 import './index.css';
+
+registerPwa();
 
 try {
   const t = localStorage.getItem('gh_theme');

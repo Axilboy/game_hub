@@ -16,6 +16,9 @@ import Chip from '../components/ui/Chip';
 import EmptyState from '../components/ui/EmptyState';
 import IconButton from '../components/ui/IconButton';
 
+/** Включить экран «Пользовательский словарь» Элиас (когда доработаем) */
+const ELIAS_CUSTOM_DICT_UI_ENABLED = false;
+
 const BASE_URL = import.meta.env.VITE_BASE_URL || window.location.origin;
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
 
@@ -124,7 +127,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [startingGame, setStartingGame] = useState(false);
   const [mafiaAccordions, setMafiaAccordions] = useState({ mode: true, rules: true, host: true });
-  const [eliasAccordions, setEliasAccordions] = useState({ timer: true, goal: true, dicts: false, teams: false });
+  const [eliasAccordions, setEliasAccordions] = useState({ timer: true, goal: true, teams: false });
   const [timerEnabled, setTimerEnabled] = useState(room?.gameSettings?.timerEnabled ?? false);
   const [timerSeconds, setTimerSeconds] = useState(room?.gameSettings?.timerSeconds ?? 60);
   const [spyCount, setSpyCount] = useState(room?.gameSettings?.spyCount ?? 1);
@@ -1094,29 +1097,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
               <button
                 type="button"
-                onClick={() => setEliasAccordions((s) => ({ ...s, dicts: !s.dicts }))}
-                style={{ ...btnStyle, width: '100%', background: eliasAccordions.dicts ? '#555' : '#444', marginBottom: 12 }}
+                onClick={() => {
+                  const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes'];
+                  setEliasDictDraft([...cur]);
+                  setEliasDictModalOpen(true);
+                }}
+                style={{ ...btnStyle, width: '100%', background: '#444', marginBottom: 12 }}
               >
-                Словари
+                Словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
               </button>
-              {eliasAccordions.dicts && (
-                <div style={{ marginBottom: 16 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cur = room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes'];
-                      setEliasDictDraft([...cur]);
-                      setEliasDictModalOpen(true);
-                    }}
-                    style={{ ...btnStyle, background: '#555' }}
-                  >
-                    Выбрать словари ({(room?.gameSettings?.dictionaryIds || ['basic', 'animals', 'memes']).length})
-                  </button>
-                  <button type="button" onClick={() => setEliasCustomModalOpen(true)} style={{ ...btnStyle, background: '#444', marginTop: 8 }}>
-                    Пользовательский словарь
-                  </button>
-                </div>
-              )}
 
               <button
                 type="button"
@@ -1750,7 +1739,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       )}
 
-      {eliasCustomModalOpen && (
+      {ELIAS_CUSTOM_DICT_UI_ENABLED && eliasCustomModalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, padding: 16 }} onClick={() => setEliasCustomModalOpen(false)}>
           <div style={{ background: 'var(--tg-theme-bg-color, #1a1a1a)', padding: 20, borderRadius: 12, maxWidth: 420, maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: 8 }}>Пользовательский словарь Элиас</h3>

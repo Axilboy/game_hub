@@ -9,7 +9,8 @@ import { getAvatar, getDisplayName, getProfilePhoto } from './displayName';
 import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
 import Home from './pages/Home';
-import { ToastProvider } from './components/ui/ToastProvider';
+import { ToastProvider, useToast } from './components/ui/ToastProvider';
+import RouteLoadingFallback from './components/RouteLoadingFallback';
 
 const Profile = lazy(() => import('./pages/Profile'));
 const Lobby = lazy(() => import('./pages/Lobby'));
@@ -30,6 +31,7 @@ const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
 
 function AppRoutes() {
+  const { showToast } = useToast();
   const { user, ready } = useTelegram();
   const [room, setRoom] = useState(null);
   const [roomId, setRoomId] = useState(null);
@@ -64,6 +66,22 @@ function AppRoutes() {
       window.removeEventListener('offline', onOffline);
     };
   }, []);
+
+  useEffect(() => {
+    const onPwaReady = () => {
+      try {
+        if (sessionStorage.getItem('gh_pwa_toast_shown')) return;
+        sessionStorage.setItem('gh_pwa_toast_shown', '1');
+      } catch (_) {}
+      showToast({
+        type: 'info',
+        message: 'Интерфейс сохранён для быстрой работы — так бывает обычно один раз.',
+        durationMs: 4200,
+      });
+    };
+    window.addEventListener('gh-pwa-offline-ready', onPwaReady);
+    return () => window.removeEventListener('gh-pwa-offline-ready', onPwaReady);
+  }, [showToast]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -362,7 +380,7 @@ function AppRoutes() {
           Нет связи с сервером — переподключаемся…
         </div>
       ) : null}
-      <Suspense fallback={<div className="gh-skeleton" style={{ margin: 20, height: 56 }} aria-label="Загрузка экрана" />}>
+      <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
         <Route
           path="/"
