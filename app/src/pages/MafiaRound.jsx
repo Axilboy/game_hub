@@ -46,6 +46,10 @@ function phaseUi(phase) {
       return { title: 'Ночь — мафия', sub: 'С этой ночи мафия может убить одного. Выберите жертву или дождитесь таймера.', short: 'Ночь · мафия' };
     case 'night_commissioner':
       return { title: 'Ночь — комиссар', sub: 'Проверка игрока.', short: 'Ночь · комиссар' };
+    case 'night_doctor':
+      return { title: 'Ночь — врач', sub: 'Кого лечить этой ночью.', short: 'Ночь · врач' };
+    case 'night_prostitute':
+      return { title: 'Ночь — путана', sub: 'С кем провести ночь.', short: 'Ночь · путана' };
     case 'dawn_kill':
       return {
         title: 'Утро — оглашение',
@@ -98,6 +102,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const [rolePeekVisible, setRolePeekVisible] = useState(true);
   const [friendNotes, setFriendNotes] = useState({});
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [endgameRoles, setEndgameRoles] = useState(null);
   const autoAdvanceRef = useRef({ phase: null, phaseStartedAt: null, sent: false });
   const requestSeqRef = useRef(0);
 
@@ -135,7 +140,10 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   useEffect(() => refreshState(), [roomId, myId]);
   useEffect(() => {
     const onPhase = () => refreshState({ silent: true });
-    const onEnded = (data) => setWinner(data?.winner || null);
+    const onEnded = (data) => {
+      setWinner(data?.winner || null);
+      if (Array.isArray(data?.rolesReveal)) setEndgameRoles(data.rolesReveal);
+    };
     const onGameEnded = () => refreshState({ silent: true });
     socket.on('mafia_phase', onPhase);
     socket.on('mafia_ended', onEnded);
@@ -161,8 +169,14 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   useEffect(() => {
     if (room?.state === 'playing' && room?.game === 'mafia' && room?.lastGameResult?.game !== 'mafia') {
       setWinner(null);
+      setEndgameRoles(null);
     }
   }, [room?.state, room?.game, room?.lastGameResult]);
+
+  useEffect(() => {
+    const rr = room?.lastGameResult?.game === 'mafia' ? room?.lastGameResult?.rolesReveal : null;
+    if (Array.isArray(rr)) setEndgameRoles(rr);
+  }, [room?.lastGameResult]);
 
   useEffect(() => {
     if (state?.phase !== 'voting') setVoteTarget(null);
@@ -230,6 +244,38 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       await api.post(`/rooms/${roomId}/mafia/action`, {
         playerId: myId,
         action: 'commissioner_check',
+        targetId,
+      });
+      refreshState({ silent: true });
+    } catch (_) {}
+    finally {
+      setActionLoading(null);
+    }
+  };
+
+  const sendDoctorSave = async (targetId) => {
+    if (actionLoading) return;
+    try {
+      setActionLoading('doctor_save');
+      await api.post(`/rooms/${roomId}/mafia/action`, {
+        playerId: myId,
+        action: 'doctor_save',
+        targetId,
+      });
+      refreshState({ silent: true });
+    } catch (_) {}
+    finally {
+      setActionLoading(null);
+    }
+  };
+
+  const sendProstituteVisit = async (targetId) => {
+    if (actionLoading) return;
+    try {
+      setActionLoading('prostitute_visit');
+      await api.post(`/rooms/${roomId}/mafia/action`, {
+        playerId: myId,
+        action: 'prostitute_visit',
         targetId,
       });
       refreshState({ silent: true });
@@ -333,6 +379,8 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
     if (state.phase === 'voting') return;
     /** Утренние оглашения — только вручную */
     if (String(state.phase || '').startsWith('dawn_')) return;
+    /** Ночные действия — ведущий переводит фазу вручную после мафии/комиссара/врача/путаны */
+    if (['night_mafia', 'night_commissioner', 'night_doctor', 'night_prostitute'].includes(state.phase)) return;
     const phaseSecondsLeft =
       state.phaseStartedAt && state.phaseDurationSec
         ? Math.max(0, Math.ceil((state.phaseStartedAt + state.phaseDurationSec * 1000 - Date.now()) / 1000))
@@ -356,6 +404,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
 
   const lrMafia = room?.lastGameResult?.game === 'mafia' ? room.lastGameResult : null;
   const winnerResolved = winner || lrMafia?.winner || null;
+  const rolesRevealList = Array.isArray(endgameRoles) ? endgameRoles : lrMafia?.rolesReveal;
 
   if (winnerResolved) {
     return (
@@ -374,6 +423,19 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
           <p style={{ fontSize: 22, marginBottom: 16, fontWeight: 800 }}>
             {winnerResolved === 'civilians' ? 'Победили мирные!' : 'Победила мафия!'}
           </p>
+          {Array.isArray(rolesRevealList) && rolesRevealList.length > 0 && (
+            <div style={{ marginTop: 20, textAlign: 'left' }}>
+              <p style={{ fontWeight: 800, marginBottom: 10, fontSize: 15 }}>Игроки и роли</p>
+              <ul className="mafiaRound__rolesReveal">
+                {rolesRevealList.map((r) => (
+                  <li key={r.id}>
+                    <span className="mafiaRound__rolesRevealName">{r.name}</span>
+                    <span className="mafiaRound__rolesRevealRole">{r.roleName}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </PostMatchScreen>
     );
@@ -479,6 +541,16 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
       : null;
   const showPhaseTimer =
     String(phase || '').startsWith('dawn_') ? false : !!(state.phaseStartedAt && Number(state.phaseDurationSec) > 0);
+
+  const mafiaNightByModerator = state.settings?.mafiaNightMode === 'moderator';
+  const commissionerNightByModerator = state.settings?.commissionerNightMode === 'moderator';
+  const doctorNightByModerator = state.settings?.doctorNightMode === 'moderator';
+  const prostituteNightByModerator = state.settings?.prostituteNightMode === 'moderator';
+  const mafiaTeamIdSet = new Set(
+    (state.moderatorRoster || []).filter((r) => r.role === 'mafia' || r.role === 'don').map((r) => String(r.id)),
+  );
+  const commissionerRosterId = state.moderatorRoster?.find((r) => r.role === 'commissioner')?.id;
+  const prostituteRosterId = state.moderatorRoster?.find((r) => r.role === 'prostitute')?.id;
 
   const takenModeratorIds = (exclude) => {
     const taken = new Set();
@@ -592,6 +664,20 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                 </span>
               )}
             </p>
+          )}
+
+          {isModerator && state.rolesReady && Array.isArray(state.moderatorRoster) && state.moderatorRoster.length > 0 && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Состав ролей (только ведущий)</p>
+              <ul className="mafiaRound__modRoster">
+                {state.moderatorRoster.map((row) => (
+                  <li key={row.id}>
+                    <span className="mafiaRound__modRosterName">{row.name}</span>
+                    <span className="mafiaRound__modRosterRole">{row.roleName}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {String(phase || '').startsWith('dawn_') && isModerator && state.moderatorDawn?.pendingNight && (
@@ -810,46 +896,138 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
             </div>
           )}
 
-          {phase === 'night_mafia' && state.mafiaTeammates !== undefined && canKillAtNight && (
-            <div className="mafiaRound__panel">
-              <p className="mafiaRound__panelTitle">Жертва ночи</p>
-              <div className="mafiaRound__chips">
-                {alive
-                  .filter((p) => !state.mafiaTeammates?.some((m) => String(m.id) === String(p.id)))
-                  .map((p) => (
+          {phase === 'night_mafia' && canKillAtNight && (
+            <>
+              {mafiaNightByModerator && isModerator && (
+                <div className="mafiaRound__panel">
+                  <p className="mafiaRound__panelTitle">Жертва ночи (ведущий)</p>
+                  <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                    Режим: решение мафии вы задаёте здесь на своём устройстве.
+                  </p>
+                  <div className="mafiaRound__chips">
+                    {alive
+                      .filter((p) => !mafiaTeamIdSet.has(String(p.id)))
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="mafiaRound__chip mafiaRound__chip--danger"
+                          onClick={() => sendMafiaKill(p.id)}
+                          disabled={actionLoading === 'kill'}
+                        >
+                          {actionLoading === 'kill' ? (
+                            <>…</>
+                          ) : (
+                            playerLine(p)
+                          )}
+                        </button>
+                      ))}
+                  </div>
+                  {state.settings?.mafiaCanSkipKill && (
                     <button
-                      key={p.id}
                       type="button"
-                      className="mafiaRound__chip mafiaRound__chip--danger"
-                      onClick={() => sendMafiaKill(p.id)}
+                      className="mafiaRound__chip mafiaRound__chip--ghost"
+                      onClick={() => sendMafiaKill(null)}
                       disabled={actionLoading === 'kill'}
                     >
-                      {actionLoading === 'kill' ? (
-                        <>…</>
-                      ) : (
-                        playerLine(p)
-                      )}
+                      Не убивать эту ночь
                     </button>
-                  ))}
-              </div>
-              {state.settings?.mafiaCanSkipKill && (
-                <button
-                  type="button"
-                  className="mafiaRound__chip mafiaRound__chip--ghost"
-                  onClick={() => sendMafiaKill(null)}
-                  disabled={actionLoading === 'kill'}
-                >
-                  Не убивать эту ночь
-                </button>
+                  )}
+                </div>
               )}
-            </div>
+              {mafiaNightByModerator && !isModerator && state.mafiaTeammates !== undefined && (
+                <div className="mafiaRound__panel mafiaRound__panel--muted">
+                  <p className="mafiaRound__panelTitle">Мафия</p>
+                  <p className="mafiaRound__panelHint">В этой партии жертву выбирает ведущий у себя на телефоне. Ожидайте конца фазы.</p>
+                </div>
+              )}
+              {!mafiaNightByModerator && state.mafiaTeammates !== undefined && (
+                <div className="mafiaRound__panel">
+                  <p className="mafiaRound__panelTitle">Жертва ночи</p>
+                  <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                    Режим: голосуют игроки мафии со своих телефонов.
+                  </p>
+                  <div className="mafiaRound__chips">
+                    {alive
+                      .filter((p) => !state.mafiaTeammates?.some((m) => String(m.id) === String(p.id)))
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="mafiaRound__chip mafiaRound__chip--danger"
+                          onClick={() => sendMafiaKill(p.id)}
+                          disabled={actionLoading === 'kill'}
+                        >
+                          {actionLoading === 'kill' ? (
+                            <>…</>
+                          ) : (
+                            playerLine(p)
+                          )}
+                        </button>
+                      ))}
+                  </div>
+                  {state.settings?.mafiaCanSkipKill && (
+                    <button
+                      type="button"
+                      className="mafiaRound__chip mafiaRound__chip--ghost"
+                      onClick={() => sendMafiaKill(null)}
+                      disabled={actionLoading === 'kill'}
+                    >
+                      Не убивать эту ночь
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {isDead && (
             <div className="mafiaRound__deadNote">Вы выбыли. Наблюдайте за игрой — голосовать и действовать нельзя.</div>
           )}
 
-          {phase === 'night_commissioner' && myRole?.role === 'commissioner' && amAlive && (
+          {phase === 'night_commissioner' && commissionerNightByModerator && isModerator && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Проверка комиссара (ведущий)</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                Кого проверить — задаёте вы. На столе результат не оглашается; комиссар увидит метку на карточке игрока.
+              </p>
+              <div className="mafiaRound__chips">
+                {alive
+                  .filter((p) => String(p.id) !== String(commissionerRosterId))
+                  .map((p) => {
+                    const chk = state.moderatorCommissionerCheck;
+                    const isChecked = chk && String(chk.targetId) === String(p.id);
+                    const suspect = isChecked && chk.isMafia;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`mafiaRound__chip${isChecked ? ' mafiaRound__chip--commissionerMark' : ''}${suspect ? ' mafiaRound__chip--commissionerSuspect' : ''}`}
+                        onClick={() => sendCommissionerCheck(p.id)}
+                        disabled={actionLoading === 'commissioner_check'}
+                        title={isChecked ? (suspect ? 'По проверке: мафия (только комиссару)' : 'Не мафия (только комиссару)') : undefined}
+                      >
+                        {actionLoading === 'commissioner_check' ? (
+                          '…'
+                        ) : (
+                          <>
+                            {playerLine(p)}
+                            {isChecked ? <span className="mafiaRound__commissionerBadge">🔍</span> : null}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+          {phase === 'night_commissioner' && commissionerNightByModerator && !isModerator && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Комиссар</p>
+              <p className="mafiaRound__panelHint">В этой партии проверку проводит ведущий у себя на телефоне.</p>
+            </div>
+          )}
+          {phase === 'night_commissioner' && !commissionerNightByModerator && myRole?.role === 'commissioner' && amAlive && (
             <div className="mafiaRound__panel">
               <p className="mafiaRound__panelTitle">Проверка</p>
               <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
@@ -882,6 +1060,105 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
                       </button>
                     );
                   })}
+              </div>
+            </div>
+          )}
+
+          {phase === 'night_doctor' && doctorNightByModerator && isModerator && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Врач (ведущий)</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                Кого лечит врач — выберите вы; в режиме «игроки» это делает врач с телефона.
+              </p>
+              <div className="mafiaRound__chips">
+                {alive.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="mafiaRound__chip"
+                    onClick={() => sendDoctorSave(p.id)}
+                    disabled={actionLoading === 'doctor_save'}
+                  >
+                    {actionLoading === 'doctor_save' ? '…' : playerLine(p)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {phase === 'night_doctor' && doctorNightByModerator && !isModerator && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Врач</p>
+              <p className="mafiaRound__panelHint">Ведущий отмечает лечение за врача.</p>
+            </div>
+          )}
+          {phase === 'night_doctor' && !doctorNightByModerator && myRole?.role === 'doctor' && amAlive && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Лечение</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                Кого защитить этой ночью.
+              </p>
+              <div className="mafiaRound__chips">
+                {alive.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="mafiaRound__chip"
+                    onClick={() => sendDoctorSave(p.id)}
+                    disabled={actionLoading === 'doctor_save'}
+                  >
+                    {actionLoading === 'doctor_save' ? '…' : playerLine(p)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phase === 'night_prostitute' && prostituteNightByModerator && isModerator && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Путана (ведущий)</p>
+              <p className="mafiaRound__panelHint" style={{ marginBottom: 10 }}>
+                С кем провести ночь — выберите вы.
+              </p>
+              <div className="mafiaRound__chips">
+                {alive
+                  .filter((p) => !prostituteRosterId || String(p.id) !== String(prostituteRosterId))
+                  .map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="mafiaRound__chip"
+                      onClick={() => sendProstituteVisit(p.id)}
+                      disabled={actionLoading === 'prostitute_visit'}
+                    >
+                      {actionLoading === 'prostitute_visit' ? '…' : playerLine(p)}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+          {phase === 'night_prostitute' && prostituteNightByModerator && !isModerator && (
+            <div className="mafiaRound__panel mafiaRound__panel--muted">
+              <p className="mafiaRound__panelTitle">Путана</p>
+              <p className="mafiaRound__panelHint">Ведущий отмечает ночь путаны.</p>
+            </div>
+          )}
+          {phase === 'night_prostitute' && !prostituteNightByModerator && myRole?.role === 'prostitute' && amAlive && (
+            <div className="mafiaRound__panel">
+              <p className="mafiaRound__panelTitle">Ночь путаны</p>
+              <div className="mafiaRound__chips">
+                {alive
+                  .filter((p) => String(p.id) !== myId)
+                  .map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="mafiaRound__chip"
+                      onClick={() => sendProstituteVisit(p.id)}
+                      disabled={actionLoading === 'prostitute_visit'}
+                    >
+                      {actionLoading === 'prostitute_visit' ? '…' : playerLine(p)}
+                    </button>
+                  ))}
               </div>
             </div>
           )}

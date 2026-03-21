@@ -107,12 +107,28 @@ function baseMafiaPayload(moderatorId, poolIds, roleMap, settings) {
     theme = 'default',
     phaseTimers = null,
     mafiaRolesMode = 'random',
+    mafiaNightMode = 'players',
+    commissionerNightMode = 'players',
+    doctorNightMode = 'players',
+    prostituteNightMode = 'players',
   } = settings;
   return {
     roles: roleMap,
     moderatorId,
     alive: [...poolIds],
-    settings: { extended, revealRoleOnDeath, mafiaCanSkipKill, theme, phaseTimers, mafiaRolesMode },
+    settings: {
+      extended,
+      revealRoleOnDeath,
+      mafiaCanSkipKill,
+      theme,
+      phaseTimers,
+      mafiaRolesMode,
+      /** players — роль жмёт игрок; moderator — только ведущий на своём экране */
+      mafiaNightMode: mafiaNightMode === 'moderator' ? 'moderator' : 'players',
+      commissionerNightMode: commissionerNightMode === 'moderator' ? 'moderator' : 'players',
+      doctorNightMode: doctorNightMode === 'moderator' ? 'moderator' : 'players',
+      prostituteNightMode: prostituteNightMode === 'moderator' ? 'moderator' : 'players',
+    },
     mafiaVotes: {},
     commissionerCheck: null,
     doctorSave: null,
@@ -497,6 +513,24 @@ export function checkWin(gs) {
   return null;
 }
 
+/** Сводка ролей для экрана конца игры */
+export function buildMafiaRolesReveal(gs, players) {
+  const theme = gs.settings?.theme || 'default';
+  const modId = gs.moderatorId;
+  return players
+    .filter((p) => String(p.id) !== String(modId))
+    .map((p) => {
+      const role = gs.roles?.[p.id];
+      return {
+        id: p.id,
+        name: p.name,
+        role: role || null,
+        roleName: role ? getRoleDisplayName(role, theme) : '—',
+      };
+    })
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
+}
+
 export function toClientState(gs, playerId, players) {
   const aliveList = (gs.alive || []).map((id) => players.find((p) => p.id === id)).filter(Boolean);
   const rawRole = gs.roles ? gs.roles[playerId] : null;
@@ -570,9 +604,29 @@ export function toClientState(gs, playerId, players) {
       : null;
   const commissionerPrivateCheck =
     rawRole === 'commissioner' && gs.commissionerPrivate ? { ...gs.commissionerPrivate } : null;
+  /** Ведущий видит факт проверки (для UI ночной фазы), не путать с публичным столом */
+  const moderatorCommissionerCheck =
+    isModerator && gs.commissionerPrivate ? { ...gs.commissionerPrivate } : null;
+  const moderatorRoster =
+    isModerator && gs.roles && Object.keys(gs.roles).length > 0
+      ? players
+          .filter((p) => String(p.id) !== String(gs.moderatorId))
+          .map((p) => {
+            const r = gs.roles[p.id];
+            return {
+              id: p.id,
+              name: p.name,
+              role: r || null,
+              roleName: r ? getRoleDisplayName(r, theme) : '—',
+            };
+          })
+          .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'))
+      : null;
   const roleExtras = {
     ...(moderatorDawn ? { moderatorDawn } : {}),
     ...(commissionerPrivateCheck ? { commissionerPrivateCheck } : {}),
+    ...(moderatorCommissionerCheck ? { moderatorCommissionerCheck } : {}),
+    ...(moderatorRoster ? { moderatorRoster } : {}),
   };
   if (mafiaIds.some((id) => String(id) === String(playerId))) {
     const mafiaTeammates = mafiaIds.filter((id) => String(id) !== String(playerId)).map((id) => players.find((p) => String(p.id) === String(id))).filter(Boolean);

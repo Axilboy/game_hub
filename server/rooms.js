@@ -19,6 +19,7 @@ import {
   assignRolesFromPlayerVotes,
   MIN_MAFIA_PLAYERS_CLASSIC,
   MIN_MAFIA_PLAYERS_EXTENDED,
+  buildMafiaRolesReveal,
 } from './mafia.js';
 import { getEliasWords, getRandomEliasWord } from './eliasWords.js';
 import {
@@ -473,6 +474,7 @@ export async function roomRoutes(fastify) {
     const timers = normalizeMafiaTimers(gs?.settings?.phaseTimers);
     if (phase === 'night_mafia') return timers.nightMafia;
     if (phase === 'night_commissioner') return timers.nightCommissioner;
+    if (phase === 'night_doctor' || phase === 'night_prostitute') return timers.nightCommissioner || timers.nightMafia;
     if (phase === 'day') return timers.day;
     if (phase === 'voting') return timers.voting;
     if (phase === 'role_setup_moderator' || phase === 'role_setup_vote') return timers.roleSetup;
@@ -484,6 +486,34 @@ export async function roomRoutes(fastify) {
 
   function mafiaAliveHas(gs, playerId) {
     return (gs.alive || []).some((id) => String(id) === String(playerId));
+  }
+
+  function rolePlayerIdAlive(gs, roleName) {
+    const id = Object.entries(gs.roles || {}).find(([, r]) => r === roleName)?.[0];
+    if (id == null) return null;
+    return mafiaAliveHas(gs, id) ? id : null;
+  }
+
+  function nextPhaseAfterNightMafia(gs) {
+    if (gs.settings?.extended && rolePlayerIdAlive(gs, 'doctor')) return 'night_doctor';
+    if (gs.settings?.extended && rolePlayerIdAlive(gs, 'prostitute')) return 'night_prostitute';
+    if (rolePlayerIdAlive(gs, 'commissioner')) return 'night_commissioner';
+    return 'dawn_kill';
+  }
+
+  function nextPhaseAfterNightDoctor(gs) {
+    if (gs.settings?.extended && rolePlayerIdAlive(gs, 'prostitute')) return 'night_prostitute';
+    if (rolePlayerIdAlive(gs, 'commissioner')) return 'night_commissioner';
+    return 'dawn_kill';
+  }
+
+  function nextPhaseAfterNightProstitute(gs) {
+    if (rolePlayerIdAlive(gs, 'commissioner')) return 'night_commissioner';
+    return 'dawn_kill';
+  }
+
+  function mafiaGameResult(gs, room, winner) {
+    return { game: 'mafia', winner, rolesReveal: buildMafiaRolesReveal(gs, room.players) };
   }
 
   function finalizeMafiaRoleVotePhase(roomId, gs, io) {
@@ -507,9 +537,11 @@ export async function roomRoutes(fastify) {
     gs.phaseDurationSec = phaseDurationFor(gs, gs.phase);
     const win = checkWin(gs);
     if (win) {
-      roomManager.endGame(roomId, { lastGameResult: { game: 'mafia', winner: win } });
-      io.to(roomId).emit('mafia_ended', { winner: win });
+      const lr = mafiaGameResult(gs, room, win);
+      roomManager.endGame(roomId, { lastGameResult: lr });
+      io.to(roomId).emit('mafia_ended', lr);
       io.to(roomId).emit('game_ended');
+      io.to(roomId).emit('room_updated');
       return { winner: win };
     }
     io.to(roomId).emit('mafia_phase', { phase: gs.phase });
@@ -656,6 +688,10 @@ export async function roomRoutes(fastify) {
       mafiaCanSkipKill = false,
       phaseTimers,
       mafiaRolesMode: mafiaRolesModeRaw,
+      mafiaNightMode: mafiaNightModeRaw,
+      commissionerNightMode: commissionerNightModeRaw,
+      doctorNightMode: doctorNightModeRaw,
+      prostituteNightMode: prostituteNightModeRaw,
     } = request.body || {};
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Room not found' });
@@ -689,6 +725,10 @@ export async function roomRoutes(fastify) {
       theme: 'default',
       phaseTimers: normalizeMafiaTimers(phaseTimers),
       mafiaRolesMode,
+      mafiaNightMode: mafiaNightModeRaw,
+      commissionerNightMode: commissionerNightModeRaw,
+      doctorNightMode: doctorNightModeRaw,
+      prostituteNightMode: prostituteNightModeRaw,
     });
     markMafiaPhase(gs, gs.phase);
     recordGameSession();
@@ -795,6 +835,19 @@ export async function roomRoutes(fastify) {
         return reply.code(400).send({ error: 'Пока нельзя убивать — подготовительные дни и первая ночь знакомства' });
       }
       const mafiaIds = getMafiaPlayers(gs.roles);
+      const mafiaNightMode = gs.settings?.mafiaNightMode === 'moderator' ? 'moderator' : 'players';
+      if (mafiaNightMode === 'moderator' && String(playerId) === String(gs.moderatorId)) {
+        if (!mafiaIds.length) return reply.code(400).send({ error: 'Нет мафии в игре' });
+        if (gs.settings.mafiaCanSkipKill && !targetId) {
+          gs.mafiaVotes = gs.mafiaVotes || {};
+          for (const mid of mafiaIds) gs.mafiaVotes[String(mid)] = null;
+          return { ok: true };
+        }
+        if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+        gs.mafiaVotes = gs.mafiaVotes || {};
+        for (const mid of mafiaIds) gs.mafiaVotes[String(mid)] = targetId;
+        return { ok: true };
+      }
       if (!mafiaIds.includes(playerId)) return reply.code(403).send({ error: 'Вы не мафия' });
       if (gs.settings.mafiaCanSkipKill && !targetId) {
         gs.mafiaVotes = gs.mafiaVotes || {};
@@ -806,18 +859,53 @@ export async function roomRoutes(fastify) {
       gs.mafiaVotes[playerId] = targetId;
       return { ok: true };
     }
-    if (action === 'commissioner_check' && (phase === 'night_commissioner' || phase === 'night_mafia')) {
-      if (phase === 'night_mafia' && gs.killNightEnabled === false) {
-        return reply.code(400).send({ error: 'Комиссар пока не действует' });
+    if (action === 'commissioner_check' && phase === 'night_commissioner') {
+      const commMode = gs.settings?.commissionerNightMode === 'moderator' ? 'moderator' : 'players';
+      if (commMode === 'moderator' && String(playerId) === String(gs.moderatorId)) {
+        const commId = rolePlayerIdAlive(gs, 'commissioner');
+        if (!commId) return reply.code(400).send({ error: 'Комиссар не в игре' });
+        if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+        gs.commissionerCheck = targetId;
+        const mafiaIds = getMafiaPlayers(gs.roles);
+        const isMafia = mafiaIds.some((id) => String(id) === String(targetId));
+        gs.commissionerPrivate = { targetId, isMafia };
+        return { ok: true, isMafia };
       }
       if (gs.roles[playerId] !== 'commissioner') return reply.code(403).send({ error: 'Вы не комиссар' });
       if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
       gs.commissionerCheck = targetId;
       const mafiaIds = getMafiaPlayers(gs.roles);
       const isMafia = mafiaIds.some((id) => String(id) === String(targetId));
-      /** Только комиссар видит в toClientState; столу не передаётся */
       gs.commissionerPrivate = { targetId, isMafia };
       return { ok: true, isMafia };
+    }
+    if (action === 'doctor_save' && phase === 'night_doctor') {
+      const docMode = gs.settings?.doctorNightMode === 'moderator' ? 'moderator' : 'players';
+      if (docMode === 'moderator' && String(playerId) === String(gs.moderatorId)) {
+        const docId = rolePlayerIdAlive(gs, 'doctor');
+        if (!docId) return reply.code(400).send({ error: 'Врач не в игре' });
+        if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+        gs.doctorSave = targetId;
+        return { ok: true };
+      }
+      if (gs.roles[playerId] !== 'doctor') return reply.code(403).send({ error: 'Вы не врач' });
+      if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+      gs.doctorSave = targetId;
+      return { ok: true };
+    }
+    if (action === 'prostitute_visit' && phase === 'night_prostitute') {
+      const prMode = gs.settings?.prostituteNightMode === 'moderator' ? 'moderator' : 'players';
+      if (prMode === 'moderator' && String(playerId) === String(gs.moderatorId)) {
+        const prId = rolePlayerIdAlive(gs, 'prostitute');
+        if (!prId) return reply.code(400).send({ error: 'Путана не в игре' });
+        if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+        gs.prostituteVisit = targetId;
+        return { ok: true };
+      }
+      if (gs.roles[playerId] !== 'prostitute') return reply.code(403).send({ error: 'Вы не путана' });
+      if (!targetId || !mafiaAliveHas(gs, targetId)) return reply.code(400).send({ error: 'Неверная цель' });
+      gs.prostituteVisit = targetId;
+      return { ok: true };
     }
     return reply.code(400).send({ error: 'Действие недоступно в этой фазе' });
   });
@@ -884,13 +972,36 @@ export async function roomRoutes(fastify) {
       return { ok: true };
     }
     if (gs.phase === 'night_mafia') {
-      const mafiaIds = getMafiaPlayers(gs.roles);
-      const needCommissioner = room.players.some((p) => gs.roles[p.id] === 'commissioner' && mafiaAliveHas(gs, p.id));
-      if (needCommissioner) {
-        markMafiaPhase(gs, 'night_commissioner');
-      } else {
+      const nextPh = nextPhaseAfterNightMafia(gs);
+      if (nextPh === 'dawn_kill') {
         prepareDawn(gs);
         markMafiaPhase(gs, 'dawn_kill');
+      } else {
+        markMafiaPhase(gs, nextPh);
+      }
+      io.to(roomId).emit('mafia_phase', { phase: gs.phase });
+      io.to(roomId).emit('room_updated');
+      return { ok: true };
+    }
+    if (gs.phase === 'night_doctor') {
+      const nextPh = nextPhaseAfterNightDoctor(gs);
+      if (nextPh === 'dawn_kill') {
+        prepareDawn(gs);
+        markMafiaPhase(gs, 'dawn_kill');
+      } else {
+        markMafiaPhase(gs, nextPh);
+      }
+      io.to(roomId).emit('mafia_phase', { phase: gs.phase });
+      io.to(roomId).emit('room_updated');
+      return { ok: true };
+    }
+    if (gs.phase === 'night_prostitute') {
+      const nextPh = nextPhaseAfterNightProstitute(gs);
+      if (nextPh === 'dawn_kill') {
+        prepareDawn(gs);
+        markMafiaPhase(gs, 'dawn_kill');
+      } else {
+        markMafiaPhase(gs, nextPh);
       }
       io.to(roomId).emit('mafia_phase', { phase: gs.phase });
       io.to(roomId).emit('room_updated');
@@ -909,9 +1020,11 @@ export async function roomRoutes(fastify) {
         applyDawnKillAnnounce(gs);
         const win = checkWin(gs);
         if (win) {
-          roomManager.endGame(roomId, { lastGameResult: { game: 'mafia', winner: win } });
-          io.to(roomId).emit('mafia_ended', { winner: win });
+          const lr = mafiaGameResult(gs, room, win);
+          roomManager.endGame(roomId, { lastGameResult: lr });
+          io.to(roomId).emit('mafia_ended', lr);
           io.to(roomId).emit('game_ended');
+          io.to(roomId).emit('room_updated');
           return { ok: true, winner: win };
         }
         const nextAfterKill = nextDawnPhaseAfterKill(gs);
@@ -937,9 +1050,11 @@ export async function roomRoutes(fastify) {
       }
       const winAfter = checkWin(gs);
       if (winAfter) {
-        roomManager.endGame(roomId, { lastGameResult: { game: 'mafia', winner: winAfter } });
-        io.to(roomId).emit('mafia_ended', { winner: winAfter });
+        const lr = mafiaGameResult(gs, room, winAfter);
+        roomManager.endGame(roomId, { lastGameResult: lr });
+        io.to(roomId).emit('mafia_ended', lr);
         io.to(roomId).emit('game_ended');
+        io.to(roomId).emit('room_updated');
         return { ok: true, winner: winAfter };
       }
       io.to(roomId).emit('mafia_phase', { phase: gs.phase });

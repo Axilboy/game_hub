@@ -441,6 +441,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         revealRoleOnDeath: gs.revealRoleOnDeath ?? true,
         mafiaCanSkipKill: gs.mafiaCanSkipKill ?? false,
         mafiaRolesMode: gs.mafiaRolesMode === 'moderator' ? 'moderator' : gs.mafiaRolesMode === 'player_vote' ? 'player_vote' : undefined,
+        mafiaNightMode: gs.mafiaNightMode === 'moderator' ? 'moderator' : undefined,
+        commissionerNightMode: gs.commissionerNightMode === 'moderator' ? 'moderator' : undefined,
+        doctorNightMode: gs.doctorNightMode === 'moderator' ? 'moderator' : undefined,
+        prostituteNightMode: gs.prostituteNightMode === 'moderator' ? 'moderator' : undefined,
         phaseTimers: gs.phaseTimers || {
           prepDay: 90,
           nightMeet: 45,
@@ -1535,6 +1539,52 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
             <p style={{ margin: '0 0 16px', fontSize: 12, opacity: 0.82, lineHeight: 1.35 }}>
               Ведущий на своём телефоне выбирает Дона, мафию и комиссара (в расширенной — ещё роли). Или каждый игрок с телефона отдаёт два голоса — кого считать «мафией»; по итогам сервер назначает роли.
             </p>
+            <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>Кто нажимает ночью</p>
+            <p style={{ margin: '0 0 8px', fontSize: 12, opacity: 0.85 }}>
+              По умолчанию — игроки с ролью со своих телефонов. Режим «ведущий» — только ведущий отмечает жертву мафии, проверку комиссара, лечение врача и ночь путаны у себя на экране.
+            </p>
+            {[
+              { key: 'mafiaNightMode', label: 'Мафия (убийство)' },
+              { key: 'commissionerNightMode', label: 'Комиссар (проверка)' },
+              { key: 'doctorNightMode', label: 'Врач', ext: true },
+              { key: 'prostituteNightMode', label: 'Путана', ext: true },
+            ]
+              .filter((row) => !row.ext || room?.gameSettings?.extended)
+              .map((row) => (
+                <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ minWidth: 140, fontSize: 13 }}>{row.label}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patchLobbyGame({
+                        gameSettings: { ...room?.gameSettings, [row.key]: 'players' },
+                      })
+                    }
+                    style={{
+                      ...(room?.gameSettings?.[row.key] !== 'moderator' ? btnStyle : btnStyleToggleOff),
+                      padding: '8px 12px',
+                      fontSize: 13,
+                    }}
+                  >
+                    Игроки
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patchLobbyGame({
+                        gameSettings: { ...room?.gameSettings, [row.key]: 'moderator' },
+                      })
+                    }
+                    style={{
+                      ...(room?.gameSettings?.[row.key] === 'moderator' ? btnStyle : btnStyleToggleOff),
+                      padding: '8px 12px',
+                      fontSize: 13,
+                    }}
+                  >
+                    Ведущий
+                  </button>
+                </div>
+              ))}
             <p style={{ margin: '0 0 6px', fontSize: 14 }}>Скорость фаз</p>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {[

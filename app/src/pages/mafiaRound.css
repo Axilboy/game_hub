@@ -90,6 +90,57 @@
   );
 }
 
+.mafiaRound__modRoster {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+}
+
+.mafiaRound__modRoster li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--gpl-panel-text) 8%, transparent);
+}
+
+.mafiaRound__modRosterName {
+  font-weight: 650;
+}
+
+.mafiaRound__modRosterRole {
+  font-weight: 700;
+  color: var(--gpl-accent);
+}
+
+.mafiaRound__rolesReveal {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 15px;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.mafiaRound__rolesReveal li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--gpl-panel-text) 10%, transparent);
+}
+
+.mafiaRound__rolesRevealName {
+  font-weight: 650;
+}
+
+.mafiaRound__rolesRevealRole {
+  font-weight: 700;
+  color: var(--gpl-accent);
+}
+
 .mafiaRound__commissionerBadge {
   margin-left: 8px;
   font-size: 1em;
