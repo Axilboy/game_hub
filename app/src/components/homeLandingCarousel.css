@@ -3,6 +3,9 @@
  */
 .gh-home-carousel-wrap {
   margin: 0 0 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   contain: layout style;
   overflow: hidden;
 }
@@ -18,12 +21,15 @@
 .gh-home-carousel {
   display: flex;
   gap: 12px;
+  /* Иначе flex-ряд из 18 слайдов раздувает ширину страницы (как «зум» и обрезание кнопок) */
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  /* Симметричные отступы: крайние карточки могут встать по центру как в середине ленты */
-  padding: 4px max(12px, calc((100% - min(88%, 320px)) / 2)) 14px;
-  margin: 0 -4px;
+  padding: 4px 12px 14px;
+  margin: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   overscroll-behavior-x: contain;

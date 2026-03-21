@@ -23,7 +23,13 @@ export default function PageLayout({
         </div>
       </header>
       <main className="gh-shell__content gh-page">{children}</main>
-      <div style={{ padding: '0 12px 14px' }}>
+      <div
+        style={{
+          paddingLeft: 12,
+          paddingRight: 12,
+          paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         <SeoFooter style={{ marginTop: 8, paddingTop: 12 }} />
       </div>
       {stickyBottom ? <div className="gh-actionbar">{stickyBottom}</div> : null}
