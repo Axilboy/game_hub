@@ -14,7 +14,6 @@ import PageLayout from '../components/layout/PageLayout';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
-import IconButton from '../components/ui/IconButton';
 import {
   BUNKER_ROUND_OPTIONS,
   BUNKER_SCENARIOS,
@@ -145,7 +144,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [eliasCustomWordsText, setEliasCustomWordsText] = useState('');
   const [eliasImportText, setEliasImportText] = useState('');
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
-  const [transferHostOpen, setTransferHostOpen] = useState(false);
+  /** Выбранный в списке участников игрок (меню: хост / кик / друзья) */
+  const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
 
   const roomName = room?.name || 'Лобби';
@@ -437,16 +437,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
-  /** Быстрый старт из блока «Быстрые действия хоста» — та же логика, что у кнопки «Начать игру» в настройках режима */
-  const startSelectedGame = async () => {
-    if (!isHost || !selectedGame || startingGame) return;
-    if (selectedGame === 'spy') await startSpy();
-    else if (selectedGame === 'mafia') await startMafia();
-    else if (selectedGame === 'elias') await startElias();
-    else if (selectedGame === 'bunker') await startBunker();
-    else if (selectedGame === 'truth_dare') await startTruthDare();
-  };
-
   const saveRoomName = async () => {
     setEditingName(false);
     const name = (editNameValue || '').trim() || 'Лобби';
@@ -551,11 +541,23 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     try {
       await api.post(`/rooms/${roomId}/transfer-host`, { playerId: String(user?.id), newHostId });
       showToast({ type: 'success', message: 'Хост передан' });
-      setTransferHostOpen(false);
+      setPlayerMenuPlayer(null);
       const { room: r } = await api.get(`/rooms/${roomId}`);
       onRoomUpdate(r);
     } catch (e) {
       showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось передать хоста') });
+    }
+  };
+
+  const kickPlayer = async (playerIdToKick) => {
+    try {
+      await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick });
+      showToast({ type: 'success', message: 'Игрок исключён' });
+      setPlayerMenuPlayer(null);
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось исключить игрока') });
     }
   };
 
@@ -582,10 +584,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     const gameLabels = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', bunker: 'Бункер', truth_dare: 'Правда или действие' };
     const gn = gameLabels[selectedGame] || selectedGame;
     if (lobbyPlayerCount < minForSelectedGame) {
-      return `${gn}: нужно минимум ${minForSelectedGame} игроков (сейчас ${lobbyPlayerCount}).`;
+      return null;
     }
     return `${gn}: игроков достаточно — настройте режим и нажмите «Начать».`;
   })();
+
+  const pp = playerMenuPlayer;
+  const playerMenuIsSelf = Boolean(pp && pp.id === String(user?.id));
+  const playerMenuCanHostActions = Boolean(isHost && pp && !playerMenuIsSelf && !pp.isHost);
 
   return (
     <PageLayout
@@ -654,9 +660,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           ) : null}
         </section>
 
-        <div className="lobby-status" role="status">
-          {lobbyStatusText}
-        </div>
+        {lobbyStatusText ? (
+          <div className="lobby-status" role="status">
+            {lobbyStatusText}
+          </div>
+        ) : null}
 
         {!isHost && !selectedGame ? (
           <div className="lobby-guest-wait">
@@ -664,23 +672,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           </div>
         ) : null}
 
-        {isHost ? (
-          <div className="lobby-host-tools">
-            <Button variant="secondary" onClick={() => setTransferHostOpen(true)} disabled={playersList.length < 2} title={playersList.length < 2 ? 'Нужен хотя бы ещё один игрок' : ''}>
-              Передать хоста
-            </Button>
-            {selectedGame ? (
-              <Button
-                variant="primary"
-                onClick={startSelectedGame}
-                disabled={!selectedGame || startingGame || lobbyPlayerCount < minForSelectedGame}
-                title={!selectedGame ? 'Сначала выберите игру' : lobbyPlayerCount < minForSelectedGame ? 'Недостаточно игроков' : ''}
-              >
-                {startingGame ? 'Запуск…' : 'Быстрый старт'}
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       <section className="lobby-section" aria-label="Участники">
@@ -691,13 +682,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         ) : playersList.map((p) => (
           <div
             key={p.id}
-            className="gh-card"
-            style={{
-              padding: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
+            role="button"
+            tabIndex={0}
+            className="gh-card lobby-player-card"
+            onClick={() => setPlayerMenuPlayer(p)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setPlayerMenuPlayer(p);
+              }
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
@@ -726,17 +719,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 </span>
               </span>
             </div>
-            {isHost && p.id !== String(user?.id) && !p.isHost && (
-              <IconButton
-                icon="×"
-                label="Кикнуть игрока"
-                onClick={async () => {
-                  try {
-                    await api.post(`/rooms/${roomId}/kick`, { hostId: String(user?.id), playerIdToKick: p.id });
-                  } catch (_) {}
-                }}
-              />
-            )}
           </div>
         ))}
         </div>
@@ -1595,29 +1577,43 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         </div>
       </Modal>
 
-      <Modal open={transferHostOpen} onClose={() => setTransferHostOpen(false)} title="Передать хоста" width={400}>
-        <p style={{ marginTop: 0, lineHeight: 1.45, opacity: 0.92, fontSize: 14 }}>
-          Выберите игрока, которому передать права хоста (старт игр, настройки, кик).
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-          {playersList
-            .filter((p) => p.id !== String(user?.id))
-            .map((p) => (
+      <Modal open={Boolean(playerMenuPlayer)} onClose={() => setPlayerMenuPlayer(null)} title={pp ? pp.name : 'Игрок'} width={400}>
+        {pp ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ marginTop: 0, marginBottom: 4, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+              Действия с участником
+            </p>
+            {playerMenuCanHostActions && playersList.length >= 2 ? (
               <Button
-                key={p.id}
                 variant="secondary"
                 fullWidth
-                onClick={() => transferHostTo(p.id)}
-                style={{ justifyContent: 'flex-start' }}
+                onClick={() => transferHostTo(pp.id)}
+                style={{ justifyContent: 'center' }}
               >
-                {p.name}
-                {p.online === false ? ' — офлайн' : ''}
+                Передать хоста
               </Button>
-            ))}
-        </div>
-        <Button variant="ghost" fullWidth onClick={() => setTransferHostOpen(false)} style={{ marginTop: 12 }}>
-          Отмена
-        </Button>
+            ) : null}
+            {playerMenuCanHostActions ? (
+              <Button
+                variant="danger"
+                fullWidth
+                onClick={() => kickPlayer(pp.id)}
+                style={{ justifyContent: 'center' }}
+              >
+                Кикнуть из комнаты
+              </Button>
+            ) : null}
+            <Button variant="secondary" fullWidth disabled title="Функция появится в следующих версиях">
+              Добавить в друзья
+            </Button>
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.8, lineHeight: 1.4 }}>
+              Добавление в друзья внутри приложения пока в разработке.
+            </p>
+            <Button variant="ghost" fullWidth onClick={() => setPlayerMenuPlayer(null)}>
+              Закрыть
+            </Button>
+          </div>
+        ) : null}
       </Modal>
 
       {mafiaClassicPopup && (

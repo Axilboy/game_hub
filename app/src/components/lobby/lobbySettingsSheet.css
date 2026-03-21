@@ -80,8 +80,9 @@
 
 .lobby-summary-card__row {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 8px 12px;
+  /* Две колонки текста делят ширину поровну — иначе колонка «значение» сжималась до буквы в столбец */
+  grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 10px;
   align-items: start;
   padding: 8px 0;
   font-size: 14px;
@@ -106,13 +107,16 @@
 
 .lobby-summary-card__label {
   opacity: 0.82;
+  min-width: 0;
 }
 
 .lobby-summary-card__value {
   font-weight: 600;
   text-align: right;
-  max-width: 56%;
-  word-break: break-word;
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .lobby-summary-hint {

@@ -139,17 +139,24 @@
   border: 1px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, transparent);
 }
 
-/* Инструменты хоста (вторичные) */
-.lobby-host-tools {
+/* Карточка участника (клик — меню действий) */
+.lobby-player-card {
+  padding: 12px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s ease;
 }
 
-.lobby-host-tools .gh-btn {
-  font-size: 13px;
-  padding: 8px 14px;
+.lobby-player-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lobby-player-card:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 70%, transparent);
 }
 
 /* Секции */
