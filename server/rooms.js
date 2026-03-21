@@ -100,6 +100,8 @@ export async function roomRoutes(fastify) {
       : null;
     room = roomManager.join(room.id, playerId, playerName || 'Игрок', inv, photo_url || null, avatar_emoji || null);
     recordPlayer(playerId);
+    const io = fastify.io;
+    if (io) io.to(room.id).emit('room_updated');
     return { room: roomManager.toSafe(room) };
   });
 
@@ -1678,6 +1680,57 @@ export async function roomRoutes(fastify) {
     if (!trimmed) return reply.code(400).send({ error: 'Пустое название' });
     const nextTeams = teams.map((t, i) => (i === ti ? { ...t, name: trimmed } : t));
     room.gameSettings = { ...gs, [key]: nextTeams };
+    const io = fastify.io;
+    if (io) io.to(roomId).emit('room_updated');
+    const updated = roomManager.get(roomId);
+    return { ok: true, room: roomManager.toSafe(updated) };
+  });
+
+  /** Смена команды: хост — любой игрок; игрок — только себя */
+  fastify.post('/rooms/:roomId/lobby/assign-team', async (request, reply) => {
+    const { roomId } = request.params;
+    const { actorId, targetPlayerId, teamIndex } = request.body || {};
+    if (!actorId || targetPlayerId === undefined || targetPlayerId === null || teamIndex === undefined || teamIndex === null) {
+      return reply.code(400).send({ error: 'Нужны actorId, targetPlayerId и teamIndex' });
+    }
+    if (!allowAction(`lobby:assign-team:${roomId}:${actorId}`, 25, 4000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.state !== 'lobby') {
+      return reply.code(400).send({ error: 'Доступно только в лобби' });
+    }
+    const host = String(room.hostId);
+    const actor = String(actorId);
+    const target = String(targetPlayerId);
+    if (actor !== host && actor !== target) {
+      return reply.code(403).send({ error: 'Менять команду может хост или сам игрок' });
+    }
+    if (!room.players.some((p) => String(p.id) === target)) {
+      return reply.code(400).send({ error: 'Игрок не в комнате' });
+    }
+    const sg = room.selectedGame;
+    if (sg !== 'elias' && sg !== 'truth_dare') {
+      return reply.code(400).send({ error: 'Команды только для Элиаса или Правда или действие' });
+    }
+    const key = sg === 'truth_dare' ? 'truthDareTeams' : 'eliasTeams';
+    const gs = room.gameSettings || {};
+    const teams = gs[key];
+    if (!Array.isArray(teams) || teams.length < 2) {
+      return reply.code(400).send({ error: 'Команды не настроены' });
+    }
+    const ti = parseInt(teamIndex, 10);
+    if (Number.isNaN(ti) || ti < 0 || ti >= teams.length) {
+      return reply.code(400).send({ error: 'Некорректная команда' });
+    }
+    const next = teams.map((t) => ({
+      ...t,
+      playerIds: (t.playerIds || []).filter((id) => String(id) !== target),
+    }));
+    const targetPlayer = room.players.find((p) => String(p.id) === target);
+    if (!targetPlayer) return reply.code(400).send({ error: 'Игрок не в комнате' });
+    next[ti].playerIds = [...(next[ti].playerIds || []), targetPlayer.id];
+    room.gameSettings = { ...gs, [key]: next };
     const io = fastify.io;
     if (io) io.to(roomId).emit('room_updated');
     const updated = roomManager.get(roomId);

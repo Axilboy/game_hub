@@ -1,5 +1,65 @@
 import { customAlphabet } from 'nanoid';
 import { SPY_PREMIUM_IDS } from './words.js';
+import { assignPlayerIdsToTeams } from './partyTeamAssign.js';
+
+function syncPartyTeams(room) {
+  if (!room || room.state !== 'lobby') return;
+  const sg = room.selectedGame;
+  if (sg !== 'elias' && sg !== 'truth_dare') return;
+  const gs = room.gameSettings;
+  if (!gs) return;
+  const key = sg === 'elias' ? 'eliasTeams' : 'truthDareTeams';
+  const teams = gs[key];
+  if (!Array.isArray(teams) || teams.length < 2) return;
+  const playerIds = room.players.map((p) => p.id);
+  const assigned = assignPlayerIdsToTeams(playerIds, teams.length);
+  if (!assigned) return;
+  teams.forEach((t, i) => {
+    t.playerIds = assigned[i] || [];
+  });
+  if (sg === 'elias') {
+    let wins = Array.isArray(gs.eliasLobbyWins) ? [...gs.eliasLobbyWins] : [];
+    while (wins.length < teams.length) wins.push(0);
+    if (wins.length > teams.length) wins = wins.slice(0, teams.length);
+    gs.eliasLobbyWins = wins;
+  }
+}
+
+/** После смены настроек лобби — только если команды пустые или состав не совпадает с игроками в комнате */
+function maybeSyncPartyTeamsAfterLobbyPatch(room) {
+  if (!room || room.state !== 'lobby') return;
+  const sg = room.selectedGame;
+  if (sg !== 'elias' && sg !== 'truth_dare') return;
+  const gs = room.gameSettings;
+  if (!gs) return;
+  const key = sg === 'elias' ? 'eliasTeams' : 'truthDareTeams';
+  const teams = gs[key];
+  if (!Array.isArray(teams) || teams.length < 2) return;
+  const playerIds = room.players.map((p) => p.id);
+  const pidSet = new Set(playerIds.map(String));
+  const assigned = new Set();
+  let total = 0;
+  teams.forEach((t) => {
+    (t.playerIds || []).forEach((id) => {
+      assigned.add(String(id));
+      total += 1;
+    });
+  });
+  if (total === 0 && playerIds.length >= 1) {
+    syncPartyTeams(room);
+    return;
+  }
+  if (pidSet.size !== assigned.size) {
+    syncPartyTeams(room);
+    return;
+  }
+  for (const pid of playerIds) {
+    if (!assigned.has(String(pid))) {
+      syncPartyTeams(room);
+      return;
+    }
+  }
+}
 
 const alphabet = '0123456789';
 const codeGen = customAlphabet(alphabet, 6);
@@ -85,6 +145,7 @@ export const roomManager = {
     room.players.push({ id: pid, name: playerName || 'Игрок', isHost: false, photo_url: photoUrl || null, avatar_emoji: avatarEmoji || null });
     if (!room.playerInventories) room.playerInventories = {};
     room.playerInventories[pid] = inventory || { dictionaries: ['free'], hasPro: false };
+    syncPartyTeams(room);
     return room;
   },
 
@@ -161,6 +222,7 @@ export const roomManager = {
     if (!room || String(room.hostId) !== String(hostId)) return null;
     room.selectedGame = selectedGame || null;
     if (gameSettings !== undefined) room.gameSettings = gameSettings;
+    maybeSyncPartyTeamsAfterLobbyPatch(room);
     return room;
   },
 
@@ -178,6 +240,7 @@ export const roomManager = {
       inviteTokens.delete(room.inviteToken);
       return null;
     }
+    syncPartyTeams(room);
     room.players.forEach((p) => { p.isHost = false; });
     if (wasHost) {
       const idx = Math.floor(Math.random() * room.players.length);

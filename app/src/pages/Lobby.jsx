@@ -23,12 +23,7 @@ import {
   bunkerPhaseTimersFromSpeed,
   getDefaultGameSettings,
 } from '../lobbyPresets';
-import {
-  buildAutoPartyTeams,
-  playersIdsKey,
-  shufflePartyTeams,
-  teamsStructureEqual,
-} from '../lobbyTeamUtils';
+import { buildAutoPartyTeams, shufflePartyTeams } from '../lobbyTeamUtils';
 import { generateOneTeamName } from '../teamNames';
 import LobbyGameSummaryCard from '../components/lobby/LobbyGameSummaryCard';
 import LobbySettingsSheet from '../components/lobby/LobbySettingsSheet';
@@ -158,10 +153,10 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [playerMenuPlayer, setPlayerMenuPlayer] = useState(null);
   /** Переименование команды: { scope: 'elias'|'truth_dare', teamIndex, name } */
   const [teamRename, setTeamRename] = useState(null);
+  /** Смена команды игрока: { targetId, targetName } */
+  const [teamAssignOpen, setTeamAssignOpen] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
   /** Элиас / П/Д: последний ключ состава — авто только при смене игроков (ручная расстановка не затирается) */
-  const prevEliasRosterRef = useRef('');
-  const prevTruthDareRosterRef = useRef('');
   /** playerId → Date.now() при первом обнаружении offline (сброс при online) */
   const [offlineSince, setOfflineSince] = useState(() => ({}));
   /** Тик раз в секунду — обратный отсчёт на карточке офлайн-игрока */
@@ -332,39 +327,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       if (r) onRoomUpdate(r);
     } catch (_) {}
   };
-
-  /** Смена игры в лобби — сброс кэша состава, чтобы при возврате к Элиас/П/Д снова применилось авто */
-  useEffect(() => {
-    prevEliasRosterRef.current = '';
-    prevTruthDareRosterRef.current = '';
-  }, [selectedGame]);
-
-  /**
-   * Автокоманды (как в типичных party-приложениях): при изменении набора игроков — пересчёт;
-   * при том же наборе id ручная расстановка хоста не перезаписывается.
-   */
-  useEffect(() => {
-    if (!isHost || !room?.players?.length) return;
-    if (selectedGame !== 'elias' && selectedGame !== 'truth_dare') return;
-    const players = room.players;
-    const n = players.length;
-    if (n <= 1) return;
-
-    const settingsKey = selectedGame === 'elias' ? 'eliasTeams' : 'truthDareTeams';
-    const rosterRef = selectedGame === 'elias' ? prevEliasRosterRef : prevTruthDareRosterRef;
-    const idsKey = playersIdsKey(players);
-    const rosterChanged = rosterRef.current !== idsKey;
-    rosterRef.current = idsKey;
-
-    if (!rosterChanged) return;
-
-    const gs = room.gameSettings || {};
-    const cur = gs[settingsKey];
-    const auto = buildAutoPartyTeams(players);
-    if (auto && !teamsStructureEqual(cur, auto)) {
-      patchLobbyGame({ gameSettings: { ...gs, [settingsKey]: auto } });
-    }
-  }, [isHost, selectedGame, room?.players]);
 
   /** Реклама у хоста перед переходом в игру (игроки — в App при уходе с лобби). */
   const showAdBeforeGameEnter = async () => {
@@ -748,6 +710,22 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       if (r) onRoomUpdate(r);
     } catch (e) {
       showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось сохранить название') });
+    }
+  };
+
+  const submitAssignTeam = async (teamIndex) => {
+    if (!teamAssignOpen || !myIdStr) return;
+    try {
+      await api.post(`/rooms/${roomId}/lobby/assign-team`, {
+        actorId: myIdStr,
+        targetPlayerId: teamAssignOpen.targetId,
+        teamIndex,
+      });
+      setTeamAssignOpen(null);
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      if (r) onRoomUpdate(r);
+    } catch (e) {
+      showToast({ type: 'error', message: getApiErrorMessage(e, 'Не удалось сменить команду') });
     }
   };
 
@@ -1608,7 +1586,8 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         {selectedGame === 'elias' && gameSettingsTab === 'teams' && (
           <div>
             <p style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 10 }}>
-              <strong>Авто</strong> при входе/выходе игроков: 2 человека — по одному в команде; 3 — две команды (2+1); с 4 человек — две команды, чередование по списку лобби (1-й, 3-й… / 2-й, 4-й…). Хост может переназначить вручную. «Случайно» — перемешать и снова разбить по тем же правилам.
+              <strong>Авто при входе:</strong> новые игроки сразу попадают в команды (2 игрока — по одному в команде; 3 — 2+1; с 4 — чередование по списку лобби).{' '}
+              <strong>Сменить команду:</strong> нажмите на карточку игрока в списке участников → «Сменить команду» (хост может любого, игрок — только себя). Ниже — принудительно пересобрать состав.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               <button
@@ -1662,45 +1641,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   − Убрать команду
                 </button>
               )}
-            </div>
-            <div>
-              {(room?.players || []).map((p) => {
-                const teams = room?.gameSettings?.eliasTeams ?? [{ name: 'Команда 1', playerIds: [] }, { name: 'Команда 2', playerIds: [] }];
-                const playerTeamIndex = teams.findIndex((t) =>
-                  (t.playerIds || []).some((id) => String(id) === String(p.id)),
-                );
-                const setTeam = (teamIndex) => {
-                  const next = teams.map((t, i) => ({
-                    ...t,
-                    playerIds: (t.playerIds || [])
-                      .filter((id) => String(id) !== String(p.id))
-                      .concat(teamIndex === i ? [p.id] : []),
-                  }));
-                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, eliasTeams: next } });
-                };
-                return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <span style={{ minWidth: 72 }}>{p.name}</span>
-                    {teams.map((t, i) => (
-                      <button
-                        key={t.name}
-                        type="button"
-                        onClick={() => setTeam(i)}
-                        style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setTeam(-1)}
-                      style={{ ...(playerTeamIndex === -1 ? btnStyleToggleMid : btnStyleToggleInk), width: 'auto', padding: '6px 8px', fontSize: 11 }}
-                    >
-                      Не играет
-                    </button>
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
@@ -1860,7 +1800,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         {selectedGame === 'truth_dare' && gameSettingsTab === 'teams' && (
           <div>
             <p style={{ fontSize: 12, opacity: 0.85, marginTop: 0, marginBottom: 10 }}>
-              Те же правила, что и в Элиас: <strong>авто</strong> при смене состава — 2×1, затем 2+1, с 4 человек — две команды по чередованию в списке. Хост правит кнопками ниже; «Случайно» — новый случайный порядок и снова авто-разбивка.
+              Как в Элиас: <strong>авто при входе</strong> в команды, смена через карточку игрока → «Сменить команду». Ниже — пересобрать состав вручную («Авто по списку», «Случайно»).
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               <button
@@ -1917,48 +1857,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                   − Убрать команду
                 </button>
               )}
-            </div>
-            <div>
-              {(room?.players || []).map((p) => {
-                const teams = room?.gameSettings?.truthDareTeams ?? [
-                  { name: 'Команда 1', playerIds: [] },
-                  { name: 'Команда 2', playerIds: [] },
-                ];
-                const playerTeamIndex = teams.findIndex((t) =>
-                  (t.playerIds || []).some((id) => String(id) === String(p.id)),
-                );
-                const setTeam = (teamIndex) => {
-                  const next = teams.map((t, i) => ({
-                    ...t,
-                    playerIds: (t.playerIds || [])
-                      .filter((id) => String(id) !== String(p.id))
-                      .concat(teamIndex === i ? [p.id] : []),
-                  }));
-                  patchLobbyGame({ gameSettings: { ...room?.gameSettings, truthDareTeams: next } });
-                };
-                return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <span style={{ minWidth: 72 }}>{p.name}</span>
-                    {teams.map((t, i) => (
-                      <button
-                        key={`${t.name}-${i}`}
-                        type="button"
-                        onClick={() => setTeam(i)}
-                        style={{ ...(playerTeamIndex === i ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '6px 8px', fontSize: 11 }}
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setTeam(-1)}
-                      style={{ ...(playerTeamIndex === -1 ? btnStyleToggleMid : btnStyleToggleInk), width: 'auto', padding: '6px 8px', fontSize: 11 }}
-                    >
-                      Не играет
-                    </button>
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
@@ -2119,12 +2017,57 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
         ) : null}
       </Modal>
 
+      <Modal open={Boolean(teamAssignOpen)} onClose={() => setTeamAssignOpen(null)} title={teamAssignOpen ? `Команда: ${teamAssignOpen.targetName}` : 'Команда'} width={400}>
+        {teamAssignOpen && partyTeams && partyTeams.length >= 2 ? (
+          <>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+              Выберите команду для игрока
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+              {partyTeams.map((t, i) => {
+                const cur = partyTeams.findIndex((tt) =>
+                  (tt.playerIds || []).some((id) => String(id) === String(teamAssignOpen.targetId)),
+                );
+                const isCurrent = cur === i;
+                return (
+                  <Button
+                    key={i}
+                    variant={isCurrent ? 'primary' : 'secondary'}
+                    fullWidth
+                    disabled={isCurrent}
+                    onClick={() => submitAssignTeam(i)}
+                  >
+                    {t.name || `Команда ${i + 1}`}
+                    {isCurrent ? ' — сейчас' : ''}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button variant="ghost" fullWidth style={{ marginTop: 12 }} onClick={() => setTeamAssignOpen(null)}>
+              Отмена
+            </Button>
+          </>
+        ) : null}
+      </Modal>
+
       <Modal open={Boolean(playerMenuPlayer)} onClose={() => setPlayerMenuPlayer(null)} title={pp ? pp.name : 'Игрок'} width={400}>
         {pp ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ marginTop: 0, marginBottom: 4, fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
               Действия с участником
             </p>
+            {showPartyTeamsLayout && (isHost || playerMenuIsSelf) ? (
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  setTeamAssignOpen({ targetId: pp.id, targetName: pp.name });
+                  setPlayerMenuPlayer(null);
+                }}
+              >
+                Сменить команду
+              </Button>
+            ) : null}
             {playerMenuCanHostActions && playersList.length >= 2 ? (
               <Button
                 variant="secondary"
