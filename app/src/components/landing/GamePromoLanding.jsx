@@ -25,7 +25,6 @@ export default function GamePromoLanding({
   heroSubtitle,
   steps = [],
   sections = [],
-  onBack,
   /** id игры для автолобби (spy, mafia, elias, truth_dare, bunker) */
   presetGameId,
   /** async ({ kind: 'code'|'invite', value }) — из App: join + navigate lobby */
@@ -94,7 +93,7 @@ export default function GamePromoLanding({
   return (
     <PageLayout
       title={headerTitle}
-      onBack={onBack}
+      titleHref="/"
       right={<AppHeaderRight user={user} />}
     >
       <article className={`gh-fade-in gpl gpl--${theme}`}>

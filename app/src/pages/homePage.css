@@ -22,7 +22,6 @@ html[data-theme='dark'] {
   --home-btn-primary-text: var(--tg-theme-button-text-color, #fff);
   --home-btn-secondary-border: rgba(255, 255, 255, 0.22);
   --home-btn-ghost-bg: rgba(255, 255, 255, 0.07);
-  --home-intro-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
 }
 
 html[data-theme='light'] {
@@ -38,38 +37,6 @@ html[data-theme='light'] {
   --home-btn-primary-text: #fff;
   --home-btn-secondary-border: rgba(0, 0, 0, 0.14);
   --home-btn-ghost-bg: rgba(0, 0, 0, 0.05);
-  --home-intro-shadow: 0 12px 36px rgba(37, 99, 235, 0.14);
-}
-
-/* Компактный «герой» под каруселью — как верх лендинга */
-.home-page__intro {
-  text-align: center;
-  padding: 20px 18px 22px;
-  margin: 0 -8px 18px;
-  border-radius: 0 0 24px 24px;
-  background: var(--home-hero-bg);
-  color: var(--home-hero-text);
-  box-shadow: var(--home-intro-shadow);
-}
-
-.home-page__eyebrow {
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0.9;
-}
-
-.home-page__tagline {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.5;
-  font-weight: 500;
-  opacity: 0.95;
-  max-width: 26em;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .home-panel {

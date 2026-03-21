@@ -493,7 +493,6 @@ function AppRoutes() {
           path="/games/spy"
           element={
             <SeoGameSpy
-              onBack={() => navigate('/')}
               onJoin={async (payload) => {
                 if (payload.kind === 'invite') await joinByInvite(payload.value);
                 else await joinByCode(payload.value);
@@ -506,7 +505,6 @@ function AppRoutes() {
           path="/games/elias"
           element={
             <SeoGameElias
-              onBack={() => navigate('/')}
               onJoin={async (payload) => {
                 if (payload.kind === 'invite') await joinByInvite(payload.value);
                 else await joinByCode(payload.value);
@@ -519,7 +517,6 @@ function AppRoutes() {
           path="/games/mafia"
           element={
             <SeoGameMafia
-              onBack={() => navigate('/')}
               onJoin={async (payload) => {
                 if (payload.kind === 'invite') await joinByInvite(payload.value);
                 else await joinByCode(payload.value);
@@ -532,7 +529,6 @@ function AppRoutes() {
           path="/games/truth_dare"
           element={
             <SeoGameTruthDare
-              onBack={() => navigate('/')}
               onJoin={async (payload) => {
                 if (payload.kind === 'invite') await joinByInvite(payload.value);
                 else await joinByCode(payload.value);
@@ -545,7 +541,6 @@ function AppRoutes() {
           path="/games/bunker"
           element={
             <SeoGameBunker
-              onBack={() => navigate('/')}
               onJoin={async (payload) => {
                 if (payload.kind === 'invite') await joinByInvite(payload.value);
                 else await joinByCode(payload.value);
@@ -556,11 +551,11 @@ function AppRoutes() {
         />
         <Route
           path="/privacy"
-          element={<SeoPrivacy onBack={() => navigate('/')} />}
+          element={<SeoPrivacy />}
         />
         <Route
           path="/rules"
-          element={<SeoRules onBack={() => navigate('/')} />}
+          element={<SeoRules />}
         />
         <Route
           path="/lobby"

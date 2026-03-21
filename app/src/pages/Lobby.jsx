@@ -429,6 +429,23 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     onLeave();
   };
 
+  /** Системная «Назад» / жест не должны уводить на главную без выхода из комнаты — то же окно, что и в шапке */
+  useEffect(() => {
+    const guard = { ghLobbyBack: true };
+    window.history.pushState(guard, '', window.location.href);
+
+    const onPopState = () => {
+      queueMicrotask(() => {
+        navigate('/lobby', { replace: true });
+        setLeaveConfirmOpen(true);
+        window.history.pushState(guard, '', window.location.href);
+      });
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [navigate]);
+
   const closeSpyLocationsModal = () => {
     setSpyLocationsModalOpen(false);
     setSpyDictDraft(null);
@@ -542,13 +559,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               </a>
             </p>
           )}
-          <button
-            type="button"
-            onClick={shareInvite}
-            style={{ ...btnStyle, marginTop: 8 }}
-          >
-            Поделиться
-          </button>
         </div>
       )}
       {isHost && (
@@ -1400,7 +1410,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
       {isHost && selectedGame ? (
         <button type="button" onClick={() => patchLobbyGame({ selectedGame: null })} style={{ ...btnStyleToggleMid, marginTop: 24 }}>
-          Назад
+          К выбору игры
         </button>
       ) : null}
       {(!isHost || !selectedGame) && (

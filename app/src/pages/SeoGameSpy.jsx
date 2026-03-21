@@ -1,6 +1,6 @@
 import GamePromoLanding from '../components/landing/GamePromoLanding';
 
-export default function SeoGameSpy({ onBack, onJoin }) {
+export default function SeoGameSpy({ onJoin }) {
   return (
     <GamePromoLanding
       theme="spy"
@@ -37,7 +37,6 @@ export default function SeoGameSpy({ onBack, onJoin }) {
           ),
         },
       ]}
-      onBack={onBack}
       onJoin={onJoin}
       presetGameId="spy"
       primaryCtaLabel="Начать игру"

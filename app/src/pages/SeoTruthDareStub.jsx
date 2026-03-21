@@ -1,12 +1,11 @@
 import SeoInfoPage from './SeoInfoPage';
 
-export default function SeoTruthDareStub({ onBack }) {
+export default function SeoTruthDareStub() {
   return (
     <SeoInfoPage
       title="Правда или действие в GameHub — скоро"
       description="Игра «Правда или действие» скоро появится в GameHub. Следите за обновлениями."
       h1="Правда или действие — скоро"
-      onBack={onBack}
       sections={[
         {
           title: 'Что будет',
@@ -18,7 +17,6 @@ export default function SeoTruthDareStub({ onBack }) {
           ),
         },
       ]}
-      showBack
     />
   );
 }

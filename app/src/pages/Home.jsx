@@ -357,16 +357,9 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   };
 
   return (
-    <PageLayout onBack={() => window.history.back()} right={<AppHeaderRight user={user} />}>
+    <PageLayout title="GameHub" titleHref="/" right={<AppHeaderRight user={user} />}>
       <div className="home-page">
         <HomeLandingCarousel />
-
-        <section className="home-page__intro" aria-label="О GameHub">
-          <p className="home-page__eyebrow">Комната для друзей</p>
-          <p className="home-page__tagline">
-            Создайте комнату, зовите по коду или ссылке — затем выберите игру в лобби.
-          </p>
-        </section>
 
         {showAvatarPicker && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: 24 }}>

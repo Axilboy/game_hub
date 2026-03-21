@@ -1,6 +1,6 @@
 import GamePromoLanding from '../components/landing/GamePromoLanding';
 
-export default function SeoGameMafia({ onBack, onJoin }) {
+export default function SeoGameMafia({ onJoin }) {
   return (
     <GamePromoLanding
       theme="mafia"
@@ -37,7 +37,6 @@ export default function SeoGameMafia({ onBack, onJoin }) {
           ),
         },
       ]}
-      onBack={onBack}
       onJoin={onJoin}
       presetGameId="mafia"
       primaryCtaLabel="Начать игру"

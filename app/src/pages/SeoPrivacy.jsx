@@ -1,12 +1,11 @@
 import SeoInfoPage from './SeoInfoPage';
 
-export default function SeoPrivacy({ onBack }) {
+export default function SeoPrivacy() {
   return (
     <SeoInfoPage
       title="Политика конфиденциальности GameHub"
       description="Короткая версия политики: мы используем Telegram user_id и данные, необходимые для работы игр в одной комнате."
       h1="Политика конфиденциальности"
-      onBack={onBack}
       sections={[
         {
           title: 'Какие данные используем',
@@ -26,7 +25,6 @@ export default function SeoPrivacy({ onBack }) {
           ),
         },
       ]}
-      showBack
     />
   );
 }

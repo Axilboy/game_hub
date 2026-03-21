@@ -1,6 +1,6 @@
 import GamePromoLanding from '../components/landing/GamePromoLanding';
 
-export default function SeoGameBunker({ onBack, onJoin }) {
+export default function SeoGameBunker({ onJoin }) {
   return (
     <GamePromoLanding
       theme="bunker"
@@ -36,7 +36,6 @@ export default function SeoGameBunker({ onBack, onJoin }) {
           ),
         },
       ]}
-      onBack={onBack}
       onJoin={onJoin}
       presetGameId="bunker"
       primaryCtaLabel="Начать игру"

@@ -1,12 +1,11 @@
 import SeoInfoPage from './SeoInfoPage';
 
-export default function SeoRules({ onBack }) {
+export default function SeoRules() {
   return (
     <SeoInfoPage
       title="Правила GameHub"
       description="Сервис GameHub предназначен для игр в компании. Никаких агрессивных и запрещённых действий — только дружеское время."
       h1="Правила GameHub"
-      onBack={onBack}
       sections={[
         {
           title: 'Коротко',
@@ -19,7 +18,6 @@ export default function SeoRules({ onBack }) {
           ),
         },
       ]}
-      showBack
     />
   );
 }
