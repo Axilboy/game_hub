@@ -74,7 +74,7 @@ function QrScannerPanel({ active, onDecoded, onError }) {
  * @param {() => void} props.onClose
  * @param {(payload: { kind: 'code' | 'invite'; value: string }) => Promise<void>} props.onJoin
  */
-export default function JoinRoomModal({ open, onClose, onJoin }) {
+export default function JoinRoomModal({ open, onClose, onJoin, title = 'Присоединиться к игре' }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -134,7 +134,7 @@ export default function JoinRoomModal({ open, onClose, onJoin }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Присоединиться к игре" width={400}>
+    <Modal open={open} onClose={onClose} title={title} width={400}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <label style={{ fontSize: 14, opacity: 0.95 }}>
           Код комнаты

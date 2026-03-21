@@ -9,6 +9,7 @@ import { showAdIfNeeded } from '../ads';
 import { track } from '../analytics';
 import { buildInviteLinks, shareInviteSmart } from '../invite';
 import Modal from '../components/ui/Modal';
+import JoinRoomModal from '../components/JoinRoomModal';
 import PageLayout from '../components/layout/PageLayout';
 import './homePage.css';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
@@ -42,27 +43,6 @@ function inviteJoinErrorMessage(err) {
 function isInviteExpiredError(err) {
   const msg = getApiErrorMessage(err, '').toLowerCase();
   return msg.includes('room not found') || msg.includes('комната не найдена') || msg.includes('not in room');
-}
-
-/** Из текста ссылки или буфера — токен приглашения для /rooms/join */
-function extractInviteTokenFromText(text) {
-  const raw = String(text || '').trim();
-  if (!raw) return '';
-  let u;
-  try {
-    u = new URL(raw.includes('://') ? raw : `https://${raw.replace(/^\/+/, '')}`);
-  } catch {
-    const m = raw.match(/[?&]invite=([^&\s#]+)/i);
-    if (m) return decodeURIComponent(m[1]);
-    const m2 = raw.match(/[?&]start=([^&\s#]+)/i);
-    if (m2) return decodeURIComponent(m2[1]);
-    return '';
-  }
-  const inv = u.searchParams.get('invite');
-  if (inv) return inv;
-  const st = u.searchParams.get('start');
-  if (st) return st;
-  return '';
 }
 
 export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite, onResumeLastRoom }) {
@@ -298,33 +278,32 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
     setFeedbackCategory(null);
   }, []);
 
-  const handlePasteInviteAndJoin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      let text = '';
+  const handleJoinFromQrModal = useCallback(
+    async (payload) => {
+      setError('');
+      setInviteIssue(false);
+      if (payload.kind === 'code' && payload.value.trim() === ADMIN_CODE) {
+        setHomeQrJoinOpen(false);
+        setShowAdminPassword(true);
+        return;
+      }
       try {
-        text = await navigator.clipboard.readText();
-      } catch {
-        setError('Нет доступа к буферу обмена. Вставьте ссылку вручную в поле ниже или введите код.');
-        setLoading(false);
-        return;
+        if (payload.kind === 'invite') {
+          await onJoinByInvite(payload.value);
+        } else {
+          await onJoinByCode(payload.value);
+        }
+        setHomeQrJoinOpen(false);
+        navigate('/lobby');
+      } catch (e) {
+        if (payload.kind === 'invite' && isInviteExpiredError(e)) {
+          setInviteIssue(true);
+        }
+        throw e;
       }
-      const token = extractInviteTokenFromText(text);
-      if (!token) {
-        setError('В буфере не найдена ссылка-приглашение. Скопируйте ссылку из чата с другом.');
-        setLoading(false);
-        return;
-      }
-      await onJoinByInvite(token);
-      setHomeQrJoinOpen(false);
-      navigate('/lobby');
-    } catch (e) {
-      setError(getApiErrorMessage(e, 'Не удалось войти по приглашению'));
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [navigate, onJoinByCode, onJoinByInvite],
+  );
 
   const submitFeedback = async () => {
     const text = feedbackText.trim();
@@ -447,7 +426,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
         <section className="home-panel home-join-compact">
           <div className="home-panel__title">Войти в комнату</div>
           <p className="home-panel__text" style={{ marginBottom: 10 }}>
-            Введите шестизначный ID или вставьте ссылку-приглашение из чата (кнопка «Войти по QR»).
+            Введите шестизначный ID или нажмите «Войти по QR» — камера или ссылка/код вручную.
           </p>
           {showAdminPassword ? (
             <form onSubmit={handleAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -492,18 +471,12 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           )}
         </section>
 
-        <Modal open={homeQrJoinOpen} onClose={() => setHomeQrJoinOpen(false)} title="Войти по QR" width={380}>
-          <p style={{ marginTop: 0, fontSize: 14, lineHeight: 1.5, opacity: 0.92 }}>
-            Попросите друга открыть лобби и нажать «QR» — отсканируйте код камерой или скопируйте
-            <strong> ссылку-приглашение</strong> из чата и нажмите кнопку ниже (вставится из буфера обмена).
-          </p>
-          <button type="button" className="home-btn home-btn--primary home-btn--mb" onClick={handlePasteInviteAndJoin} disabled={loading}>
-            {loading ? 'Вход…' : 'Вставить ссылку из буфера и войти'}
-          </button>
-          <button type="button" className="home-btn home-btn--secondary" onClick={() => setHomeQrJoinOpen(false)}>
-            Закрыть
-          </button>
-        </Modal>
+        <JoinRoomModal
+          open={homeQrJoinOpen}
+          onClose={() => setHomeQrJoinOpen(false)}
+          onJoin={handleJoinFromQrModal}
+          title="Войти по QR"
+        />
 
         {hasRematchRoom && (
           <section className="home-panel gh-fade-in">
