@@ -1,10 +1,10 @@
 const ZONE_ID = import.meta.env.VITE_MONETAG_ZONE_ID || '10744376';
 
 /**
- * Пауза рекламы на время отладки. Поставьте `false`, когда снова нужны показы.
- * Дополнительно: `VITE_ADS_DISABLED=true` в .env (блоки вызовов не удаляются).
+ * Пауза рекламы только для локальной отладки. В проде оставьте `false`.
+ * Полное отключение: `VITE_ADS_DISABLED=true` в .env.
  */
-const ADS_PAUSED_FOR_TESTING = true;
+const ADS_PAUSED_FOR_TESTING = false;
 const ADS_DISABLED_BY_ENV =
   import.meta.env.VITE_ADS_DISABLED === 'true' ||
   import.meta.env.VITE_ADS_DISABLED === '1';
