@@ -8,6 +8,7 @@ import SaveAccountPanel from '../components/SaveAccountPanel';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
 import Button from '../components/ui/Button';
 import { friendDisplayNameOnly } from '../displayName';
+import { useAuth } from '../authContext';
 import './friendsPage.css';
 
 function sortFriends(arr) {
@@ -21,6 +22,7 @@ export default function FriendsPage({ user, onJoinByInvite }) {
   useSeo({ title: 'Друзья — GameHub', robots: 'noindex, nofollow', siteName: 'GameHub' });
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { openAuthModal } = useAuth();
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -29,9 +31,10 @@ export default function FriendsPage({ user, onJoinByInvite }) {
   const [savingNoteId, setSavingNoteId] = useState(null);
 
   const myId = user?.id != null ? String(user.id) : '';
+  const isGuestWeb = myId.startsWith('web_');
 
   const loadFriends = useCallback(async () => {
-    if (!myId) {
+    if (!myId || isGuestWeb) {
       setFriends([]);
       setLoading(false);
       return;
@@ -44,13 +47,14 @@ export default function FriendsPage({ user, onJoinByInvite }) {
     } finally {
       setLoading(false);
     }
-  }, [myId]);
+  }, [myId, isGuestWeb]);
 
   useEffect(() => {
     loadFriends();
   }, [loadFriends]);
 
   useEffect(() => {
+    if (isGuestWeb) return undefined;
     const t = setInterval(loadFriends, 12_000);
     const onFocus = () => loadFriends();
     window.addEventListener('focus', onFocus);
@@ -58,7 +62,7 @@ export default function FriendsPage({ user, onJoinByInvite }) {
       clearInterval(t);
       window.removeEventListener('focus', onFocus);
     };
-  }, [loadFriends]);
+  }, [loadFriends, isGuestWeb]);
 
   const removeFriend = async (friendId) => {
     if (!myId) return;
@@ -113,14 +117,24 @@ export default function FriendsPage({ user, onJoinByInvite }) {
   return (
     <PageLayout
       title="Друзья"
-      right={<AppHeaderRight user={user} />}
+      right={<AppHeaderRight />}
       onBack={() => navigate('/')}
     >
       <div className="friends-page">
         {myId ? <SaveAccountPanel user={user} variant="full" /> : null}
+        {isGuestWeb ? (
+          <div className="friends-page__muted" style={{ marginBottom: 16 }}>
+            <p style={{ margin: '0 0 12px' }}>
+              Список друзей доступен после входа по email или в Telegram Mini App.
+            </p>
+            <Button variant="primary" fullWidth onClick={openAuthModal}>
+              Войти или зарегистрироваться
+            </Button>
+          </div>
+        ) : null}
         {!myId ? (
           <p className="friends-page__muted">Войдите в приложение, чтобы видеть друзей.</p>
-        ) : loading ? (
+        ) : isGuestWeb ? null : loading ? (
           <p className="friends-page__muted">Загрузка…</p>
         ) : sorted.length === 0 ? (
           <p className="friends-page__muted">Пока нет друзей. Добавьте их из меню игрока в лобби.</p>

@@ -11,24 +11,25 @@ import Button from './ui/Button';
 export default function FriendsIncomingModal({ user }) {
   const { showToast } = useToast();
   const myId = user?.id != null ? String(user.id) : '';
+  const isGuestWeb = myId.startsWith('web_');
   const [queue, setQueue] = useState([]);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!myId) return;
+    if (!myId || isGuestWeb) return;
     try {
       const r = await api.get(`/friends/list?playerId=${encodeURIComponent(myId)}`);
       setQueue(Array.isArray(r.incomingRequests) ? r.incomingRequests : []);
     } catch (_) {}
-  }, [myId]);
+  }, [myId, isGuestWeb]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   useEffect(() => {
-    if (!myId) return undefined;
+    if (!myId || isGuestWeb) return undefined;
     const t = setInterval(load, 6000);
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
@@ -36,7 +37,7 @@ export default function FriendsIncomingModal({ user }) {
       clearInterval(t);
       window.removeEventListener('focus', onFocus);
     };
-  }, [myId, load]);
+  }, [myId, isGuestWeb, load]);
 
   const current = queue[0];
   const open = Boolean(current);

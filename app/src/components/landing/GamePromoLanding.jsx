@@ -4,7 +4,6 @@ import useSeo from '../../hooks/useSeo';
 import PageLayout from '../layout/PageLayout';
 import AppHeaderRight from '../layout/AppHeaderRight';
 import JoinRoomModal from '../JoinRoomModal';
-import { useTelegram } from '../../useTelegram';
 import { track } from '../../analytics';
 import './gamePromoLanding.css';
 
@@ -38,7 +37,6 @@ export default function GamePromoLanding({
 }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { user } = useTelegram();
   const canonical = baseUrl ? `${baseUrl}${pathname}` : undefined;
   const [joinOpen, setJoinOpen] = useState(false);
 
@@ -121,7 +119,7 @@ export default function GamePromoLanding({
     <PageLayout
       title={headerTitle}
       titleHref="/"
-      right={<AppHeaderRight user={user} />}
+      right={<AppHeaderRight />}
     >
       <article className={`gh-fade-in gpl gpl--${theme}`}>
         <header className="gpl__hero">

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { track } from '../analytics';
 import {
   isBrowserGuestUser,
+  isEmailAccountUser,
   downloadAccountBackup,
   importAccountBackup,
   getTelegramBotUrl,
@@ -54,6 +55,27 @@ export default function SaveAccountPanel({ user, variant = 'full', showImport = 
   };
 
   if (!guest) {
+    if (isEmailAccountUser(user)) {
+      return (
+        <section
+          className={`gh-card ${className}`.trim()}
+          style={{
+            padding: variant === 'compact' ? 12 : 14,
+            marginBottom: variant === 'compact' ? 12 : 16,
+            border: '1px solid color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 35%, transparent)',
+            background: 'color-mix(in srgb, var(--tg-theme-button-color, #3a7bd5) 08%, transparent)',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 6, fontSize: variant === 'compact' ? 14 : 15 }}>
+            Аккаунт по почте
+          </div>
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.9, lineHeight: 1.45 }}>
+            Вы вошли как <strong>{String(user?.email || '').trim() || '—'}</strong>. Покупки и друзья привязаны к этому
+            аккаунту. Войдите с другого устройства с тем же email — прогресс сохранится.
+          </p>
+        </section>
+      );
+    }
     return (
       <section
         className={`gh-card ${className}`.trim()}
@@ -89,9 +111,8 @@ export default function SaveAccountPanel({ user, variant = 'full', showImport = 
           lineHeight: 1.45,
         }}
       >
-        <strong>Браузерный гость.</strong> Покупки и друзья хранятся только в этом браузере. Перед оплатой сохраните ID
-        или файл бэкапа в{' '}
-        <strong>Профиле</strong>, либо играйте через Telegram.
+        <strong>Браузерный гость.</strong> Друзья, магазин и премиум недоступны, пока вы не{' '}
+        <strong>войдёте по почте</strong> (кнопка профиля в шапке) или не откроете приложение в Telegram.
         {botUrl ? (
           <>
             {' '}
@@ -108,8 +129,8 @@ export default function SaveAccountPanel({ user, variant = 'full', showImport = 
     <section className={`gh-card ${className}`.trim()} style={{ padding: 14, marginBottom: 16 }}>
       <div style={{ fontWeight: 800, marginBottom: 8, fontSize: 16 }}>Сохранить аккаунт</div>
       <p style={{ margin: '0 0 12px', fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>
-        Регистрация не нужна, чтобы играть. Она важна для <strong>покупок</strong> и <strong>друзей</strong>: в браузере
-        всё привязано к этому устройству. Очистка сайта или другой браузер — другой «игрок».
+        Играть в комнатах можно без входа. Чтобы пользоваться <strong>друзьями</strong> и <strong>магазином</strong>, нажмите
+        профиль в шапке и зарегистрируйтесь по email или откройте бота в Telegram.
       </p>
       <div
         style={{

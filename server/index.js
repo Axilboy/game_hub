@@ -9,6 +9,7 @@ import { roomRoutes } from './rooms.js';
 import { adminRoutes } from './admin.js';
 import { feedbackRoutes } from './feedbackRoutes.js';
 import { friendsRoutes } from './friendsRoutes.js';
+import { authRoutes } from './authRoutes.js';
 import { roomManager } from './roomManager.js';
 import { buildRobotsTxt, buildSitemapXml } from '../seo/sitemapConfig.mjs';
 
@@ -36,6 +37,7 @@ fastify.decorate('io', null);
 fastify.register(roomRoutes, { prefix: '/api' });
 fastify.register(adminRoutes, { prefix: '/api' });
 fastify.register(feedbackRoutes, { prefix: '/api' });
+fastify.register(authRoutes, { prefix: '/api' });
 fastify.register(friendsRoutes, { prefix: '/api' });
 
 fastify.get('/robots.txt', async (request, reply) => {

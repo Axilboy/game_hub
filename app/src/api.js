@@ -4,12 +4,33 @@ const API_URL = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.V
   ? import.meta.env.VITE_API_URL
   : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
+const TOKEN_KEY = 'gameHub_authToken';
+
+function getStoredToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} url
+ * @param {RequestInit & { skipAuth?: boolean }} options
+ */
 async function fetchJson(url, options = {}, timeoutMs = 10000) {
+  const { skipAuth, ...rest } = options;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const headers = { ...(rest.headers && typeof rest.headers === 'object' ? rest.headers : {}) };
+    const hasExplicitAuth = Boolean(headers.Authorization || headers.authorization);
+    const token = !skipAuth && !hasExplicitAuth ? getStoredToken() : null;
+    if (token) headers.Authorization = `Bearer ${token}`;
+
     const r = await fetch(url, {
-      ...options,
+      ...rest,
+      headers,
       credentials: 'include',
       signal: controller.signal,
     });
@@ -50,26 +71,43 @@ export function getApiErrorMessage(error, fallback = 'Ошибка запрос�
 }
 
 export const api = {
-  async get(path) {
-    return fetchJson(`${API_URL}/api${path}`, { method: 'GET' }, 10000);
+  /**
+   * @param {string} path
+   * @param {RequestInit & { skipAuth?: boolean }} [options]
+   */
+  async get(path, options = {}) {
+    return fetchJson(`${API_URL}/api${path}`, { ...options, method: 'GET' }, 10000);
   },
-  async post(path, body) {
+  /**
+   * @param {string} path
+   * @param {object} body
+   * @param {RequestInit & { skipAuth?: boolean }} [options]
+   */
+  async post(path, body, options = {}) {
     return fetchJson(
       `${API_URL}/api${path}`,
       {
+        ...options,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers && typeof options.headers === 'object' ? options.headers : {}),
+        },
         body: JSON.stringify(body),
       },
       10000,
     );
   },
-  async patch(path, body) {
+  async patch(path, body, options = {}) {
     return fetchJson(
       `${API_URL}/api${path}`,
       {
+        ...options,
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers && typeof options.headers === 'object' ? options.headers : {}),
+        },
         body: JSON.stringify(body),
       },
       10000,

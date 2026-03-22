@@ -5,19 +5,18 @@ import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import { getShopItemMarketing } from '../shopItemMarketing';
 import { track } from '../analytics';
 import { isBrowserGuestUser } from '../account';
+import { useAuth } from '../authContext';
 import Select from './ui/Select';
 import Tooltip from './ui/Tooltip';
-import Modal from './ui/Modal';
-import SaveAccountPanel from './SaveAccountPanel';
 import './shopModal.css';
 
-export default function ShopModal({ open, onClose, initialGameFilter = 'all', user = null }) {
+export default function ShopModal({ open, onClose, initialGameFilter = 'all', user: userProp = null }) {
+  const { user: authUser, openAuthModal } = useAuth();
+  const user = userProp ?? authUser;
   const [shopGameFilter, setShopGameFilter] = useState(initialGameFilter);
   const [shopCategoryFilter, setShopCategoryFilter] = useState('all');
   const [inv, setInv] = useState(getInventory);
   const [detailItem, setDetailItem] = useState(null);
-  /** Гость браузера: перед платной покупкой — напоминание */
-  const [prePurchase, setPrePurchase] = useState(null);
   const listScrollRef = useRef(null);
 
   useEffect(() => {
@@ -26,7 +25,6 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all', us
       setShopCategoryFilter('all');
       setInv(getInventory());
       setDetailItem(null);
-      setPrePurchase(null);
       track('store_open', { gameFilter: initialGameFilter });
     }
   }, [open, initialGameFilter]);
@@ -92,20 +90,13 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all', us
     if (!item || item.free) return;
     if (isBrowserGuestUser(user)) {
       if (fromDetail) setDetailItem(null);
-      setPrePurchase({ item, fromDetail: Boolean(fromDetail) });
+      openAuthModal();
       track('store_pre_purchase_guest', { itemId: item.id });
       return;
     }
     buyItem(item);
     if (fromDetail) setDetailItem(null);
   }
-
-  const confirmGuestPurchase = () => {
-    if (!prePurchase?.item) return;
-    buyItem(prePurchase.item);
-    setPrePurchase(null);
-    track('store_guest_purchase_confirmed', { itemId: prePurchase.item.id });
-  };
 
   const restore = () => {
     const next = restorePurchases();
@@ -175,7 +166,25 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all', us
     <div className="shop-modal-overlay" onClick={onClose}>
       <div className="shop-modal__panel" onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0, marginBottom: 16 }}>Магазин и словари</h3>
-        {isBrowserGuestUser(user) ? <SaveAccountPanel user={user} variant="compact" /> : null}
+        {isBrowserGuestUser(user) ? (
+          <div
+            style={{
+              padding: 12,
+              marginBottom: 14,
+              borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gh-warning, #d4a017) 12%, var(--gh-surface, #222))',
+              border: '1px dashed color-mix(in srgb, var(--gh-warning, #d4a017) 45%, transparent)',
+              fontSize: 13,
+              lineHeight: 1.45,
+            }}
+          >
+            <strong>Нужен вход.</strong> Покупки и премиум доступны после регистрации по почте или при игре через
+            Telegram.
+            <button type="button" className="gh-btn gh-btn--primary gh-btn--block" style={{ marginTop: 10 }} onClick={openAuthModal}>
+              Войти или зарегистрироваться
+            </button>
+          </div>
+        ) : null}
         <p style={{ fontSize: 13, marginBottom: 8 }}>Игра</p>
         <Select
           value={shopGameFilter}
@@ -251,45 +260,16 @@ export default function ShopModal({ open, onClose, initialGameFilter = 'all', us
             ) : (
               <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Покупок пока нет.</p>
             )}
-            <button type="button" onClick={restore} className="gh-btn gh-btn--muted gh-btn--compact" style={{ width: 'auto', marginTop: 8 }}>
-              Восстановить покупки
-            </button>
+            {!isBrowserGuestUser(user) ? (
+              <button type="button" onClick={restore} className="gh-btn gh-btn--muted gh-btn--compact" style={{ width: 'auto', marginTop: 8 }}>
+                Восстановить покупки
+              </button>
+            ) : null}
           </div>
         </div>
         <button type="button" onClick={onClose} className="gh-btn gh-btn--block" style={{ marginTop: 16 }}>
           Закрыть
         </button>
-
-        <Modal
-          open={Boolean(prePurchase?.item)}
-          onClose={() => setPrePurchase(null)}
-          title="Сохраните аккаунт"
-          width={400}
-        >
-          {prePurchase?.item ? (
-            <>
-              <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>
-                Покупка останется в этом браузере. Если очистите данные сайта или зайдёте с другого устройства —
-                откроется другой гостевой профиль, и доступ к купленному может пропасть.
-              </p>
-              <SaveAccountPanel user={user} variant="compact" />
-              <p style={{ fontSize: 13, opacity: 0.88, marginBottom: 12 }}>
-                Товар: <strong>{prePurchase.item.emoji} {prePurchase.item.name}</strong>
-              </p>
-              <button type="button" className="gh-btn gh-btn--block" onClick={confirmGuestPurchase}>
-                Понятно, купить / открыть
-              </button>
-              <button
-                type="button"
-                className="gh-btn gh-btn--muted gh-btn--block"
-                style={{ marginTop: 8 }}
-                onClick={() => setPrePurchase(null)}
-              >
-                Отмена
-              </button>
-            </>
-          ) : null}
-        </Modal>
 
         {detailItem && detailMarketing ? (
           <div

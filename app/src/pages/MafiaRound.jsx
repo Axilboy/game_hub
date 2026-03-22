@@ -107,7 +107,7 @@ export default function MafiaRound({ roomId, user, room, onLeave }) {
   const requestSeqRef = useRef(0);
 
   useEffect(() => {
-    if (!myId) return;
+    if (!myId || String(myId).startsWith('web_')) return;
     api
       .get(`/friends/list?playerId=${encodeURIComponent(myId)}`)
       .then((r) => {

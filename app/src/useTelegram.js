@@ -27,6 +27,15 @@ const WEB_NAME_KEY = 'gameHub_webDisplayName';
 function getOrCreateWebIdentity() {
   try {
     let id = localStorage.getItem(WEB_PLAYER_ID_KEY);
+    /** Сохранённый аккаунт по почте (acc_…) — не перезаписываем в web_ */
+    if (id && String(id).startsWith('acc_')) {
+      let name = localStorage.getItem(WEB_NAME_KEY);
+      if (!name) {
+        name = pickWebName();
+        localStorage.setItem(WEB_NAME_KEY, name);
+      }
+      return { id, first_name: name };
+    }
     if (!id || !String(id).startsWith('web_')) {
       id = `web_${Math.random().toString(36).slice(2, 9)}`;
       localStorage.setItem(WEB_PLAYER_ID_KEY, id);

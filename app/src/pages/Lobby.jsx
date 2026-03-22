@@ -14,6 +14,7 @@ import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import PageLayout from '../components/layout/PageLayout';
 import AppHeaderRight from '../components/layout/AppHeaderRight';
+import { useAuth } from '../authContext';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import {
@@ -129,7 +130,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   });
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { openAuthModal } = useAuth();
   const isHost = String(room?.hostId) === String(user?.id);
+  const canFriends = user?.id != null && !String(user.id).startsWith('web_');
   const [gameSettingsSheetOpen, setGameSettingsSheetOpen] = useState(false);
   const [gameSettingsTab, setGameSettingsTab] = useState('presets');
   const [startingGame, setStartingGame] = useState(false);
@@ -285,7 +288,12 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   }, []);
 
   const reloadFriendState = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || String(user.id).startsWith('web_')) {
+      setFriendIds(new Set());
+      setOutgoingPending(new Set());
+      setFriendNotes({});
+      return;
+    }
     try {
       const r = await api.get(`/friends/list?playerId=${encodeURIComponent(String(user.id))}`);
       const friends = r.friends || [];
@@ -672,7 +680,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   const addFriendFromLobby = async () => {
     const target = playerMenuPlayer;
-    if (!target || !user?.id) return;
+    if (!target || !user?.id || String(user.id).startsWith('web_')) return;
     if (String(target.id) === String(user.id)) return;
     try {
       await api.post('/friends/request', {
@@ -899,7 +907,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     <PageLayout
       title={roomName}
       onBack={handleBack}
-      right={<AppHeaderRight user={user} />}
+      right={<AppHeaderRight />}
     >
       <div className="lobby-shell">
         <header className="lobby-room-head">
@@ -2316,7 +2324,22 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               </Button>
             ) : null}
             {!playerMenuIsSelf ? (
-              friendIds.has(String(pp.id)) ? (
+              !canFriends ? (
+                <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.45 }}>
+                  Друзья доступны после входа по почте или в Telegram.
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    style={{ marginTop: 10 }}
+                    onClick={() => {
+                      openAuthModal();
+                      setPlayerMenuPlayer(null);
+                    }}
+                  >
+                    Войти или зарегистрироваться
+                  </Button>
+                </div>
+              ) : friendIds.has(String(pp.id)) ? (
                 <Button variant="secondary" fullWidth disabled>
                   Уже в друзьях
                 </Button>

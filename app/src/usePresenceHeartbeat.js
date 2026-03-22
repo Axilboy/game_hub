@@ -14,6 +14,8 @@ export function usePresenceHeartbeat({ userId, room, roomId, user }) {
 
   useEffect(() => {
     if (userId == null || userId === '') return undefined;
+    /** Гости web_* не участвуют в presence (друзья недоступны). */
+    if (String(userId).startsWith('web_')) return undefined;
 
     const send = () => {
       const r = roomRef.current;

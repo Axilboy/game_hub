@@ -14,6 +14,8 @@ import { getFunnelSummary } from '../analytics';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import PageLayout from '../components/layout/PageLayout';
 import SaveAccountPanel from '../components/SaveAccountPanel';
+import { isEmailAccountUser } from '../account';
+import { useAuth } from '../authContext';
 import { applyTheme } from '../theme';
 
 const THEMES = [
@@ -43,6 +45,7 @@ function applyDensity(id) {
 }
 
 export default function Profile({ user }) {
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const baseUrl = import.meta.env.VITE_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
   const canonical = baseUrl ? `${baseUrl.replace(/\/$/, '')}/profile` : undefined;
@@ -245,6 +248,14 @@ export default function Profile({ user }) {
       </header>
 
       <SaveAccountPanel user={user} variant="full" showImport />
+
+      {isEmailAccountUser(user) ? (
+        <div style={{ marginBottom: 16 }}>
+          <Button variant="secondary" fullWidth onClick={logout}>
+            Выйти из аккаунта
+          </Button>
+        </div>
+      ) : null}
 
       <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Статистика устройства</div>

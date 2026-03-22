@@ -7,6 +7,11 @@ export function isBrowserGuestUser(user) {
   return String(user.id).startsWith('web_');
 }
 
+/** Аккаунт по почте (acc_…) после регистрации на сайте. */
+export function isEmailAccountUser(user) {
+  return user?.id != null && String(user.id).startsWith('acc_');
+}
+
 export function buildAccountBackup(user) {
   const inv = getInventory();
   return {

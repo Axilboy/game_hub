@@ -180,7 +180,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   const myPlayerId = user?.id != null ? String(user.id) : '';
 
   const loadFriendsForHome = useCallback(async () => {
-    if (!myPlayerId) {
+    if (!myPlayerId || String(myPlayerId).startsWith('web_')) {
       setFriendsList([]);
       return;
     }
@@ -451,7 +451,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
   };
 
   return (
-    <PageLayout title="GameHub" titleHref="/" right={<AppHeaderRight user={user} />}>
+    <PageLayout title="GameHub" titleHref="/" right={<AppHeaderRight />}>
       <div className="home-page">
         <HomeLandingCarousel />
 

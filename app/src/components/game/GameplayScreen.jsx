@@ -97,7 +97,7 @@ export default function GameplayScreen({
                 ⌂
               </button>
             ) : null}
-            <AppHeaderRight user={user} />
+            <AppHeaderRight />
           </div>
         </header>
         {headerExtra}

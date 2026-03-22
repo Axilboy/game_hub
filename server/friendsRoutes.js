@@ -14,6 +14,7 @@ import {
   setNoteFor,
 } from './friendsStore.js';
 import { touchPresence, getPresenceForFriend } from './presenceStore.js';
+import { assertFriendsOrShopPlayer } from './authCore.js';
 
 function parsePlayerId(q) {
   if (q == null || q === '') return null;
@@ -37,6 +38,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId) {
       return reply.code(400).send({ error: 'Нужен playerId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     const loc = body.location;
     const location = loc === 'lobby' || loc === 'playing' ? loc : 'home';
     touchPresence({
@@ -61,6 +64,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId || !targetId) {
       return reply.code(400).send({ error: 'Нужны playerId и targetId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     const requesterName = String(body.requesterName || '').trim().slice(0, 120);
     const r = addPendingRequest(playerId, targetId, requesterName);
     if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
@@ -75,6 +80,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId || !fromId) {
       return reply.code(400).send({ error: 'Нужны playerId и fromId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     const note = body.note;
     const acceptorDisplayName = String(body.acceptorDisplayName || '').trim().slice(0, 120);
     const r = acceptPendingRequest(fromId, playerId, note, acceptorDisplayName);
@@ -89,6 +96,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId || !fromId) {
       return reply.code(400).send({ error: 'Нужны playerId и fromId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     const r = rejectPendingRequest(fromId, playerId);
     if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
     return { ok: true };
@@ -102,6 +111,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId || !friendId) {
       return reply.code(400).send({ error: 'Нужны playerId и friendId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     const r = addFriendPair(playerId, friendId, body.friendName);
     if (!r.ok) return reply.code(400).send({ error: r.error || 'Ошибка' });
     return { ok: true };
@@ -116,6 +127,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId || !friendId) {
       return reply.code(400).send({ error: 'Нужны playerId и friendId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     if (!areFriends(playerId, friendId)) {
       return reply.code(400).send({ error: 'Не в списке друзей' });
     }
@@ -130,6 +143,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId || !friendId) {
       return reply.code(400).send({ error: 'Нужны playerId и friendId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     if (!areFriends(playerId, friendId)) {
       return reply.code(400).send({ error: 'Не в списке друзей' });
     }
@@ -142,6 +157,8 @@ export async function friendsRoutes(fastify) {
     if (!playerId) {
       return reply.code(400).send({ error: 'Нужен playerId' });
     }
+    const gate = assertFriendsOrShopPlayer(request, playerId);
+    if (!gate.ok) return reply.code(gate.status).send({ error: gate.error });
     const ids = getFriendIds(playerId);
     const friends = ids.map((fid) => {
       const pres = getPresenceForFriend(fid);

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useTelegram } from './useTelegram';
+import { AuthProvider, useAuth } from './authContext';
+import AuthModal from './components/AuthModal';
 import { api, getApiErrorMessage } from './api';
 import { getDefaultGameSettings, VALID_LOBBY_PRESET_IDS } from './lobbyPresets';
 import { socket } from './socket';
@@ -43,7 +44,7 @@ function allowGameRoundRoute(room, gameId) {
 
 function AppRoutes() {
   const { showToast } = useToast();
-  const { user, ready } = useTelegram();
+  const { user, ready } = useAuth();
   const [room, setRoom] = useState(null);
   const [roomId, setRoomId] = useState(null);
   const [socketReconnecting, setSocketReconnecting] = useState(false);
@@ -666,6 +667,7 @@ function AppRoutes() {
       </Routes>
       </Suspense>
       <FriendsIncomingModal user={user} />
+      <AuthModal />
     </>
   );
 }
@@ -674,7 +676,9 @@ export default function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <AppRoutes />
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
       </BrowserRouter>
     </ToastProvider>
   );
