@@ -38,21 +38,26 @@
 GAME_HUB/
 ├── app/                 # React Mini App (Vite)
 │   └── src/
-│       ├── App.jsx      # Маршруты, комната, socket, leaveRoom, heartbeat друзей
-│       ├── usePresenceHeartbeat.js
-│       ├── api.js       # fetch JSON к /api
+│       ├── App.jsx      # Маршруты, комната, socket, leaveRoom; обёртка AuthProvider
+│       ├── authContext.jsx   # сессия по почте (JWT), merge с Telegram / useTelegram
+│       ├── usePresenceHeartbeat.js  # heartbeat не шлётся для web_* (гость)
+│       ├── api.js       # fetch JSON к /api; Authorization: Bearer из localStorage
 │       ├── socket.js
-│       ├── useTelegram.js   # Telegram WebApp user ИЛИ web-идентичность (localStorage)
+│       ├── useTelegram.js   # Telegram WebApp user ИЛИ web- / acc- id в localStorage
+│       ├── account.js   # isBrowserGuestUser, isEmailAccountUser, бэкап JSON, ссылка на бота
 │       ├── pages/       # Home, Lobby, *Round, SEO-страницы
-│       └── components/
+│       └── components/  # AuthModal.jsx, ShopModal, layout/AppHeaderRight (гость → вход)
 ├── server/
-│   ├── index.js         # точка входа Fastify + Socket.io
+│   ├── index.js         # точка входа Fastify + Socket.io; регистрация authRoutes
 │   ├── rooms.js         # основная масса HTTP API комнат и игр
 │   ├── mafia.js         # логика фаз мафии, роли, голосование
 │   ├── roomManager.js   # комнаты, коды, игроки, syncPartyTeams
 │   ├── partyTeamAssign.js  # раскладка игроков по командам (лобби Элиас/ПдД)
 │   ├── eliasWords.js, eliasWordsExtra.js
-│   ├── friendsStore.js, presenceStore.js, friendsRoutes.js  # друзья + heartbeat присутствия
+│   ├── authCore.js      # JWT, пароли (scrypt), assertFriendsOrShopPlayer
+│   ├── authStore.js     # accounts.json (acc_*), createAccount / verifyLogin
+│   ├── authRoutes.js    # POST /auth/register, /auth/login, GET /auth/me
+│   ├── friendsStore.js, presenceStore.js, friendsRoutes.js  # друзья + presence (закрыто для web_* без входа)
 │   └── …
 ├── bot/                 # Telegram-бот
 ├── tools/
@@ -66,14 +71,37 @@ GAME_HUB/
 
 ## 4. Идентичность пользователя (важно для отладки)
 
-**Файл:** `app/src/useTelegram.js`
+### 4.1. Три вида `playerId` / `user.id`
 
-- В **Telegram WebApp** берётся `window.Telegram.WebApp.initDataUnsafe.user`.
-- **В браузере без Telegram** создаётся «web»-пользователь:
-  - `localStorage.gameHub_webPlayerId` — строка вида `web_xxxxxxx`
-  - `localStorage.gameHub_webDisplayName` — случайное смешное имя из списка
+| Префикс / вид | Откуда | Назначение |
+|----------------|--------|------------|
+| **Числовая строка** (Telegram user id) | `window.Telegram.WebApp.initDataUnsafe.user` в Mini App | Стабильный аккаунт Telegram |
+| **`web_…`** | `app/src/useTelegram.js` + `localStorage` | Гость браузера без входа: случайное имя, игра в комнатах разрешена |
+| **`acc_…`** | Регистрация `POST /api/auth/register` или вход `POST /api/auth/login` | Аккаунт по **email + паролю**; пароль на сервере через scrypt, сессия — **JWT** |
 
-Все API передают `playerId` из `user.id`. На сервере сравнение id обычно через `String(a) === String(b)`.
+Итоговый пользователь в UI: **`authContext.jsx`** — при валидном токене приоритет у аккаунта по почте, иначе Telegram-пользователь, иначе гость `web_*`.
+
+### 4.2. Клиент: файлы и хранилище
+
+- **`useTelegram.js`** — при старте: Telegram user **или** запись из `localStorage` (`web_*` или сохранённый `acc_*` после входа).
+- **`authContext.jsx`** — `localStorage.gameHub_authToken`; при монтировании `GET /api/auth/me` с заголовком `Authorization`; успех → объект `user` с `id`, `email`, `first_name`.
+- **`api.js`** — ко всем запросам подставляется `Authorization: Bearer <token>`, кроме явного `skipAuth` (логин/регистрация).
+- **Ключи `localStorage`:** `gameHub_webPlayerId`, `gameHub_webDisplayName`, `gameHub_authToken`.
+
+### 4.3. Сервер: авторизация и ограничения для гостей
+
+- **`server/authCore.js`** — `signJwt` / `verifyJwt` (секрет `JWT_SECRET`), `getBearerToken`, **`assertFriendsOrShopPlayer(request, playerId)`**:
+  - числовой id → как Telegram, **разрешено**;
+  - `web_*` **без** JWT → **403** (друзья, presence, список друзьев);
+  - `acc_*` → нужен **Bearer**, `sub` в JWT должен совпадать с `playerId`.
+- **`server/authStore.js`** — файл аккаунтов (по умолчанию рядом с данными хаба, см. `ACCOUNTS_FILE` / `GAMEHUB_DATA_DIR` в `.env.example`).
+- **`server/authRoutes.js`** — префикс `/api`: `POST /auth/register`, `POST /auth/login`, `GET /auth/me`.
+
+**Покупки в магазине** — на клиенте (локальный инвентарь); для гостя `web_*` UI **не даёт** оформить покупку/премиум без входа (модалка входа). Серверные **комнаты и игры** по-прежнему принимают любой `playerId` для матчей; закрыты только **друзья + presence** (и согласованное с этим поведение клиента).
+
+### 4.4. Общее
+
+Все API, где передаётся игрок, используют `playerId` из **`user.id`**. На сервере сравнение id обычно через `String(a) === String(b)`.
 
 ---
 
@@ -234,12 +262,14 @@ GAME_HUB/
 | `/lobby` | Лобби (нужны roomId + room) |
 | `/elias`, `/spy`, `/mafia`, `/truth_dare`, `/bunker` | Раунды при `playing` и нужной `game` |
 | `/games/*`, `/privacy`, `/rules` | SEO и статика |
-| `/friends` | Список друзей, **редактирование примечания**, удаление, вход в лобби друга по инвайту |
-| `/profile`, `/admin` | Профиль и админка |
+| `/friends` | Список друзей (для гостя `web_*` — призыв войти), **редактирование примечания**, удаление, вход в лобби друга по инвайту |
+| `/profile`, `/admin` | Профиль (у `acc_*` — выход из аккаунта) и админка |
 
-### Система «Друзья»
+### Система «Друзья» и присутствие
 
 **Сервер:** `server/friendsStore.js` — граф дружбы, **очередь заявок** `pending`, **заметки** `notes[viewerId][friendId]` (как зовут в жизни), глобальные имена в `names`; файл `data/friends.json`. `server/presenceStore.js` — последний heartbeat. `server/friendsRoutes.js` — префикс `/api`.
+
+**Доступ:** перед обработкой вызывается **`assertFriendsOrShopPlayer`** (`server/authCore.js`) для **каждого** перечисленного ниже маршрута: для `playerId` из тела или query нужен либо **Telegram (числовой id)**, либо **`acc_*` + заголовок `Authorization: Bearer <JWT>`**. Гость **`web_*`** без входа получает **403**.
 
 | Метод | Путь | Назначение |
 |-------|------|------------|
@@ -252,7 +282,7 @@ GAME_HUB/
 | POST | `/friends/remove` | `playerId`, `friendId` |
 | GET | `/friends/list?playerId=` | `friends` (с полем `note`), `incomingRequests`, `outgoingPendingIds`, плюс онлайн/лобби |
 
-**Клиент:** `resolvePublicDisplayName`, `formatFriendListLine`, **`friendDisplayNameOnly`** в `displayName.js`. На странице **`/friends`** имя и примечание разнесены (примечание справа / в форме); **редактирование примечания** — развёрнутая карточка → `POST /friends/note`. На главной виджет друзей может по-прежнему использовать строку «Имя (заметка)». `usePresenceHeartbeat` передаёт `user` для корректного имени в heartbeat. `FriendsIncomingModal` — входящие заявки (принять / отклонить, поле заметки при принятии). Лобби: **«Добавить в друзья»** шлёт заявку; **«Заявка отправлена»** при исходящем pending.
+**Клиент:** `resolvePublicDisplayName`, `formatFriendListLine`, **`friendDisplayNameOnly`** в `displayName.js`. **`usePresenceHeartbeat`** — для `web_*` heartbeat **не отправляется**. На странице **`/friends`** и в лобби гостю показывается вход; **`AppHeaderRight`** — клик по профилю у гостя открывает **`AuthModal`**. На странице **`/friends`** имя и примечание разнесены; **редактирование примечания** → `POST /friends/note`. `FriendsIncomingModal` поллит список только если пользователь **не** `web_*`. Лобби: **«Добавить в друзья»** — только после входа (Telegram / почта); иначе кнопка входа.
 
 ---
 
@@ -271,7 +301,7 @@ GAME_HUB/
 | Файл | Содержание |
 |------|------------|
 | `README.md` | Быстрый старт |
-| `SETUP.md` | Переменные окружения |
+| `SETUP.md` | Переменные окружения (в т.ч. `JWT_SECRET`, `ACCOUNTS_FILE` — см. `.env.example`) |
 | `DEPLOY.md` | Git, сервер, Docker |
 | `QA_SMOKE_REGRESSION.md` | Регрессия |
 | `docs/PROJECT_PASSPORT.md` | Этот паспорт |
@@ -284,7 +314,8 @@ GAME_HUB/
 
 | Дата | Что сделано |
 |------|-------------|
-| 2026-03-17 | **Аккаунт (без обяз. регистрации):** `app/src/account.js`, `SaveAccountPanel.jsx` — гость браузера (`web_`): ID, бэкап JSON, импорт в профиле; Telegram — подсказка о стабильном id. **Магазин:** перед платной покупкой у гостя модалка «Сохраните аккаунт»; `ShopModal` получает `user`. |
+| 2026-03-17 | **Авторизация (браузер):** регистрация/вход по **email + пароль** (`server/authRoutes.js`, `authStore.js`, `authCore.js` JWT/scrypt), клиент `authContext.jsx`, `AuthModal.jsx`, токен `gameHub_authToken`, `api.js` — Bearer. **Гость `web_*`:** без входа **нет** друзьев, presence heartbeat, покупок/премиума в магазине (UI + `assertFriendsOrShopPlayer` на всех `friends/*` и `presence/heartbeat`). Шапка: гость → форма входа. **`acc_*`** в `localStorage` не перезаписывается в `web_*` (`useTelegram.js`). Паспорт: **§3–4, §10**; `.env.example` — `JWT_SECRET`, `ACCOUNTS_FILE`. Старое: бэкап JSON в `SaveAccountPanel` для гостя — дополнительно к входу по почте. |
+| 2026-03-17 | **Аккаунт (без обяз. регистрации):** `app/src/account.js`, `SaveAccountPanel.jsx` — гость браузера (`web_`): ID, бэкап JSON, импорт в профиле; Telegram — подсказка о стабильном id. **Магазин (ранее):** напоминание гостю перед покупкой; сценарий заменён на обязательный **вход** для платных действий. |
 | 2026-03-17 | **Игры:** внизу `GameplayScreen` кнопка «Сообщить об ошибке» → `POST /feedback` с `game`, `source: in_game`. **Статистика:** `GAMEHUB_DATA_DIR`, `server/dataPaths.js`; учёт стартов по типам игры (`gamesByGame`); админка показывает накопительные старты. |
 | 2026-03-17 | **Бункер:** поочерёдное раскрытие полей (`POST /bunker/reveal`), базовые + премиум-характеристики (Pro / `bunker_extended_profile`), UI в `BunkerRound.jsx`; паспорт §9.1. |
 | 2026-03-17 | **Мафия:** состав как у конкурентов — **⌈n/4⌉** «чёрных» (дон + мафии), комиссар, мирные; минимум **6** за столом (`MIN_MAFIA_PLAYERS_*`, лобби `MIN_PLAYERS.mafia`). |
@@ -307,5 +338,5 @@ GAME_HUB/
 ## 14. Инструкция для агента / разработчика
 
 1. Перед крупной задачей **прочитайте этот файл** и затронутые модули в `server/` и `app/`.
-2. После изменения логики комнат, **мафии**, Элиаса, лобби или структуры API — **обновите соответствующий раздел** и **строку в журнале**.
+2. После изменения логики комнат, **мафии**, Элиаса, лобби, **идентичности / друзей / auth** или структуры API — **обновите соответствующий раздел** и **строку в журнале**.
 3. Не дублируйте сюда весь код — только **контракты, имена файлов, алгоритмы и причины решений**.

@@ -13,6 +13,7 @@ import Segmented from '../components/ui/Segmented';
 import { getFunnelSummary } from '../analytics';
 import { PRO_VALUE_MATRIX } from '../proValueMatrix';
 import PageLayout from '../components/layout/PageLayout';
+import Modal from '../components/ui/Modal';
 import SaveAccountPanel from '../components/SaveAccountPanel';
 import { isEmailAccountUser } from '../account';
 import { useAuth } from '../authContext';
@@ -78,6 +79,7 @@ export default function Profile({ user }) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [photo, setPhoto] = useState(() => getProfilePhoto());
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     api
@@ -249,14 +251,6 @@ export default function Profile({ user }) {
 
       <SaveAccountPanel user={user} variant="full" showImport />
 
-      {isEmailAccountUser(user) ? (
-        <div style={{ marginBottom: 16 }}>
-          <Button variant="secondary" fullWidth onClick={logout}>
-            Выйти из аккаунта
-          </Button>
-        </div>
-      ) : null}
-
       <section className="gh-card" style={{ padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Статистика устройства</div>
         <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 6 }}>
@@ -409,6 +403,54 @@ export default function Profile({ user }) {
           options={DENSITIES.map((d) => ({ value: d.id, label: d.label }))}
         />
       </section>
+
+      {isEmailAccountUser(user) ? (
+        <>
+          <section
+            className="gh-card"
+            style={{
+              padding: 14,
+              marginBottom: 16,
+              border: '1px solid color-mix(in srgb, var(--gh-danger, #dc2626) 40%, transparent)',
+              background: 'color-mix(in srgb, var(--gh-danger, #dc2626) 06%, var(--gh-surface, #1a1a1a))',
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Аккаунт</div>
+            <p style={{ margin: '0 0 14px', fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
+              Выход завершит сессию на этом устройстве. Снова понадобится войти по почте для друзей и магазина.
+            </p>
+            <Button variant="danger" fullWidth onClick={() => setLogoutConfirmOpen(true)}>
+              Выйти
+            </Button>
+          </section>
+
+          <Modal
+            open={logoutConfirmOpen}
+            onClose={() => setLogoutConfirmOpen(false)}
+            title="Вы уверены?"
+            width={400}
+          >
+            <p style={{ marginTop: 0, marginBottom: 0, fontSize: 14, lineHeight: 1.5 }}>
+              Выйти из аккаунта? Потребуется снова войти по почте.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 }}>
+              <Button
+                variant="danger"
+                fullWidth
+                onClick={() => {
+                  setLogoutConfirmOpen(false);
+                  logout();
+                }}
+              >
+                Да, выйти
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => setLogoutConfirmOpen(false)}>
+                Отмена
+              </Button>
+            </div>
+          </Modal>
+        </>
+      ) : null}
     </PageLayout>
   );
 }
