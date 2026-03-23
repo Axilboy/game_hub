@@ -1,5 +1,4 @@
 import { appendFeedback, readAllFeedback } from './feedbackStore.js';
-import { checkAdminPassword } from './statsManager.js';
 
 const ipHits = new Map();
 
@@ -54,19 +53,11 @@ export async function feedbackRoutes(fastify) {
   });
 
   fastify.post('/admin/feedback/list', async (request, reply) => {
-    const { password } = request.body || {};
-    if (!checkAdminPassword(password)) {
-      return reply.code(403).send({ error: 'Invalid password' });
-    }
     const items = await readAllFeedback();
     return { items, count: items.length };
   });
 
   fastify.post('/admin/feedback/export', async (request, reply) => {
-    const { password } = request.body || {};
-    if (!checkAdminPassword(password)) {
-      return reply.code(403).send({ error: 'Invalid password' });
-    }
     const items = await readAllFeedback();
     const json = JSON.stringify(items, null, 2);
     reply.header('Content-Type', 'application/json; charset=utf-8');

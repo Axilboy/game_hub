@@ -1,4 +1,4 @@
-import { getStats, getPublicStats, checkAdminPassword, recordWebAnalytics } from './statsManager.js';
+import { getStats, getPublicStats, recordWebAnalytics } from './statsManager.js';
 import { createPromocode, redeemPromocode } from './promocodes.js';
 
 const ADMIN_STATS_CACHE_TTL_MS = 3000;
@@ -26,10 +26,6 @@ export async function adminRoutes(fastify) {
   });
 
   fastify.post('/admin/stats', async (request, reply) => {
-    const { password } = request.body || {};
-    if (!checkAdminPassword(password)) {
-      return reply.code(403).send({ error: 'Invalid password' });
-    }
     const now = Date.now();
     if (adminStatsCache.value && now - adminStatsCache.ts < ADMIN_STATS_CACHE_TTL_MS) {
       return adminStatsCache.value;
@@ -40,10 +36,7 @@ export async function adminRoutes(fastify) {
   });
 
   fastify.post('/admin/promocode', async (request, reply) => {
-    const { password, type } = request.body || {};
-    if (!checkAdminPassword(password)) {
-      return reply.code(403).send({ error: 'Invalid password' });
-    }
+    const { type } = request.body || {};
     const t = type === 'week' || type === 'month' ? type : 'day';
     const { code, expiresAt } = createPromocode(t);
     return { code, expiresAt };

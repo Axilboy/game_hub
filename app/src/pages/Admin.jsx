@@ -6,7 +6,6 @@ import BackArrow from '../components/BackArrow';
 import SeoFooter from '../components/layout/SeoFooter';
 import { useToast } from '../components/ui/ToastProvider';
 
-const ADMIN_PASS_KEY = 'gameHub_adminPass';
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || '';
 const APP_LINK = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : (import.meta.env.VITE_BASE_URL || window.location.origin);
 const API_BASE = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
@@ -17,7 +16,6 @@ export default function Admin() {
   useSeo({ title: 'Админ — GameHub', robots: 'noindex, nofollow', siteName: 'GameHub' });
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [password, setPassword] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) || '');
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [promoView, setPromoView] = useState(false);
@@ -27,24 +25,20 @@ export default function Admin() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   useEffect(() => {
-    if (!password) {
-      navigate('/', { replace: true });
-      return;
-    }
-    api.post('/admin/stats', { password })
+    api.post('/admin/stats', {})
       .then(setStats)
-      .catch(() => setError('Неверный пароль'));
-  }, [password, navigate]);
+      .catch(() => setError('Ошибка загрузки админки'));
+  }, [navigate]);
 
   const loadStats = () => {
-    api.post('/admin/stats', { password }).then(setStats).catch(() => setError('Ошибка'));
+    api.post('/admin/stats', {}).then(setStats).catch(() => setError('Ошибка'));
   };
 
   const loadFeedback = async () => {
     setFeedbackLoading(true);
     setError('');
     try {
-      const r = await api.post('/admin/feedback/list', { password });
+      const r = await api.post('/admin/feedback/list', {});
       setFeedbackItems(Array.isArray(r.items) ? r.items : []);
     } catch (e) {
       setError(e.message || 'Не удалось загрузить отзывы');
@@ -60,7 +54,7 @@ export default function Admin() {
       const res = await fetch(`${API_BASE}/api/admin/feedback/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error('export failed');
       const blob = await res.blob();
@@ -79,7 +73,7 @@ export default function Admin() {
   const createPromo = async () => {
     setError('');
     try {
-      const r = await api.post('/admin/promocode', { password, type: promoType });
+      const r = await api.post('/admin/promocode', { type: promoType });
       setCreatedPromo(r);
     } catch (e) {
       setError(e.message || 'Ошибка');
@@ -100,7 +94,6 @@ export default function Admin() {
   };
 
   const exitAdmin = () => {
-    sessionStorage.removeItem(ADMIN_PASS_KEY);
     navigate('/', { replace: true });
   };
 
