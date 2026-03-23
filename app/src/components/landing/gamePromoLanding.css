@@ -278,6 +278,58 @@ html[data-theme='light'] .gpl .gpl__panel {
   font-weight: 600;
 }
 
+.gpl__faq-list {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gpl__faq-item {
+  border: 1px solid color-mix(in srgb, var(--gpl-panel-text) 14%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--gpl-panel-text) 4%, transparent);
+  overflow: hidden;
+}
+
+.gpl__faq-question {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.gpl__faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.gpl__faq-question::after {
+  content: '+';
+  float: right;
+  opacity: 0.72;
+}
+
+.gpl__faq-item[open] .gpl__faq-question::after {
+  content: '−';
+}
+
+.gpl__faq-answer {
+  padding: 0 14px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--gpl-panel-muted);
+}
+
+.gpl__faq-answer p {
+  margin: 0 0 10px;
+}
+
+.gpl__faq-answer p:last-child {
+  margin-bottom: 0;
+}
+
 .gpl__ctas {
   display: flex;
   flex-direction: column;

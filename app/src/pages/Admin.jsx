@@ -104,6 +104,86 @@ export default function Admin() {
     navigate('/', { replace: true });
   };
 
+  const renderTopList = (title, arr, valueSuffix = '') => {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    return (
+      <section style={{ marginBottom: 16, padding: 14, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+        <p style={{ margin: '0 0 10px', fontWeight: 700 }}>{title}</p>
+        {arr.slice(0, 10).map((x) => (
+          <div key={x.key} style={{ fontSize: 13, marginBottom: 4 }}>
+            <strong>{x.key}</strong>: {x.value}{valueSuffix}
+          </div>
+        ))}
+      </section>
+    );
+  };
+
+  const buildHealthAlerts = (s) => {
+    if (!s) return [];
+    const alerts = [];
+    const weekSessionsAvg = Math.max(0, Number(s.siteSessionsWeek || 0) / 7);
+    const weekVisitorsAvg = Math.max(0, Number(s.siteVisitorsWeek || 0) / 7);
+    const sessionsToday = Number(s.siteSessionsToday || 0);
+    const visitorsToday = Number(s.siteVisitorsToday || 0);
+    const startsToday = Number(s.gamesStartedDay || 0);
+    const viewsToday = Number(s.pageViewsToday || 0);
+    const adToday = Number(s.adImpressionsDay || 0);
+
+    const startFromSession = sessionsToday > 0 ? startsToday / sessionsToday : 0;
+    const viewsPerSession = sessionsToday > 0 ? viewsToday / sessionsToday : 0;
+    const adPerStart = startsToday > 0 ? adToday / startsToday : 0;
+    const homeDwell = Array.isArray(s.topPageDwell)
+      ? Number((s.topPageDwell.find((x) => x.key === '/') || {}).value || 0)
+      : 0;
+
+    if (weekSessionsAvg >= 10 && sessionsToday < weekSessionsAvg * 0.6) {
+      alerts.push({
+        level: 'high',
+        text: `Трафик просел: сессии за сутки ${sessionsToday}, среднее за неделю ~${Math.round(weekSessionsAvg)}.`,
+        action: 'Проверьте рекламные кампании/UTM и доступность лендингов.',
+      });
+    }
+    if (weekVisitorsAvg >= 10 && visitorsToday < weekVisitorsAvg * 0.6) {
+      alerts.push({
+        level: 'high',
+        text: `Уникальные посетители просели: ${visitorsToday} против недельного среднего ~${Math.round(weekVisitorsAvg)}.`,
+        action: 'Проверьте источники трафика и креативы.',
+      });
+    }
+    if (sessionsToday >= 20 && startFromSession < 0.08) {
+      alerts.push({
+        level: 'high',
+        text: `Низкая конверсия в старт игры: ${(startFromSession * 100).toFixed(1)}% от сессий.`,
+        action: 'Упростите первый экран и CTA, проверьте скорость загрузки.',
+      });
+    }
+    if (sessionsToday >= 20 && viewsPerSession < 1.2) {
+      alerts.push({
+        level: 'medium',
+        text: `Слабая глубина просмотра: ${viewsPerSession.toFixed(2)} стр./сессию (возможен отвал на входе).`,
+        action: 'Проверьте релевантность посадочных страниц и UX первого шага.',
+      });
+    }
+    if (startsToday >= 10 && adPerStart < 0.25) {
+      alerts.push({
+        level: 'medium',
+        text: `Низкий ad-fill proxy: ${(adPerStart * 100).toFixed(0)} показов на 100 стартов игр.`,
+        action: 'Проверьте рекламный SDK и сценарии показа перед игрой.',
+      });
+    }
+    if (sessionsToday >= 20 && homeDwell > 0 && homeDwell < 12) {
+      alerts.push({
+        level: 'medium',
+        text: `Низкое время на главной: ~${homeDwell} сек (возможна нерелевантная реклама/трафик).`,
+        action: 'Проверьте соответствие объявления и контента главной страницы.',
+      });
+    }
+    return alerts;
+  };
+  const healthAlerts = buildHealthAlerts(stats);
+  const healthHighCount = healthAlerts.filter((a) => a.level === 'high').length;
+  const healthMediumCount = healthAlerts.filter((a) => a.level === 'medium').length;
+
   if (stats === null && !error) return <div style={{ padding: 24 }}>Загрузка…</div>;
   if (error && !stats) {
     return (
@@ -162,6 +242,66 @@ export default function Admin() {
         <div>За месяц: <strong>{stats?.month ?? 0}</strong></div>
         <div>Всего: <strong>{stats?.total ?? 0}</strong></div>
       </section>
+      <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
+        <p style={{ marginBottom: 12 }}>Трафик сайта (воронка рекламы)</p>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>
+          Уникальные посетители, сессии и просмотры страниц. Это отдельная метрика от «игроков в комнатах».
+        </p>
+        <div>Посетители за сутки: <strong>{stats?.siteVisitorsToday ?? 0}</strong></div>
+        <div>Посетители за неделю: <strong>{stats?.siteVisitorsWeek ?? 0}</strong></div>
+        <div>Посетители за месяц: <strong>{stats?.siteVisitorsMonth ?? 0}</strong></div>
+        <div>Посетители всего: <strong>{stats?.siteVisitorsTotal ?? 0}</strong></div>
+        <div style={{ marginTop: 8 }}>Сессии за сутки: <strong>{stats?.siteSessionsToday ?? 0}</strong></div>
+        <div>Сессии за месяц: <strong>{stats?.siteSessionsMonth ?? 0}</strong></div>
+        <div>Сессии всего: <strong>{stats?.siteSessionsTotal ?? 0}</strong></div>
+        <div style={{ marginTop: 8 }}>Просмотры страниц за сутки: <strong>{stats?.pageViewsToday ?? 0}</strong></div>
+        <div>Просмотры за неделю: <strong>{stats?.pageViewsWeek ?? 0}</strong></div>
+        <div>Просмотры за месяц: <strong>{stats?.pageViewsMonth ?? 0}</strong></div>
+        <div style={{ marginTop: 8 }}>Сессий на посетителя: <strong>{stats?.avgSessionsPerVisitor ?? 0}</strong></div>
+      </section>
+      <section
+        style={{
+          marginBottom: 24,
+          padding: 16,
+          background: healthAlerts.length > 0 ? 'rgba(220, 80, 80, 0.12)' : 'rgba(70,160,90,0.12)',
+          border: healthAlerts.length > 0 ? '1px solid rgba(220, 80, 80, 0.4)' : '1px solid rgba(70,160,90,0.4)',
+          borderRadius: 8,
+        }}
+      >
+        <p style={{ margin: '0 0 10px', fontWeight: 700 }}>
+          Health Alerts {healthAlerts.length > 0 ? `(${healthAlerts.length})` : '(ok)'}
+        </p>
+        {healthAlerts.length > 0 ? (
+          <p style={{ margin: '0 0 10px', fontSize: 12, opacity: 0.9 }}>
+            High: <strong>{healthHighCount}</strong> · Medium: <strong>{healthMediumCount}</strong>
+          </p>
+        ) : null}
+        {healthAlerts.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
+            Критичных сигналов по воронке не обнаружено: трафик и базовые конверсии в рабочем диапазоне.
+          </p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.5 }}>
+            {healthAlerts.map((al, idx) => (
+              <li key={`${al.text}-${idx}`} style={{ marginBottom: 8 }}>
+                <strong style={{ color: al.level === 'high' ? '#ff8f8f' : '#ffd98f' }}>
+                  {al.level.toUpperCase()}
+                </strong>{' '}
+                {al.text}
+                <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+                  Что сделать: {al.action}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {renderTopList('Топ источников (тип)', stats?.topSourceTypes)}
+      {renderTopList('Топ источников (канал)', stats?.topSourceNames)}
+      {renderTopList('UTM кампании', stats?.topCampaigns)}
+      {renderTopList('Точки входа (entry page)', stats?.topEntryPages)}
+      {renderTopList('Самые посещаемые страницы', stats?.topPages)}
+      {renderTopList('Среднее время на странице (сек)', stats?.topPageDwell, ' c')}
       <section style={{ marginBottom: 24, padding: 16, background: 'rgba(255,255,255,0.06)', borderRadius: 8 }}>
         <p style={{ marginBottom: 12 }}>Старты игр (сессий)</p>
         <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Каждый запуск игры в комнате (+1 за сутки / сумма за месяц)</p>

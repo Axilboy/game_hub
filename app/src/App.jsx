@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './authContext';
 import AuthModal from './components/AuthModal';
@@ -12,6 +12,13 @@ import { showAdIfNeeded } from './ads';
 import { track } from './analytics';
 import { reapplyStoredTheme } from './theme';
 import { usePresenceHeartbeat } from './usePresenceHeartbeat';
+import {
+  detectAcquisition,
+  getOrCreateSessionId,
+  getOrCreateVisitorId,
+  isSessionStartedSent,
+  markSessionStartedSent,
+} from './webAnalytics';
 import FriendsIncomingModal from './components/FriendsIncomingModal';
 import Home from './pages/Home';
 import { ToastProvider, useToast } from './components/ui/ToastProvider';
@@ -33,6 +40,11 @@ const SeoGameBunker = lazy(() => import('./pages/SeoGameBunker'));
 const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
 const FriendsPage = lazy(() => import('./pages/Friends'));
+const ANALYTICS_BASE =
+  (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
+    ? import.meta.env.VITE_API_URL
+    : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+const ANALYTICS_TRACK_URL = `${ANALYTICS_BASE}/api/analytics/track`;
 
 /** Игра идёт или только что закончилась — держим маршрут /spy, /elias и т.д., чтобы экран победы не схлопывался */
 function allowGameRoundRoute(room, gameId) {
@@ -51,6 +63,10 @@ function AppRoutes() {
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const navigate = useNavigate();
   const location = useLocation();
+  const routeRef = useRef({ path: '', startedAt: 0 });
+  const refreshInFlightRef = useRef(false);
+  const refreshPendingRef = useRef(false);
+  const refreshLastAtRef = useRef(0);
 
   useEffect(() => {
     touchVisit();
@@ -103,6 +119,104 @@ function AppRoutes() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const now = Date.now();
+    const visitorId = getOrCreateVisitorId();
+    const sessionId = getOrCreateSessionId();
+    const currentPath = location.pathname || '/';
+    const prev = routeRef.current;
+
+    // Закрываем предыдущую страницу по времени в рамках SPA-навигации
+    if (prev.path && prev.startedAt) {
+      const dwellMs = now - prev.startedAt;
+      if (dwellMs > 4000) {
+        api
+          .post('/analytics/track', {
+            type: 'page_dwell',
+            visitorId,
+            sessionId,
+            path: prev.path,
+            dwellMs,
+          })
+          .catch(() => {});
+      }
+    }
+
+    // Начало сессии — один раз за вкладку
+    if (!isSessionStartedSent()) {
+      const acq = detectAcquisition(
+        typeof window !== 'undefined' ? window.location.search : '',
+        typeof document !== 'undefined' ? document.referrer : '',
+      );
+      api
+        .post('/analytics/track', {
+          type: 'session_start',
+          visitorId,
+          sessionId,
+          path: currentPath,
+          sourceType: acq.sourceType,
+          sourceName: acq.sourceName,
+          utmCampaign: acq.utmCampaign,
+        })
+        .catch(() => {});
+      markSessionStartedSent();
+    }
+
+    api
+      .post('/analytics/track', {
+        type: 'page_view',
+        visitorId,
+        sessionId,
+        path: currentPath,
+      })
+      .catch(() => {});
+
+    routeRef.current = { path: currentPath, startedAt: now };
+  }, [ready, location.pathname]);
+
+  useEffect(() => {
+    if (!ready) return undefined;
+    const sendDwellBeacon = () => {
+      const now = Date.now();
+      const prev = routeRef.current;
+      if (!prev?.path || !prev?.startedAt) return;
+      const dwellMs = now - prev.startedAt;
+      if (dwellMs <= 4000) return;
+      const payload = {
+        type: 'page_dwell',
+        visitorId: getOrCreateVisitorId(),
+        sessionId: getOrCreateSessionId(),
+        path: prev.path,
+        dwellMs,
+      };
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+          navigator.sendBeacon(ANALYTICS_TRACK_URL, blob);
+        } else {
+          fetch(ANALYTICS_TRACK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (_) {}
+      routeRef.current = { ...prev, startedAt: now };
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') sendDwellBeacon();
+    };
+    const onBeforeUnload = () => sendDwellBeacon();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [ready]);
 
   /** После Telegram.ready() — ещё раз применить тему (перебить inline-переменные). */
   useEffect(() => {
@@ -296,10 +410,32 @@ function AppRoutes() {
 
   const refreshRoom = useCallback(async () => {
     if (!roomId) return;
+    const now = Date.now();
+    // Лёгкий троттлинг против шторма socket-событий
+    if (now - refreshLastAtRef.current < 350) {
+      refreshPendingRef.current = true;
+      return;
+    }
+    if (refreshInFlightRef.current) {
+      refreshPendingRef.current = true;
+      return;
+    }
+    refreshInFlightRef.current = true;
+    refreshLastAtRef.current = now;
     try {
       const { room: r } = await api.get(`/rooms/${roomId}`);
       setRoom(r);
-    } catch (_) {}
+    } catch (_) {
+      // ignore transient refresh errors
+    } finally {
+      refreshInFlightRef.current = false;
+      if (refreshPendingRef.current) {
+        refreshPendingRef.current = false;
+        setTimeout(() => {
+          refreshRoom();
+        }, 150);
+      }
+    }
   }, [roomId]);
 
   useEffect(() => {

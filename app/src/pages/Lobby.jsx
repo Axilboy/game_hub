@@ -378,7 +378,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const startSpy = async () => {
-    if (!isHost) return;
+    if (!isHost || startingGame) return;
     const count = room?.players?.length ?? 0;
     const minSpy = minSpyPlayers(spyCount);
     if (count < minSpy) {
@@ -414,7 +414,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const startMafia = async (opts) => {
-    if (!isHost) return;
+    if (!isHost || startingGame) return;
     const players = room?.players || [];
     const count = players.length;
     const gs = room?.gameSettings || {};
@@ -476,7 +476,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const startElias = async () => {
-    if (!isHost) return;
+    if (!isHost || startingGame) return;
     const count = room?.players?.length ?? 0;
     if (count < MIN_PLAYERS.elias) {
       setMinPlayersWarning(`Для игры в Элиас нужно минимум ${MIN_PLAYERS.elias} игрока. Сейчас в лобби: ${count}.`);
@@ -530,7 +530,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const startBunker = async () => {
-    if (!isHost) return;
+    if (!isHost || startingGame) return;
     const count = room?.players?.length ?? 0;
     if (count < MIN_PLAYERS.bunker) {
       setMinPlayersWarning(`Для игры в Бункер нужно минимум ${MIN_PLAYERS.bunker} игроков. Сейчас в лобби: ${count}.`);
@@ -558,7 +558,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   };
 
   const startTruthDare = async () => {
-    if (!isHost) return;
+    if (!isHost || startingGame) return;
     const count = room?.players?.length ?? 0;
     if (count < MIN_PLAYERS.truth_dare) {
       setMinPlayersWarning(`Для игры в Правда/действие нужно минимум ${MIN_PLAYERS.truth_dare} игроков. Сейчас в лобби: ${count}.`);

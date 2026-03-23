@@ -16,6 +16,17 @@ import { buildRobotsTxt, buildSitemapXml } from '../seo/sitemapConfig.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const publicDir = path.join(__dirname, 'public');
+const DEFAULT_ORIGIN = process.env.BASE_URL || process.env.VITE_BASE_URL || null;
+const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (DEFAULT_ORIGIN && !ALLOWED_ORIGINS.includes(DEFAULT_ORIGIN)) {
+  ALLOWED_ORIGINS.push(DEFAULT_ORIGIN);
+}
+if (process.env.NODE_ENV === 'production' && ALLOWED_ORIGINS.length === 0) {
+  throw new Error('ALLOWED_ORIGINS or BASE_URL/VITE_BASE_URL is required in production');
+}
 
 const BUILD_TAG = process.env.BUILD_TAG || process.env.RAILWAY_GIT_COMMIT_SHA || 'dev';
 
@@ -31,7 +42,13 @@ fastify.setErrorHandler((err, request, reply) => {
   });
 });
 
-await fastify.register(cors, { origin: true });
+await fastify.register(cors, {
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.length === 0) return cb(null, true);
+    return cb(null, ALLOWED_ORIGINS.includes(origin));
+  },
+});
 // Decorators MUST be added before fastify starts/listens
 fastify.decorate('io', null);
 fastify.register(roomRoutes, { prefix: '/api' });
@@ -40,15 +57,21 @@ fastify.register(feedbackRoutes, { prefix: '/api' });
 fastify.register(authRoutes, { prefix: '/api' });
 fastify.register(friendsRoutes, { prefix: '/api' });
 
-fastify.get('/robots.txt', async (request, reply) => {
+function resolvePublicOrigin(request) {
+  const forced = process.env.SITEMAP_BASE_URL;
+  if (forced) return String(forced).replace(/\/$/, '');
   const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';
-  const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
+  const host = request.headers['x-forwarded-host'] || request.hostname;
+  return `${proto}://${host}`.replace(/\/$/, '');
+}
+
+fastify.get('/robots.txt', async (request, reply) => {
+  const origin = resolvePublicOrigin(request);
   reply.type('text/plain; charset=utf-8').send(buildRobotsTxt(origin));
 });
 
 fastify.get('/sitemap.xml', async (request, reply) => {
-  const proto = request.headers['x-forwarded-proto'] || request.protocol || 'http';
-  const origin = process.env.BASE_URL || process.env.VITE_BASE_URL || `${proto}://${request.hostname}`;
+  const origin = resolvePublicOrigin(request);
   const lastmod = new Date().toISOString().slice(0, 10);
   reply.type('application/xml; charset=utf-8').send(buildSitemapXml(origin, lastmod));
 });
@@ -66,7 +89,14 @@ if (existsSync(publicDir)) {
 async function start() {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
   const io = new Server(fastify.server, {
-    cors: { origin: process.env.BASE_URL || '*', credentials: true },
+    cors: {
+      origin(origin, cb) {
+        if (!origin) return cb(null, true);
+        if (ALLOWED_ORIGINS.length === 0) return cb(null, true);
+        return cb(null, ALLOWED_ORIGINS.includes(origin));
+      },
+      credentials: true,
+    },
     transports: ['websocket', 'polling'],
   });
 
@@ -79,6 +109,11 @@ async function start() {
     }
     const room = roomManager.get(roomId);
     if (!room) {
+      socket.disconnect(true);
+      return;
+    }
+    const isRoomPlayer = room.players?.some((p) => String(p.id) === String(player.id));
+    if (!isRoomPlayer) {
       socket.disconnect(true);
       return;
     }

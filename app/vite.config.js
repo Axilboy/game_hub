@@ -20,7 +20,11 @@ function seoDistFilesPlugin() {
     },
     closeBundle() {
       const env = loadEnv(mode, __dirname, '');
-      const base = (env.VITE_BASE_URL || process.env.VITE_BASE_URL || 'https://example.com').replace(/\/$/, '');
+      const baseRaw = env.VITE_BASE_URL || process.env.VITE_BASE_URL || '';
+      if (!baseRaw && mode === 'production') {
+        throw new Error('VITE_BASE_URL is required for production build to generate correct sitemap.xml/robots.txt');
+      }
+      const base = (baseRaw || 'http://localhost:5173').replace(/\/$/, '');
       const lastmod = new Date().toISOString().slice(0, 10);
       const dir = path.resolve(__dirname, outDir);
       fs.mkdirSync(dir, { recursive: true });

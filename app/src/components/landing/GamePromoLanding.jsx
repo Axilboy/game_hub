@@ -26,6 +26,8 @@ export default function GamePromoLanding({
   heroSubtitle,
   steps = [],
   sections = [],
+  /** Раскрывающиеся SEO-блоки (FAQ/аккордеон): [{ question, answer, answerText? }] */
+  faqItems = [],
   /** id игры для автолобби (spy, mafia, elias, truth_dare, bunker) */
   presetGameId,
   /** async ({ kind: 'code'|'invite', value }) — из App: join + navigate lobby */
@@ -55,6 +57,18 @@ export default function GamePromoLanding({
     if (!canonical) return undefined;
     const scriptId = `gpl-ld-${theme}`;
     const appName = seoTitle.split('|')[0]?.trim() || heroTitle;
+    const faqEntities = faqItems
+      .map((item) => {
+        const q = String(item?.question || '').trim();
+        const a = String(item?.answerText || '').trim();
+        if (!q || !a) return null;
+        return {
+          '@type': 'Question',
+          name: q,
+          acceptedAnswer: { '@type': 'Answer', text: a },
+        };
+      })
+      .filter(Boolean);
     const json = {
       '@context': 'https://schema.org',
       '@graph': [
@@ -85,6 +99,14 @@ export default function GamePromoLanding({
             },
           ],
         },
+        ...(faqEntities.length > 0
+          ? [
+              {
+                '@type': 'FAQPage',
+                mainEntity: faqEntities,
+              },
+            ]
+          : []),
       ],
     };
     let s = document.getElementById(scriptId);
@@ -99,7 +121,7 @@ export default function GamePromoLanding({
       const el = document.getElementById(scriptId);
       if (el?.parentNode) el.parentNode.removeChild(el);
     };
-  }, [theme, seoTitle, seoDescription, canonical, heroTitle]);
+  }, [theme, seoTitle, seoDescription, canonical, heroTitle, faqItems]);
 
   const tgUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : null;
 
@@ -169,6 +191,19 @@ export default function GamePromoLanding({
               <div className="gpl__section-body">{s.body}</div>
             </section>
           ))}
+          {faqItems.length > 0 ? (
+            <section>
+              <h2 className="gpl__section-title">Подробно и FAQ</h2>
+              <div className="gpl__faq-list">
+                {faqItems.map((item, idx) => (
+                  <details key={`${item.question}-${idx}`} className="gpl__faq-item">
+                    <summary className="gpl__faq-question">{item.question}</summary>
+                    <div className="gpl__faq-answer">{item.answer}</div>
+                  </details>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <p className="gpl__hint">
             Одна комната — настройки можно поменять в лобби.{' '}
