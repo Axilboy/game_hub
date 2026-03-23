@@ -39,6 +39,8 @@ cd app && npm ci && npm run build
 
 Если используешь **Docker** (ниже), те же значения передаются `docker build --build-arg`.
 
+Для `docker compose build` в этом репозитории build-args уже проброшены из `.env` (`BASE_URL`, `VITE_BASE_URL`, `VITE_BOT_USERNAME`, `VITE_OG_IMAGE`), поэтому достаточно корректно заполнить `.env`.
+
 ---
 
 ## Вариант 1: Docker (рекомендуется)
