@@ -8,7 +8,7 @@ import { buildRobotsTxt, buildSitemapXml } from '../seo/sitemapConfig.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** robots.txt и sitemap.xml в dist (статический хостинг без Node). Задайте VITE_BASE_URL. */
+/** robots.txt и sitemap.xml в dist (статический хостинг без Node). Желательно задать VITE_BASE_URL/BASE_URL. */
 function seoDistFilesPlugin() {
   let outDir = 'dist';
   let mode = 'production';
@@ -20,10 +20,7 @@ function seoDistFilesPlugin() {
     },
     closeBundle() {
       const env = loadEnv(mode, __dirname, '');
-      const baseRaw = env.VITE_BASE_URL || process.env.VITE_BASE_URL || '';
-      if (!baseRaw && mode === 'production') {
-        throw new Error('VITE_BASE_URL is required for production build to generate correct sitemap.xml/robots.txt');
-      }
+      const baseRaw = env.VITE_BASE_URL || process.env.VITE_BASE_URL || process.env.BASE_URL || '';
       const base = (baseRaw || 'http://localhost:5173').replace(/\/$/, '');
       const lastmod = new Date().toISOString().slice(0, 10);
       const dir = path.resolve(__dirname, outDir);

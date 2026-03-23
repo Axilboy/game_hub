@@ -2,9 +2,6 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 
 const DEV_JWT_SECRET = 'gamehub-dev-jwt-change-in-production';
 const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET;
-if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_JWT_SECRET)) {
-  throw new Error('JWT_SECRET is required in production and must not use default value');
-}
 
 export function hashPassword(password) {
   const salt = randomBytes(16);

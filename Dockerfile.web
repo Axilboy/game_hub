@@ -18,6 +18,7 @@ ENV VITE_OG_IMAGE=$VITE_OG_IMAGE
 # Если VITE_BASE_URL не передали явно, берём BASE_URL (удобно для deploy).
 RUN if [ -z "$VITE_BASE_URL" ] && [ -n "$BASE_URL" ]; then export VITE_BASE_URL="$BASE_URL"; fi && \
     if [ -n "$VITE_BASE_URL" ]; then echo "Using VITE_BASE_URL=$VITE_BASE_URL"; fi && \
+    if [ -n "$BASE_URL" ]; then echo "Using BASE_URL=$BASE_URL"; fi && \
     npm run build
 # Не задавать VITE_API_URL пустой строкой — клиент сам возьмёт window.location.origin (см. api.js / socket.js).
 

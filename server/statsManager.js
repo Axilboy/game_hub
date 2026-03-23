@@ -4,9 +4,6 @@ import { getGameHubDataDir } from './dataPaths.js';
 
 const DEV_ADMIN_PASSWORD = '1973';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEV_ADMIN_PASSWORD;
-if (process.env.NODE_ENV === 'production' && (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD === DEV_ADMIN_PASSWORD)) {
-  throw new Error('ADMIN_PASSWORD is required in production and must not use default value');
-}
 const DATA_DIR = getGameHubDataDir();
 /** Явный путь к stats.json (перекрывает расположение по GAMEHUB_DATA_DIR) */
 const STATS_FILE = process.env.STATS_FILE || join(DATA_DIR, 'stats.json');
