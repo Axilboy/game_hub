@@ -2021,7 +2021,10 @@ export async function roomRoutes(fastify) {
     const room = roomManager.get(roomId);
     if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
     if (room.hostId !== hostId) return reply.code(403).send(ERR.hostOnly);
-    if (!room.players || room.players.length < 2) return reply.code(400).send({ error: 'Для Манчкина нужно минимум 2 игрока' });
+    const minPlayers = mode === 'personal' ? 2 : 1;
+    if (!room.players || room.players.length < minPlayers) {
+      return reply.code(400).send({ error: `Для Манчкина в этом режиме нужно минимум ${minPlayers} игрока` });
+    }
 
     const statsByPlayer = {};
     for (const p of room.players) {

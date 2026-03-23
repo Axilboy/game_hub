@@ -603,13 +603,14 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const startMunchkin = async () => {
     if (!isHost || startingGame) return;
     const count = room?.players?.length ?? 0;
-    if (count < MIN_PLAYERS.munchkin) {
-      setMinPlayersWarning(`Для счетчика Манчкина нужно минимум ${MIN_PLAYERS.munchkin} игрока. Сейчас в лобби: ${count}.`);
+    const gs = room?.gameSettings || {};
+    const minPlayers = gs.mode === 'shared' ? 1 : MIN_PLAYERS.munchkin;
+    if (count < minPlayers) {
+      setMinPlayersWarning(`Для счетчика Манчкина в этом режиме нужно минимум ${minPlayers} игрока. Сейчас в лобби: ${count}.`);
       return;
     }
     setStartingGame(true);
     try {
-      const gs = room?.gameSettings || {};
       await api.post('/rooms/munchkin/start', {
         roomId,
         hostId: String(user?.id),
@@ -773,7 +774,13 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const playersList = room.players || [];
   const lobbyPlayerCount = playersList.length;
   const minForSelectedGame = selectedGame
-    ? (selectedGame === 'spy' ? minSpyPlayers(room?.gameSettings?.spyCount ?? 1) : MIN_PLAYERS[selectedGame] ?? 2)
+    ? (
+      selectedGame === 'spy'
+        ? minSpyPlayers(room?.gameSettings?.spyCount ?? 1)
+        : selectedGame === 'munchkin'
+          ? (room?.gameSettings?.mode === 'shared' ? 1 : MIN_PLAYERS.munchkin)
+          : MIN_PLAYERS[selectedGame] ?? 2
+    )
     : 0;
 
   const ruPeopleWord = (n) => {

@@ -164,11 +164,12 @@ export default function LobbyGameSummaryCard({
 
   if (selectedGame === 'munchkin') {
     const mode = gs.mode === 'personal' ? 'Каждый ведет свой счетчик' : 'Один счетчик на всех';
+    const minPlayers = gs.mode === 'personal' ? MIN_PLAYERS.munchkin : 1;
     return (
       <div className="lobby-summary-card">
         <Row icon="🎚️" label="Режим" value={mode} />
         <Row icon="🏁" label="Уровень победы" value={String(gs.winLevel ?? 10)} />
-        <Row icon="🎯" label="Мин. игроков" value={String(MIN_PLAYERS.munchkin)} />
+        <Row icon="🎯" label="Мин. игроков" value={String(minPlayers)} />
       </div>
     );
   }
