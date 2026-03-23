@@ -31,12 +31,14 @@ const MafiaRound = lazy(() => import('./pages/MafiaRound'));
 const EliasRound = lazy(() => import('./pages/EliasRound'));
 const TruthDareRound = lazy(() => import('./pages/TruthDareRound'));
 const BunkerRound = lazy(() => import('./pages/BunkerRound'));
+const MunchkinRound = lazy(() => import('./pages/MunchkinRound'));
 const Admin = lazy(() => import('./pages/Admin'));
 const SeoGameSpy = lazy(() => import('./pages/SeoGameSpy'));
 const SeoGameElias = lazy(() => import('./pages/SeoGameElias'));
 const SeoGameMafia = lazy(() => import('./pages/SeoGameMafia'));
 const SeoGameTruthDare = lazy(() => import('./pages/SeoGameTruthDare'));
 const SeoGameBunker = lazy(() => import('./pages/SeoGameBunker'));
+const SeoGameMunchkin = lazy(() => import('./pages/SeoGameMunchkin'));
 const SeoPrivacy = lazy(() => import('./pages/SeoPrivacy'));
 const SeoRules = lazy(() => import('./pages/SeoRules'));
 const FriendsPage = lazy(() => import('./pages/Friends'));
@@ -467,7 +469,7 @@ function AppRoutes() {
         if (roomId) sessionStorage.setItem('gameHub_rematchRoomId', roomId);
       } catch (_) {}
       if (
-        ['/spy', '/truth_dare', '/elias', '/mafia', '/bunker'].includes(location.pathname)
+        ['/spy', '/truth_dare', '/elias', '/mafia', '/bunker', '/munchkin'].includes(location.pathname)
       ) {
         return;
       }
@@ -710,6 +712,18 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/games/munchkin"
+          element={
+            <SeoGameMunchkin
+              onJoin={async (payload) => {
+                if (payload.kind === 'invite') await joinByInvite(payload.value);
+                else await joinByCode(payload.value);
+                navigate('/lobby');
+              }}
+            />
+          }
+        />
+        <Route
           path="/privacy"
           element={<SeoPrivacy />}
         />
@@ -786,6 +800,18 @@ function AppRoutes() {
           element={
             roomId && allowGameRoundRoute(room, 'bunker') ? (
               <BunkerRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
+            ) : roomId ? (
+              <Navigate to="/lobby" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/munchkin"
+          element={
+            roomId && allowGameRoundRoute(room, 'munchkin') ? (
+              <MunchkinRound roomId={roomId} user={user} room={room} onLeave={leaveRoom} />
             ) : roomId ? (
               <Navigate to="/lobby" replace />
             ) : (

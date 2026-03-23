@@ -77,6 +77,12 @@ export async function roomRoutes(fastify) {
     return list.some((id) => String(id) === s);
   }
 
+  function clampMunchkinValue(n, min, max) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return min;
+    return Math.max(min, Math.min(max, Math.round(x)));
+  }
+
   fastify.post('/stats/ad-shown', async (request, reply) => {
     const { playerId } = request.body || {};
     if (!playerId) return reply.code(400).send({ error: 'Нужен playerId' });
@@ -2007,6 +2013,111 @@ export async function roomRoutes(fastify) {
     if (gs.votes[playerId] === targetId) return { ok: true };
     gs.votes[playerId] = targetId;
     fastify.io.to(roomId).emit('bunker_update', {});
+    return { ok: true };
+  });
+
+  fastify.post('/rooms/munchkin/start', async (request, reply) => {
+    const { roomId, hostId, mode = 'shared', winLevel = 10 } = request.body || {};
+    const room = roomManager.get(roomId);
+    if (!room) return reply.code(404).send({ error: 'Комната не найдена' });
+    if (room.hostId !== hostId) return reply.code(403).send(ERR.hostOnly);
+    if (!room.players || room.players.length < 2) return reply.code(400).send({ error: 'Для Манчкина нужно минимум 2 игрока' });
+
+    const statsByPlayer = {};
+    for (const p of room.players) {
+      statsByPlayer[String(p.id)] = { level: 1, power: 0 };
+    }
+    const gs = {
+      mode: mode === 'personal' ? 'personal' : 'shared',
+      winLevel: clampMunchkinValue(winLevel, 2, 20),
+      statsByPlayer,
+      updatedAt: Date.now(),
+    };
+
+    recordGameSession('munchkin');
+    roomManager.setGame(roomId, 'munchkin');
+    roomManager.setState(roomId, 'playing', gs);
+    const io = fastify.io;
+    io.to(roomId).emit('game_start', { game: 'munchkin' });
+    io.to(roomId).emit('room_updated');
+    io.to(roomId).emit('munchkin_update', {});
+    return { ok: true };
+  });
+
+  fastify.get('/rooms/:roomId/munchkin/state', async (request, reply) => {
+    const { roomId } = request.params;
+    const playerId = request.query?.playerId;
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'munchkin' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => String(p.id) === String(playerId))) return reply.code(403).send(ERR.notInRoom);
+    const gs = room.gameState;
+    const byPlayer = gs.statsByPlayer || {};
+    const players = (room.players || []).map((p) => {
+      const row = byPlayer[String(p.id)] || { level: 1, power: 0 };
+      return {
+        id: String(p.id),
+        name: p.name || 'Игрок',
+        isHost: Boolean(p.isHost),
+        level: clampMunchkinValue(row.level, 1, 20),
+        power: clampMunchkinValue(row.power, -50, 999),
+      };
+    });
+    const leaders = [...players].sort((a, b) => (b.level + b.power) - (a.level + a.power)).slice(0, 3);
+    return {
+      mode: gs.mode === 'personal' ? 'personal' : 'shared',
+      winLevel: clampMunchkinValue(gs.winLevel, 2, 20),
+      players,
+      leaders,
+      myId: String(playerId),
+      updatedAt: gs.updatedAt || Date.now(),
+    };
+  });
+
+  fastify.post('/rooms/:roomId/munchkin/update', async (request, reply) => {
+    const { roomId } = request.params;
+    const {
+      playerId,
+      targetPlayerId,
+      deltaLevel = 0,
+      deltaPower = 0,
+      setLevel,
+      setPower,
+    } = request.body || {};
+    if (!playerId) return reply.code(400).send(ERR.playerIdRequired);
+    if (!allowAction(`munchkin:update:${roomId}:${playerId}`, 40, 8000)) {
+      return reply.code(429).send(ERR.tooMany);
+    }
+    const room = roomManager.get(roomId);
+    if (!room || room.game !== 'munchkin' || !room.gameState) return reply.code(404).send(ERR.gameNotFound);
+    if (!room.players?.some((p) => String(p.id) === String(playerId))) return reply.code(403).send(ERR.notInRoom);
+    const gs = room.gameState;
+    if (gs.mode === 'personal') {
+      const targetId = String(targetPlayerId || playerId);
+      if (targetId !== String(playerId)) return reply.code(403).send({ error: 'Можно менять только свой счетчик' });
+      if (!gs.statsByPlayer || typeof gs.statsByPlayer !== 'object') gs.statsByPlayer = {};
+      if (!gs.statsByPlayer[targetId]) gs.statsByPlayer[targetId] = { level: 1, power: 0 };
+      const row = gs.statsByPlayer[targetId];
+      row.level = setLevel != null
+        ? clampMunchkinValue(setLevel, 1, 20)
+        : clampMunchkinValue((row.level ?? 1) + Number(deltaLevel || 0), 1, 20);
+      row.power = setPower != null
+        ? clampMunchkinValue(setPower, -50, 999)
+        : clampMunchkinValue((row.power ?? 0) + Number(deltaPower || 0), -50, 999);
+    } else {
+      const targetId = String(targetPlayerId || playerId);
+      if (!gs.statsByPlayer || typeof gs.statsByPlayer !== 'object') gs.statsByPlayer = {};
+      if (!gs.statsByPlayer[targetId]) gs.statsByPlayer[targetId] = { level: 1, power: 0 };
+      const row = gs.statsByPlayer[targetId];
+      row.level = setLevel != null
+        ? clampMunchkinValue(setLevel, 1, 20)
+        : clampMunchkinValue((row.level ?? 1) + Number(deltaLevel || 0), 1, 20);
+      row.power = setPower != null
+        ? clampMunchkinValue(setPower, -50, 999)
+        : clampMunchkinValue((row.power ?? 0) + Number(deltaPower || 0), -50, 999);
+    }
+    gs.updatedAt = Date.now();
+    fastify.io.to(roomId).emit('munchkin_update', {});
     return { ok: true };
   });
 

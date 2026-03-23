@@ -59,7 +59,7 @@ const DICT_NAMES = {
   art: 'Искусство (Премиум)',
   tech: 'Технологии (Премиум)',
 };
-const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4, munchkin: 2 };
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
   return n + 2;
@@ -114,6 +114,7 @@ const LOBBY_GAMES = [
   { id: 'bunker', name: 'Бункер', emoji: '🛡️', minPlayers: 4 },
   { id: 'elias', name: 'Элиас', emoji: '📢', minPlayers: 2 },
   { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },
+  { id: 'munchkin', name: 'Манчкин', emoji: '⚔️', minPlayers: 2 },
 ];
 
 const EMPTY_GAME_SETTINGS_TABS = [];
@@ -227,13 +228,15 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
           { id: 'party', label: 'Раунды и фазы' },
           { id: 'scenario', label: 'Сценарий' },
         ];
+      case 'munchkin':
+        return [{ id: 'main', label: 'Режим' }];
       default:
         return [];
     }
   }, [selectedGame]);
 
   const gameSettingsSheetTitle = useMemo(() => {
-    const t = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', truth_dare: 'Правда или действие', bunker: 'Бункер' };
+    const t = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', truth_dare: 'Правда или действие', bunker: 'Бункер', munchkin: 'Манчкин' };
     return selectedGame ? `Настройки: ${t[selectedGame] || selectedGame}` : 'Настройки';
   }, [selectedGame]);
 
@@ -597,6 +600,33 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
+  const startMunchkin = async () => {
+    if (!isHost || startingGame) return;
+    const count = room?.players?.length ?? 0;
+    if (count < MIN_PLAYERS.munchkin) {
+      setMinPlayersWarning(`Для счетчика Манчкина нужно минимум ${MIN_PLAYERS.munchkin} игрока. Сейчас в лобби: ${count}.`);
+      return;
+    }
+    setStartingGame(true);
+    try {
+      const gs = room?.gameSettings || {};
+      await api.post('/rooms/munchkin/start', {
+        roomId,
+        hostId: String(user?.id),
+        mode: gs.mode === 'personal' ? 'personal' : 'shared',
+        winLevel: Number(gs.winLevel) || 10,
+      });
+      const { room: r } = await api.get(`/rooms/${roomId}`);
+      onRoomUpdate(r);
+      track('lobby_start_game', { game: 'munchkin' });
+      await showAdBeforeGameEnter();
+      navigate('/munchkin');
+    } catch (e) {
+      setStartingGame(false);
+      setMinPlayersWarning(getApiErrorMessage(e, 'Не удалось запустить счетчик Манчкина'));
+    }
+  };
+
   const saveRoomName = async () => {
     setEditingName(false);
     const name = (editNameValue || '').trim() || 'Лобби';
@@ -760,7 +790,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       if (lobbyPlayerCount === 0) return 'Пока никого нет — отправьте друзьям код или ссылку.';
       return `В комнате ${lobbyPlayerCount} ${ruPeopleWord(lobbyPlayerCount)}. Выберите режим ниже.`;
     }
-    const gameLabels = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', bunker: 'Бункер', truth_dare: 'Правда или действие' };
+    const gameLabels = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', bunker: 'Бункер', truth_dare: 'Правда или действие', munchkin: 'Манчкин' };
     const gn = gameLabels[selectedGame] || selectedGame;
     if (lobbyPlayerCount < minForSelectedGame) {
       return null;
@@ -1190,6 +1220,37 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                 Настроить
               </Button>
               <button type="button" onClick={startElias} style={btnStyle}>
+                Начать
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {selectedGame === 'munchkin' && (
+        <>
+          <div className="lobby-game-heading">
+            <h3 className="lobby-game-heading__title">Манчкин</h3>
+          </div>
+          {room?.gameSettings ? (
+            <LobbyGameSummaryCard room={room} selectedGame="munchkin" />
+          ) : null}
+          {!isHost && room?.gameSettings ? (
+            <p className="lobby-summary-hint">Изменить настройки может только хост.</p>
+          ) : null}
+          {isHost && (
+            <div className="lobby-game-actions">
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  setGameSettingsTab('main');
+                  setGameSettingsSheetOpen(true);
+                }}
+              >
+                Настроить
+              </Button>
+              <button type="button" onClick={startMunchkin} style={btnStyle}>
                 Начать
               </button>
             </div>
@@ -2188,6 +2249,53 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
                     }}
                   >
                     {s.label} {s.premium ? '🔒' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {selectedGame === 'munchkin' && gameSettingsTab === 'main' && (
+          <div>
+            <p style={{ marginTop: 0, fontSize: 13, opacity: 0.9, marginBottom: 12 }}>
+              Выберите формат ведения уровня/силы в партии.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Button
+                variant={(room?.gameSettings?.mode || 'shared') === 'shared' ? 'primary' : 'secondary'}
+                fullWidth
+                onClick={() =>
+                  patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), mode: 'shared' } })
+                }
+              >
+                1 устройство: один человек следит за всеми
+              </Button>
+              <Button
+                variant={(room?.gameSettings?.mode || 'shared') === 'personal' ? 'primary' : 'secondary'}
+                fullWidth
+                onClick={() =>
+                  patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), mode: 'personal' } })
+                }
+              >
+                У каждого игрока свой счетчик (видны все)
+              </Button>
+            </div>
+            <p style={{ margin: '14px 0 8px', fontSize: 13, opacity: 0.9 }}>
+              Уровень для победы
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {[8, 10, 12].map((lv) => {
+                const active = Number(room?.gameSettings?.winLevel || 10) === lv;
+                return (
+                  <button
+                    key={lv}
+                    type="button"
+                    onClick={() =>
+                      patchLobbyGame({ gameSettings: { ...(room?.gameSettings || {}), winLevel: lv } })
+                    }
+                    style={{ ...(active ? btnStyle : btnStyleToggleOff), width: 'auto', padding: '8px 14px' }}
+                  >
+                    {lv}
                   </button>
                 );
               })}

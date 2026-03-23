@@ -12,6 +12,7 @@ export const ROBOTS_DISALLOW_PREFIXES = [
   '/elias',
   '/truth_dare',
   '/bunker',
+  '/munchkin',
   '/friends',
   '/profile',
   '/app',
@@ -28,6 +29,7 @@ export const SITEMAP_ENTRIES = [
   { path: '/games/mafia', changefreq: 'weekly', priority: 0.9 },
   { path: '/games/truth_dare', changefreq: 'weekly', priority: 0.85 },
   { path: '/games/bunker', changefreq: 'weekly', priority: 0.85 },
+  { path: '/games/munchkin', changefreq: 'weekly', priority: 0.85 },
   { path: '/privacy', changefreq: 'yearly', priority: 0.4 },
   { path: '/rules', changefreq: 'yearly', priority: 0.4 },
 ];

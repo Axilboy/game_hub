@@ -1,7 +1,7 @@
 import { BUNKER_SCENARIOS, BUNKER_SPEED_PRESETS } from '../../lobbyPresets';
 import './lobbySettingsSheet.css';
 
-const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4 };
+const MIN_PLAYERS = { mafia: 6, elias: 2, truth_dare: 2, bunker: 4, munchkin: 2 };
 
 function minSpyPlayers(spyCount) {
   const n = Math.min(3, Math.max(1, parseInt(spyCount, 10) || 1));
@@ -158,6 +158,17 @@ export default function LobbyGameSummaryCard({
         <Row icon="⚡" label="Скорость фаз" value={speedLabel} />
         <Row icon="🎬" label="Сценарий" value={scen?.premium ? `${scenLabel} 🔒` : scenLabel} />
         <Row icon="👥" label="Мин. игроков" value={String(MIN_PLAYERS.bunker)} />
+      </div>
+    );
+  }
+
+  if (selectedGame === 'munchkin') {
+    const mode = gs.mode === 'personal' ? 'Каждый ведет свой счетчик' : 'Один счетчик на всех';
+    return (
+      <div className="lobby-summary-card">
+        <Row icon="🎚️" label="Режим" value={mode} />
+        <Row icon="🏁" label="Уровень победы" value={String(gs.winLevel ?? 10)} />
+        <Row icon="🎯" label="Мин. игроков" value={String(MIN_PLAYERS.munchkin)} />
       </div>
     );
   }

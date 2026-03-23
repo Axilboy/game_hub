@@ -2,7 +2,7 @@
 
 import { generateTwoTeamNames } from './teamNames';
 
-export const VALID_LOBBY_PRESET_IDS = new Set(['spy', 'mafia', 'elias', 'truth_dare', 'bunker']);
+export const VALID_LOBBY_PRESET_IDS = new Set(['spy', 'mafia', 'elias', 'truth_dare', 'bunker', 'munchkin']);
 
 export const BUNKER_DEFAULT_PHASE_TIMERS = {
   intro: 15,
@@ -115,6 +115,11 @@ export function getDefaultGameSettings(gameId) {
         phaseSpeed: 'standard',
         phaseTimers: bunkerPhaseTimersFromSpeed('standard'),
         scenarioId: 'shelter_default',
+      };
+    case 'munchkin':
+      return {
+        mode: 'shared',
+        winLevel: 10,
       };
     default:
       return undefined;

@@ -1,6 +1,6 @@
 /**
  * Отдельные промо-лендинги под SEO/рекламу по каждой игре.
- * Темы: .gpl--spy | .gpl--mafia | .gpl--elias | .gpl--truth_dare | .gpl--bunker
+ * Темы: .gpl--spy | .gpl--mafia | .gpl--elias | .gpl--truth_dare | .gpl--bunker | .gpl--munchkin
  */
 .gpl {
   --gpl-radius-hero: 24px;
@@ -143,6 +143,22 @@ html[data-theme='light'] .gpl--elias {
   --gpl-panel-text: #1a1d22;
   --gpl-panel-muted: rgba(26, 29, 34, 0.72);
   --gpl-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Манчкин: зеленый + золото --- */
+.gpl--munchkin {
+  --gpl-bg1: #102616;
+  --gpl-bg2: #1e4426;
+  --gpl-bg3: #183621;
+  --gpl-accent: #f2c94c;
+  --gpl-accent-text: #1d1400;
+  --gpl-hero-text: #eefbf0;
+  --gpl-pill-bg: rgba(242, 201, 76, 0.12);
+  --gpl-pill-border: rgba(242, 201, 76, 0.28);
+  --gpl-panel: #f7fff8;
+  --gpl-panel-text: #152019;
+  --gpl-panel-muted: rgba(21, 32, 25, 0.72);
+  --gpl-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
 }
 
 .gpl__back {

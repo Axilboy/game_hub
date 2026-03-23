@@ -53,6 +53,15 @@ const GAME_SLIDES = [
     title: 'Кто войдёт в убежище',
     subtitle: 'Обсуждение и голосования',
   },
+  {
+    key: 'munchkin',
+    to: '/games/munchkin',
+    theme: 'munchkin',
+    emoji: '⚔️',
+    eyebrow: 'Манчкин',
+    title: 'Счетчик уровня и силы',
+    subtitle: 'Один экран или у каждого игрока',
+  },
 ];
 
 /** Только слайды игр */
@@ -300,7 +309,7 @@ export default function HomeLandingCarousel() {
   const baseSlides = GAME_SLIDES.map((g) => ({ ...g }));
   const renderedSlides = [...baseSlides, ...baseSlides, ...baseSlides];
 
-  const dotLabels = ['Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер'];
+  const dotLabels = ['Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер', 'Манчкин'];
 
   return (
     <section className="gh-home-carousel-wrap" aria-label="Игры">
