@@ -58,9 +58,9 @@ const GAME_SLIDES = [
     to: '/games/munchkin',
     theme: 'munchkin',
     emoji: '⚔️',
-    eyebrow: 'Манчкин',
-    title: 'Счетчик уровня и силы',
-    subtitle: 'Один экран или у каждого игрока',
+    eyebrow: 'Счетчик Манчкин',
+    title: 'Уровень и сила',
+    subtitle: 'В разработке · скоро',
   },
 ];
 
@@ -309,7 +309,7 @@ export default function HomeLandingCarousel() {
   const baseSlides = GAME_SLIDES.map((g) => ({ ...g }));
   const renderedSlides = [...baseSlides, ...baseSlides, ...baseSlides];
 
-  const dotLabels = ['Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер', 'Манчкин'];
+  const dotLabels = ['Шпион', 'Мафия', 'Элиас', 'Правда или действие', 'Бункер', 'Счетчик Манчкин'];
 
   return (
     <section className="gh-home-carousel-wrap" aria-label="Игры">

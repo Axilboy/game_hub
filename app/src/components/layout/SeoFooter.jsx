@@ -19,7 +19,7 @@ export default function SeoFooter({ style }) {
         <a href="/games/elias" style={linkStyle}>Элиас</a>
         <a href="/games/truth_dare" style={linkStyle}>Правда/Действие</a>
         <a href="/games/bunker" style={linkStyle}>Бункер</a>
-        <a href="/games/munchkin" style={linkStyle}>Манчкин</a>
+        <a href="/games/munchkin" style={linkStyle}>Счетчик Манчкин</a>
         <a href="/privacy" style={linkStyle}>Приватность</a>
         <a href="/rules" style={linkStyle}>Правила</a>
       </nav>

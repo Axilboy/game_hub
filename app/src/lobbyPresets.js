@@ -2,7 +2,7 @@
 
 import { generateTwoTeamNames } from './teamNames';
 
-export const VALID_LOBBY_PRESET_IDS = new Set(['spy', 'mafia', 'elias', 'truth_dare', 'bunker', 'munchkin']);
+export const VALID_LOBBY_PRESET_IDS = new Set(['spy', 'mafia', 'elias', 'truth_dare', 'bunker']);
 
 export const BUNKER_DEFAULT_PHASE_TIMERS = {
   intro: 15,

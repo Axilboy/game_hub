@@ -4,6 +4,7 @@ import useSeo from '../../hooks/useSeo';
 import PageLayout from '../layout/PageLayout';
 import AppHeaderRight from '../layout/AppHeaderRight';
 import JoinRoomModal from '../JoinRoomModal';
+import { useToast } from '../ui/ToastProvider';
 import { track } from '../../analytics';
 import './gamePromoLanding.css';
 
@@ -28,7 +29,7 @@ export default function GamePromoLanding({
   sections = [],
   /** Раскрывающиеся SEO-блоки (FAQ/аккордеон): [{ question, answer, answerText? }] */
   faqItems = [],
-  /** id игры для автолобби (spy, mafia, elias, truth_dare, bunker) */
+  /** id игры для автолобби (spy, mafia, elias, truth_dare, bunker, munchkin — если не primaryDisabled) */
   presetGameId,
   /** async ({ kind: 'code'|'invite', value }) — из App: join + navigate lobby */
   onJoin,
@@ -126,6 +127,11 @@ export default function GamePromoLanding({
   const tgUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : null;
 
   const handleStartGame = () => {
+    if (primaryDisabled) {
+      showToast({ type: 'info', message: primaryDisabledMessage, durationMs: 4200 });
+      track('landing_start_blocked', { game: presetGameId || '', path: pathname });
+      return;
+    }
     if (!presetGameId) {
       navigate('/');
       return;
@@ -164,8 +170,17 @@ export default function GamePromoLanding({
         ) : null}
 
         <div className="gpl__panel">
+          {primaryDisabled ? (
+            <p className="gpl__dev-banner" role="status">
+              Счетчик уровней для Манчкина пока в разработке — скоро откроем запуск из лобби.
+            </p>
+          ) : null}
           <div className="gpl__ctas gpl__ctas--top">
-            <button type="button" className="gpl__btn gpl__btn--primary" onClick={handleStartGame}>
+            <button
+              type="button"
+              className={`gpl__btn gpl__btn--primary${primaryDisabled ? ' gpl__btn--primary-disabled' : ''}`}
+              onClick={handleStartGame}
+            >
               {primaryCtaLabel}
             </button>
             <button

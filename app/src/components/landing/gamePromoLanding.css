@@ -255,6 +255,15 @@ html[data-theme='dark'] .gpl .gpl__steps .gpl__step {
   border-color: color-mix(in srgb, var(--gpl-pill-border) 80%, transparent);
 }
 
+.gpl__dev-banner {
+  margin: 0 0 0;
+  padding: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gpl-panel-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--gpl-panel-text) 12%, transparent);
+}
+
 .gpl__panel {
   background: var(--gpl-panel);
   color: var(--gpl-panel-text);
@@ -381,6 +390,17 @@ html[data-theme='light'] .gpl .gpl__panel {
   background: var(--gpl-accent);
   color: var(--gpl-accent-text);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.gpl__btn--primary-disabled {
+  opacity: 0.52;
+  filter: grayscale(0.35);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.gpl__btn--primary-disabled:active {
+  transform: none;
 }
 
 .gpl__btn--secondary {

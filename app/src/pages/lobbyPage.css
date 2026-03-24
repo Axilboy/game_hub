@@ -284,6 +284,29 @@
   opacity: 0.75;
 }
 
+.lobby-game-card--disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  filter: grayscale(0.35);
+  background: color-mix(in srgb, var(--gh-surface, rgba(255, 255, 255, 0.07)) 55%, rgba(120, 120, 120, 0.25));
+  border-color: rgba(120, 120, 120, 0.35);
+}
+
+.lobby-game-card--disabled:hover {
+  border-color: rgba(120, 120, 120, 0.35);
+  background: color-mix(in srgb, var(--gh-surface, rgba(255, 255, 255, 0.07)) 55%, rgba(120, 120, 120, 0.25));
+  transform: none;
+}
+
+.lobby-game-card__badge-soon {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--gh-color-muted, #888) 90%, transparent);
+  line-height: 1.2;
+}
+
 /* Гость: подсказка */
 .lobby-guest-wait {
   padding: 14px;

@@ -114,7 +114,7 @@ const LOBBY_GAMES = [
   { id: 'bunker', name: 'Бункер', emoji: '🛡️', minPlayers: 4 },
   { id: 'elias', name: 'Элиас', emoji: '📢', minPlayers: 2 },
   { id: 'truth_dare', name: 'Правда или действие', emoji: '🎲', minPlayers: 2 },
-  { id: 'munchkin', name: 'Манчкин', emoji: '⚔️', minPlayers: 2 },
+  { id: 'munchkin', name: 'Счетчик Манчкин', emoji: '⚔️', minPlayers: 2, inDevelopment: true },
 ];
 
 const EMPTY_GAME_SETTINGS_TABS = [];
@@ -236,7 +236,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   }, [selectedGame]);
 
   const gameSettingsSheetTitle = useMemo(() => {
-    const t = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', truth_dare: 'Правда или действие', bunker: 'Бункер', munchkin: 'Манчкин' };
+    const t = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', truth_dare: 'Правда или действие', bunker: 'Бункер', munchkin: 'Счетчик Манчкин' };
     return selectedGame ? `Настройки: ${t[selectedGame] || selectedGame}` : 'Настройки';
   }, [selectedGame]);
 
@@ -797,7 +797,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       if (lobbyPlayerCount === 0) return 'Пока никого нет — отправьте друзьям код или ссылку.';
       return `В комнате ${lobbyPlayerCount} ${ruPeopleWord(lobbyPlayerCount)}. Выберите режим ниже.`;
     }
-    const gameLabels = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', bunker: 'Бункер', truth_dare: 'Правда или действие', munchkin: 'Манчкин' };
+    const gameLabels = { spy: 'Шпион', mafia: 'Мафия', elias: 'Элиас', bunker: 'Бункер', truth_dare: 'Правда или действие', munchkin: 'Счетчик Манчкин' };
     const gn = gameLabels[selectedGame] || selectedGame;
     if (lobbyPlayerCount < minForSelectedGame) {
       return null;
@@ -1127,14 +1127,28 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
               <button
                 key={g.id}
                 type="button"
-                className="lobby-game-card"
-                onClick={() => patchLobbyGame({ selectedGame: g.id, gameSettings: getDefaultGameSettings(g.id) })}
+                className={`lobby-game-card${g.inDevelopment ? ' lobby-game-card--disabled' : ''}`}
+                aria-disabled={g.inDevelopment ? 'true' : undefined}
+                onClick={() => {
+                  if (g.inDevelopment) {
+                    showToast({ type: 'info', message: 'Счетчик Манчкин ещё в разработке.', durationMs: 3800 });
+                    return;
+                  }
+                  patchLobbyGame({ selectedGame: g.id, gameSettings: getDefaultGameSettings(g.id) });
+                }}
               >
                 <span className="lobby-game-card__emoji" aria-hidden>
                   {g.emoji}
                 </span>
                 <span className="lobby-game-card__name">{g.name}</span>
-                <span className="lobby-game-card__meta">от {g.minPlayers} игроков</span>
+                {g.inDevelopment ? (
+                  <>
+                    <span className="lobby-game-card__badge-soon">ещё в разработке</span>
+                    <span className="lobby-game-card__meta">скоро</span>
+                  </>
+                ) : (
+                  <span className="lobby-game-card__meta">от {g.minPlayers} игроков</span>
+                )}
               </button>
             ))}
           </div>
@@ -1237,7 +1251,7 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
       {selectedGame === 'munchkin' && (
         <>
           <div className="lobby-game-heading">
-            <h3 className="lobby-game-heading__title">Манчкин</h3>
+            <h3 className="lobby-game-heading__title">Счетчик Манчкин</h3>
           </div>
           {room?.gameSettings ? (
             <LobbyGameSummaryCard room={room} selectedGame="munchkin" />

@@ -82,7 +82,7 @@ export default function MunchkinRound({ roomId, user, onLeave }) {
 
   if (loading) {
     return (
-      <GameplayScreen theme="munchkin" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Манчкин">
+      <GameplayScreen theme="munchkin" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Счетчик Манчкин">
         <Loader label="Загрузка счетчика..." minHeight="50vh" />
       </GameplayScreen>
     );
@@ -90,7 +90,7 @@ export default function MunchkinRound({ roomId, user, onLeave }) {
 
   if (!state) {
     return (
-      <GameplayScreen theme="munchkin" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Манчкин">
+      <GameplayScreen theme="munchkin" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Счетчик Манчкин">
         <ErrorState title="Нет данных" message="Состояние счетчика не загружено." actionLabel="В лобби" onAction={leaveToLobby} />
       </GameplayScreen>
     );
@@ -101,7 +101,7 @@ export default function MunchkinRound({ roomId, user, onLeave }) {
   const myRow = Array.isArray(state.players) ? state.players.find((p) => String(p.id) === myId) : null;
 
   return (
-    <GameplayScreen theme="munchkin" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Манчкин">
+    <GameplayScreen theme="munchkin" user={user} onBack={leaveToLobby} backTitle="В лобби" title="Счетчик Манчкин">
       <div className="gpl__panel">
         <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>
           Режим: <strong>{mode === 'shared' ? '1 устройство на всех' : 'каждый ведет сам'}</strong>
