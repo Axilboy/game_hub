@@ -1,35 +1,45 @@
 const INV_KEY = 'gameHub_inventory';
 const TRIAL_HOURS = 24;
 const TRIAL_COOLDOWN_DAYS = 7;
-/** Бета: у всех пользователей по умолчанию активен Pro (для тестов и открытия режимов). */
-const DEFAULT_PRO_EXPIRES_AT = new Date('2099-12-31T23:59:59.000Z').getTime();
+const FREE_PRO_HOURS = 24;
+
+function normalizeProState(raw, nowTs = Date.now()) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  let proExpiresAt = Number(source.proExpiresAt) || 0;
+  // Бесплатный стартовый Pro выдаётся один раз и длится ровно 24 часа.
+  if (!proExpiresAt) {
+    proExpiresAt = nowTs + FREE_PRO_HOURS * 3600 * 1000;
+  }
+  return {
+    dictionaries: Array.isArray(source.dictionaries) ? source.dictionaries : ['free'],
+    unlockedItems: Array.isArray(source.unlockedItems) ? source.unlockedItems : [],
+    purchases: Array.isArray(source.purchases) ? source.purchases : [],
+    proExpiresAt,
+    hasPro: proExpiresAt > nowTs,
+    lastTrialAt: Number(source.lastTrialAt) || 0,
+    trialCount: Number(source.trialCount) || 0,
+    referralCode: source.referralCode ? String(source.referralCode) : undefined,
+    redeemedReferrals: Array.isArray(source.redeemedReferrals) ? source.redeemedReferrals : [],
+  };
+}
 
 export function getInventory() {
   try {
-    const s = JSON.parse(localStorage.getItem(INV_KEY) || '{}');
-    const storedExp = typeof s.proExpiresAt === 'number' ? s.proExpiresAt : 0;
-    const proExpiresAt = Math.max(storedExp, DEFAULT_PRO_EXPIRES_AT);
-    return {
-      dictionaries: Array.isArray(s.dictionaries) ? s.dictionaries : ['free'],
-      unlockedItems: Array.isArray(s.unlockedItems) ? s.unlockedItems : [],
-      purchases: Array.isArray(s.purchases) ? s.purchases : [],
-      hasPro: true,
-      proExpiresAt,
-    };
+    const raw = JSON.parse(localStorage.getItem(INV_KEY) || '{}');
+    const normalized = normalizeProState(raw);
+    localStorage.setItem(INV_KEY, JSON.stringify({ ...raw, ...normalized }));
+    return normalized;
   } catch {
-    return {
-      dictionaries: ['free'],
-      unlockedItems: [],
-      purchases: [],
-      hasPro: true,
-      proExpiresAt: DEFAULT_PRO_EXPIRES_AT,
-    };
+    const normalized = normalizeProState({});
+    saveInventory(normalized);
+    return normalized;
   }
 }
 
 export function saveInventory(inv) {
   try {
-    localStorage.setItem(INV_KEY, JSON.stringify(inv));
+    const normalized = normalizeProState(inv);
+    localStorage.setItem(INV_KEY, JSON.stringify(normalized));
   } catch (_) {}
 }
 
@@ -47,11 +57,11 @@ export function purchaseDictionary(id) {
 
 export function setPro(expiresAt) {
   const inv = getInventory();
-  inv.hasPro = true;
-  inv.proExpiresAt = expiresAt;
+  inv.proExpiresAt = Number(expiresAt) || Date.now();
+  inv.hasPro = inv.proExpiresAt > Date.now();
   inv.purchases = [
     ...(Array.isArray(inv.purchases) ? inv.purchases : []),
-    { id: 'pro', t: Date.now(), type: 'subscription', expiresAt },
+    { id: 'pro', t: Date.now(), type: 'subscription', expiresAt: inv.proExpiresAt },
   ].slice(-50);
   saveInventory(inv);
   return inv;

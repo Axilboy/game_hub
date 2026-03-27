@@ -2,13 +2,46 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Игровой хаб</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://libtl.com/sdk.js" data-zone="10744376" data-sdk="show_10744376"></script>
-    <script type="module" crossorigin src="/assets/index-OVz93mzx.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CDOQacMM.css">
-  </head>
+    <!-- Базовые SEO: на публичных маршрутах useSeo() переопределяет robots, title и OG -->
+    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="application-name" content="GameHub" />
+    <meta name="format-detection" content="telephone=no" />
+    <style>
+      /* Пока не подгрузился JS, не оставляем полностью пустой экран */
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #1a1a2e;
+        color: #eee;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      #root:empty::before {
+        content: 'Загрузка GameHub… Первый запуск может занять чуть больше времени — дальше обычно быстрее.';
+        display: block;
+        padding: 40px 24px;
+        text-align: center;
+        opacity: 0.88;
+        font-size: 15px;
+        line-height: 1.45;
+        max-width: 360px;
+        margin: 0 auto;
+      }
+    </style>
+    <!-- maximum-scale: на ПК в Telegram Web можно отдалить, если окно кажется крупным; на телефоне обычно 1:1 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, viewport-fit=cover" />
+    <meta name="description" content="GameHub — Шпион, Элиас, Мафия, Правда или действие, Бункер: игры для компании онлайн в Telegram и браузере. Лендинги игр, комната по коду." />
+    <meta name="keywords" content="GameHub, Шпион, Элиас, Мафия, игры для компании, онлайн, Telegram" />
+    <!-- По умолчанию index; лобби/игры/профиль переопределяют на noindex через useSeo -->
+    <meta name="robots" content="index, follow" />
+    <title>GameHub — игры для компании онлайн</title>
+    <link rel="preconnect" href="https://telegram.org" crossorigin />
+    <link rel="preconnect" href="https://libtl.com" crossorigin />
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://libtl.com/sdk.js" data-zone="10744376" data-sdk="show_10744376"></script>
+    <script type="module" crossorigin src="/assets/index-CuT0sMZR.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BTtMRRep.css">
+  <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>
     <div id="root"></div>
   </body>

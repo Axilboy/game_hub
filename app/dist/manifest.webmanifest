@@ -1,0 +1,1 @@
+{"name":"GameHub","short_name":"GameHub","description":"Игры для компании: Шпион, Элиас, Мафия и др.","start_url":"/","display":"standalone","background_color":"#1a1a2e","theme_color":"#1a1a2e","lang":"ru","scope":"/","orientation":"portrait","icons":[{"src":"/og-share.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

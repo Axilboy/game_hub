@@ -814,7 +814,7 @@ export default function Home({ user, onCreateRoom, onJoinByCode, onJoinByInvite,
           width={360}
         >
           <p style={{ marginBottom: 12, lineHeight: 1.55, fontSize: 14, opacity: 0.92 }}>
-            Спасибо за поддержку и тестирование. У вас включён <strong>Премиум</strong>, чтобы можно было попробовать все режимы бесплатно.
+            Спасибо за поддержку и тестирование. У вас включён <strong>Премиум на 24 часа</strong>, чтобы можно было попробовать все режимы бесплатно.
             Будем благодарны, если поделитесь проектом с друзьями и заглянете в блок «Поддержать проект» — там можно посмотреть рекламу или написать отзыв.
           </p>
           <button type="button" className="home-btn home-btn--primary" onClick={dismissThanks}>

@@ -34,11 +34,14 @@ export default function GamePromoLanding({
   /** async ({ kind: 'code'|'invite', value }) — из App: join + navigate lobby */
   onJoin,
   primaryCtaLabel = 'Начать игру',
+  primaryDisabled = false,
+  primaryDisabledMessage = 'Этот режим пока в разработке.',
   showTelegramCta = true,
   /** Заголовок в общей шапке (как на главной) */
   headerTitle = 'GameHub',
 }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const { pathname } = useLocation();
   const canonical = baseUrl ? `${baseUrl}${pathname}` : undefined;
   const [joinOpen, setJoinOpen] = useState(false);

@@ -1,0 +1,16 @@
+User-agent: *
+Disallow: /admin
+Disallow: /lobby
+Disallow: /spy
+Disallow: /mafia
+Disallow: /elias
+Disallow: /truth_dare
+Disallow: /bunker
+Disallow: /munchkin
+Disallow: /friends
+Disallow: /profile
+Disallow: /app
+
+# Индексируем: главная /, лендинги /games/*, /privacy, /rules
+# Закрыто: лобби, активные игры, профиль, админка
+Sitemap: https://gamehubparty.ru/sitemap.xml
