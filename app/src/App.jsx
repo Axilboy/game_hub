@@ -178,6 +178,17 @@ function AppRoutes() {
     routeRef.current = { path: currentPath, startedAt: now };
   }, [ready, location.pathname]);
 
+  // Для SPA отправляем хит в Метрику при каждом переходе между роутами.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ymFn = window.ym;
+    if (typeof ymFn !== 'function') return;
+    const path = `${location.pathname || '/'}${location.search || ''}${location.hash || ''}`;
+    try {
+      ymFn(108270736, 'hit', path, { referer: document.referrer });
+    } catch (_) {}
+  }, [location.pathname, location.search, location.hash]);
+
   useEffect(() => {
     if (!ready) return undefined;
     const sendDwellBeacon = () => {
