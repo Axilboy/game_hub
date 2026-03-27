@@ -142,8 +142,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [spyCount, setSpyCount] = useState(room?.gameSettings?.spyCount ?? 1);
   const [allSpiesChanceEnabled, setAllSpiesChanceEnabled] = useState(!!room?.gameSettings?.allSpiesChanceEnabled);
   const [dictionaryIds, setDictionaryIds] = useState(room?.gameSettings?.dictionaryIds ?? ['free']);
-  const [editingName, setEditingName] = useState(false);
-  const [editNameValue, setEditNameValue] = useState(room?.name || 'Лобби');
   const [shopOpen, setShopOpen] = useState(false);
   const [mafiaExtendedPopup, setMafiaExtendedPopup] = useState(false);
   const [mafiaClassicPopup, setMafiaClassicPopup] = useState(false);
@@ -173,7 +171,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
   const [, setOfflineTick] = useState(0);
   const offlineKickInProgressRef = useRef(new Set());
 
-  const roomName = room?.name || 'Лобби';
   const selectedGame = room?.selectedGame ?? null;
   const availableDictionaries = room?.availableDictionaries || ['free'];
   const roomHasPro = room?.players?.some((p) => p.hasPro) ?? false;
@@ -245,9 +242,6 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     setGameSettingsTab(gameSettingsTabs[0].id);
   }, [selectedGame, gameSettingsTabs]);
 
-  useEffect(() => {
-    setEditNameValue(roomName);
-  }, [roomName]);
   /** Синхронизация локального состояния шпиона только при изменении значений с сервера (не при каждом новом объекте gameSettings) */
   useEffect(() => {
     const gs = room?.gameSettings;
@@ -628,20 +622,9 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
     }
   };
 
-  const saveRoomName = async () => {
-    setEditingName(false);
-    const name = (editNameValue || '').trim() || 'Лобби';
-    if (name === roomName) return;
-    try {
-      await api.patch(`/rooms/${roomId}`, { hostId: String(user?.id), name });
-      const { room: r } = await api.get(`/rooms/${roomId}`);
-      onRoomUpdate(r);
-    } catch (_) {}
-  };
-
   const shareInvite = async () => {
     const result = await shareInviteSmart({
-      roomName,
+      roomName: null,
       miniAppLink,
       webLink,
       preferTelegram: true,
@@ -942,33 +925,11 @@ export default function Lobby({ room, roomId, user, onLeave, onRoomUpdate }) {
 
   return (
     <PageLayout
-      title={roomName}
+      title="Лобби"
       onBack={handleBack}
       right={<AppHeaderRight />}
     >
       <div className="lobby-shell">
-        <header className="lobby-room-head">
-          {editingName && isHost ? (
-            <input
-              type="text"
-              className="lobby-room-head__input"
-              value={editNameValue}
-              onChange={(e) => setEditNameValue(e.target.value)}
-              onBlur={saveRoomName}
-              onKeyDown={(e) => e.key === 'Enter' && saveRoomName()}
-              autoFocus
-            />
-          ) : (
-            <h2
-              className={`lobby-room-head__title${isHost ? ' lobby-room-head__title--editable' : ''}`}
-              onClick={() => isHost && setEditingName(true)}
-              title={isHost ? 'Нажмите, чтобы изменить название' : ''}
-            >
-              {roomName}
-            </h2>
-          )}
-        </header>
-
         <section className="lobby-invite" aria-label="Код и приглашение">
           <div className="lobby-invite__row">
             <button
