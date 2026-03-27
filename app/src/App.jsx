@@ -569,9 +569,8 @@ function AppRoutes() {
   }, [navigate, refreshRoom]);
 
   /**
-   * Игроки в лобби при старте игры хостом: реклама и переход в раунд.
-   * Хост не получает рекламу здесь — он сразу уходит в игру через navigate из Lobby после старта.
-   * Остаётся на /lobби только не-хост → для них показываем рекламу.
+   * Все на /lobby при переходе комнаты в playing: одна реклама и переход в раунд.
+   * Раньше хост смотрел рекламу в Lobby сразу после POST старта, остальные — здесь; из-за гонки с SDK у хоста реклама часто не показывалась.
    */
   useEffect(() => {
     if (!roomId || !room) return;
@@ -580,9 +579,6 @@ function AppRoutes() {
     const path = `/${game}`;
     if (location.pathname === path) return;
     if (location.pathname !== '/lobby') return;
-
-    const isHostUser = user?.id != null && String(room.hostId) === String(user.id);
-    if (isHostUser) return;
 
     let cancelled = false;
     const uid = user?.id != null ? String(user.id) : '';
